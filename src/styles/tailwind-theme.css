@@ -1,8 +1,13 @@
-@theme {
-  --color-primary: #1E3A5F;
-  --color-primary-dark: #234876;
-  --color-accent: #1E3A5F;
-  --color-success: #15803D;
-  --color-error: #DC2626;
-  --color-warning: #D97706;
+/* Bridge Astryx tokens → Tailwind v4 @theme inline (values resolve from CSS vars, not hard-coded) */
+@theme inline {
+  --color-primary: var(--color-accent);
+  --color-primary-dark: var(--color-accent);
+  --color-accent: var(--color-accent);
+  --color-success: var(--color-success);
+  --color-error: var(--color-error);
+  --color-warning: var(--color-warning);
+  --color-surface: var(--color-background-surface);
+  --color-body: var(--color-background-body);
+  --color-card: var(--color-background-card);
+  --color-muted: var(--color-background-muted);
 }

@@ -1,6 +1,10 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 @import "tailwindcss";
 @import "./styles/tailwind-theme.css";
-@layer reset, theme, base, astryx-base, astryx-theme, components, utilities;
+@import "@astryxdesign/core/reset.css" layer(reset);
+@import "@astryxdesign/core/astryx.css" layer(astryx-base);
+@import "./lib/academic-navy.css" layer(astryx-theme);
+@import "@astryxdesign/core/tailwind-theme.css" layer(theme);
+
 :root { --font-sans: Inter, -apple-system, BlinkMacSystemFont, sans-serif; --font-mono: JetBrains Mono, monospace; }
 * { font-family: var(--font-sans); }
