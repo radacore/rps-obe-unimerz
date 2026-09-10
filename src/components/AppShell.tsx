@@ -1,21 +1,35 @@
 import { Link, useRouterState } from "@tanstack/react-router";
+import { AppShell as AstryxAppShell } from "@astryxdesign/core/AppShell";
+import { TopNav } from "@astryxdesign/core/TopNav";
+import { TopNavItem } from "@astryxdesign/core/TopNav";
+import { TopNavHeading } from "@astryxdesign/core/TopNav";
+import { Text } from "@astryxdesign/core/Text";
+
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const nav: [string,string][] = [["/","Drafts"],["/settings","Settings"]];
   return (
-    <div className="min-h-screen bg-body">
-      <header className="sticky top-0 z-10 border-b border-[var(--color-border)] bg-accent text-on-accent">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
-          <Link to="/" className="font-semibold tracking-tight text-on-accent">RPS OBE Generator</Link>
-          <nav className="flex gap-1">
-            {nav.map(([to,label]) => (
-              <Link key={to} to={to} className={`rounded-full px-3 py-1 text-sm ${pathname===to ? "bg-surface text-primary" : "text-on-accent/90 hover:bg-overlay"}`}>{label}</Link>
-            ))}
-          </nav>
+    <AstryxAppShell
+      variant="elevated"
+      topNav={
+        <TopNav
+          heading={<TopNavHeading> <Link to="/" style={{ color: "inherit", textDecoration: "none", fontWeight: 600 }}>RPS OBE Generator</Link></TopNavHeading>}
+          endContent={
+            <>
+              <TopNavItem label="Drafts" href="/" isSelected={pathname === "/"} as={({ href, children: c, ...p }) => <Link to={href as "/"} {...p}>{c}</Link>} />
+              <TopNavItem label="Settings" href="/settings" isSelected={pathname === "/settings"} as={({ href, children: c, ...p }) => <Link to={href as "/settings"} {...p}>{c}</Link>} />
+            </>
+          }
+        />
+      }
+    >
+      <div className="mx-auto box-border w-full min-w-0 max-w-5xl px-4 py-6">
+        <div className="min-w-0 w-full max-w-full">{children}</div>
+        <div className="py-8 text-center">
+          <Text type="supporting" color="secondary">
+            Universitas Megarezky · Fakultas Keperawatan dan Kebidanan · S1 Keperawatan dan Profesi Ners · Academic Navy #1E3A5F
+          </Text>
         </div>
-      </header>
-      <main className="mx-auto max-w-5xl px-4 py-6">{children}</main>
-      <footer className="mx-auto max-w-5xl px-4 py-8 text-center text-xs text-secondary">Universitas Megarezky · Fakultas Keperawatan dan Kebidanan · S1 Keperawatan dan Profesi Ners · Academic Navy #1E3A5F — theme academic-navy (defineTheme extends neutralTheme)</footer>
-    </div>
+      </div>
+    </AstryxAppShell>
   );
 }

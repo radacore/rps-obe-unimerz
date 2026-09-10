@@ -4,6 +4,8 @@ import { Banner } from "./ui/Banner";
 import { Badge } from "./ui/Badge";
 import { ProgressBar } from "./ui/ProgressBar";
 import { Card } from "./ui/Card";
+import { Button } from "@astryxdesign/core/Button";
+import { Text } from "@astryxdesign/core/Text";
 
 export type WeeklyRow = {
   week: string;
@@ -130,7 +132,7 @@ export function WeeklyTable({ value, onChange, onSave }: { value?: WeeklyRow[]; 
         header: () => <div className="text-center leading-tight"><div className="font-semibold">(1)</div><div className="text-[11px]">Pertemuan<br />Ke-</div></div>,
         cell: (c) => (
           <input
-            className={`w-[72px] rounded border px-2 py-1 text-center text-xs font-mono ${c.row.original.is_merged ? "bg-amber-50 font-bold text-[#1E3A5F]" : "bg-white"}`}
+            className={`w-[72px] rounded border border-border px-2 py-1 text-center text-xs font-mono ${c.row.original.is_merged ? "bg-warning-muted font-bold text-accent" : "bg-surface"}`}
             value={c.getValue()}
             onChange={(e) => updateField(c.row.index, "week", e.target.value)}
           />
@@ -138,10 +140,10 @@ export function WeeklyTable({ value, onChange, onSave }: { value?: WeeklyRow[]; 
         size: 80,
       }),
       colHelper.accessor("sub_cpmk", {
-        header: () => <div className="text-center leading-tight"><div className="font-semibold">(2)</div><div className="text-[11px]">Sub-CPMK</div><div className="text-[10px] font-normal text-slate-500">(Kemampuan akhir)</div></div>,
+        header: () => <div className="text-center leading-tight"><div className="font-semibold">(2)</div><div className="text-[11px]">Sub-CPMK</div><div className="text-[10px] font-normal text-secondary">(Kemampuan akhir)</div></div>,
         cell: (c) =>
           c.row.original.is_merged ? (
-            <span className="text-xs text-slate-400">—</span>
+            <span className="text-xs text-disabled">—</span>
           ) : (
             <TextAreaCell value={(c.getValue() as string) ?? ""} onSave={(v) => updateField(c.row.index, "sub_cpmk", v)} minW={220} />
           ),
@@ -149,27 +151,27 @@ export function WeeklyTable({ value, onChange, onSave }: { value?: WeeklyRow[]; 
       }),
       colHelper.accessor("indikator", {
         header: () => <div className="text-center leading-tight"><div className="font-semibold">(3)</div><div className="text-[11px]">Indikator</div></div>,
-        cell: (c) => (c.row.original.is_merged ? <span className="text-xs text-slate-400">—</span> : <TextAreaCell value={(c.getValue() as string) ?? ""} onSave={(v) => updateField(c.row.index, "indikator", v)} minW={200} />),
+        cell: (c) => (c.row.original.is_merged ? <span className="text-xs text-disabled">—</span> : <TextAreaCell value={(c.getValue() as string) ?? ""} onSave={(v) => updateField(c.row.index, "indikator", v)} minW={200} />),
         size: 220,
       }),
       colHelper.accessor("kriteria", {
         header: () => <div className="text-center leading-tight"><div className="font-semibold">(4)</div><div className="text-[11px]">Kriteria &<br />Bentuk</div></div>,
-        cell: (c) => (c.row.original.is_merged ? <span className="text-xs text-slate-400">—</span> : <TextAreaCell value={(c.getValue() as string) ?? ""} onSave={(v) => updateField(c.row.index, "kriteria", v)} minW={200} />),
+        cell: (c) => (c.row.original.is_merged ? <span className="text-xs text-disabled">—</span> : <TextAreaCell value={(c.getValue() as string) ?? ""} onSave={(v) => updateField(c.row.index, "kriteria", v)} minW={200} />),
         size: 220,
       }),
       colHelper.accessor("daring", {
         header: () => <div className="text-center leading-tight"><div className="font-semibold">(5)</div><div className="text-[11px]">Daring<br />(online)</div></div>,
-        cell: (c) => (c.row.original.is_merged ? <span className="text-xs text-slate-400">—</span> : <TextAreaCell value={(c.getValue() as string) ?? ""} onSave={(v) => updateField(c.row.index, "daring", v)} minW={160} />),
+        cell: (c) => (c.row.original.is_merged ? <span className="text-xs text-disabled">—</span> : <TextAreaCell value={(c.getValue() as string) ?? ""} onSave={(v) => updateField(c.row.index, "daring", v)} minW={160} />),
         size: 170,
       }),
       colHelper.accessor("luring", {
-        header: () => <div className="text-center leading-tight"><div className="font-semibold">(6)</div><div className="text-[11px]">Luring<br />(offline)</div><div className="text-[10px] font-normal text-slate-500">[TM 1x...]</div></div>,
-        cell: (c) => (c.row.original.is_merged ? <span className="text-xs text-slate-400">—</span> : <TextAreaCell value={(c.getValue() as string) ?? ""} onSave={(v) => updateField(c.row.index, "luring", v)} minW={200} />),
+        header: () => <div className="text-center leading-tight"><div className="font-semibold">(6)</div><div className="text-[11px]">Luring<br />(offline)</div><div className="text-[10px] font-normal text-secondary">[TM 1x...]</div></div>,
+        cell: (c) => (c.row.original.is_merged ? <span className="text-xs text-disabled">—</span> : <TextAreaCell value={(c.getValue() as string) ?? ""} onSave={(v) => updateField(c.row.index, "luring", v)} minW={200} />),
         size: 220,
       }),
       colHelper.accessor("materi", {
-        header: () => <div className="text-center leading-tight"><div className="font-semibold">(7)</div><div className="text-[11px]">Materi<br />Pembelajaran</div><div className="text-[10px] font-normal text-slate-500">[Pustaka]</div></div>,
-        cell: (c) => (c.row.original.is_merged ? <span className="text-xs text-slate-400">—</span> : <TextAreaCell value={(c.getValue() as string) ?? ""} onSave={(v) => updateField(c.row.index, "materi", v)} minW={200} />),
+        header: () => <div className="text-center leading-tight"><div className="font-semibold">(7)</div><div className="text-[11px]">Materi<br />Pembelajaran</div><div className="text-[10px] font-normal text-secondary">[Pustaka]</div></div>,
+        cell: (c) => (c.row.original.is_merged ? <span className="text-xs text-disabled">—</span> : <TextAreaCell value={(c.getValue() as string) ?? ""} onSave={(v) => updateField(c.row.index, "materi", v)} minW={200} />),
         size: 220,
       }),
       colHelper.accessor("weight", {
@@ -184,11 +186,11 @@ export function WeeklyTable({ value, onChange, onSave }: { value?: WeeklyRow[]; 
   const table = useReactTable({ data: rows, columns: cols as never, getCoreRowModel: getCoreRowModel() });
 
   return (
-    <Card>
+    <Card className="min-w-0 max-w-full overflow-hidden">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <div className="text-sm font-medium text-slate-800">Rencana Pembelajaran Mingguan — 9 baris / 16 minggu (R35-R43)</div>
-          <div className="text-xs text-slate-500">1:1 template — 8 kolom (1) Minggu (2) Sub-CPMK (3) Indikator (4) Kriteria (5) Daring (6) Luring (7) Materi (8) Bobot. Week 8/16 merged lock.</div>
+        <div className="min-w-0 flex-1">
+          <Text weight="semibold">Rencana Pembelajaran Mingguan — 9 baris / 16 minggu (R35-R43)</Text>
+          <Text type="supporting">1:1 template — 8 kolom (1) Minggu (2) Sub-CPMK (3) Indikator (4) Kriteria (5) Daring (6) Luring (7) Materi (8) Bobot. Week 8/16 merged lock.</Text>
         </div>
         <Badge variant={ok ? "success" : "danger"}>{warn}</Badge>
       </div>
@@ -206,13 +208,14 @@ export function WeeklyTable({ value, onChange, onSave }: { value?: WeeklyRow[]; 
         </div>
       )}
 
-      {/* Scroll container — horizontal scroll, sticky first col */}
-      <div className="mt-3 overflow-auto rounded-lg border" style={{ maxHeight: "65vh" }}>
+      {/* Scroll container — horizontal scroll, sticky first col (clamped to card) */}
+      <div className="mt-3 max-w-full overflow-x-auto overflow-y-auto rounded-lg border border-border" style={{ maxHeight: "65vh" }}>
         <table className="w-full min-w-[1320px] border-collapse text-sm">
-          <thead className="sticky top-0 z-10 bg-slate-50 text-left text-xs text-slate-600">
+
+          <thead className="sticky top-0 z-10 bg-muted text-left text-xs text-secondary">
             <tr>
               {table.getHeaderGroups()[0].headers.map((h) => (
-                <th key={h.id} className="border-b border-slate-200 px-2 py-2 align-bottom font-medium" style={{ width: h.getSize() }}>
+                <th key={h.id} className="border-b border-border px-2 py-2 align-bottom font-medium" style={{ width: h.getSize() }}>
                   {h.isPlaceholder ? null : flexRender(h.column.columnDef.header, h.getContext())}
                 </th>
               ))}
@@ -221,21 +224,21 @@ export function WeeklyTable({ value, onChange, onSave }: { value?: WeeklyRow[]; 
           <tbody>
             {table.getRowModel().rows.map((row) =>
               row.original.is_merged ? (
-                <tr key={row.id} className="border-t bg-amber-50/60">
-                  <td className="sticky left-0 z-[1] border-r bg-amber-50/60 px-2 py-2 align-top">
-                    <input className="w-[72px] rounded border bg-white px-2 py-1 text-center text-xs font-mono font-bold text-[#1E3A5F]" value={row.original.week} onChange={(e) => updateField(row.index, "week", e.target.value)} />
+                <tr key={row.id} className="border-t border-border bg-warning-muted/60">
+                  <td className="sticky left-0 z-[1] border-r border-border bg-warning-muted/60 px-2 py-2 align-top">
+                    <input className="w-[72px] rounded border border-border bg-surface px-2 py-1 text-center text-xs font-mono font-bold text-accent" value={row.original.week} onChange={(e) => updateField(row.index, "week", e.target.value)} />
                   </td>
                   <td colSpan={7} className="px-3 py-3 text-center">
-                    <span className="text-sm font-bold tracking-wide text-[#1E3A5F]">{(row.original.materi || row.original.material || (row.original.week === "8" ? "UJIAN MID SEMESTER" : "UJIAN FINAL SEMESTER")).toString().toUpperCase()}</span>
+                    <span className="text-sm font-bold tracking-wide text-accent">{(row.original.materi || row.original.material || (row.original.week === "8" ? "UJIAN MID SEMESTER" : "UJIAN FINAL SEMESTER")).toString().toUpperCase()}</span>
                     <span className="ml-2">
                       <Badge variant="warning">MERGED — Bobot 0</Badge>
                     </span>
                   </td>
                 </tr>
               ) : (
-                <tr key={row.id} className="border-t hover:bg-slate-50/50">
+                <tr key={row.id} className="border-t border-border hover:bg-muted/50">
                   {row.getVisibleCells().map((cell) => (
-                    <td key={cell.id} className={`px-2 py-2 align-top ${cell.column.id === "week" ? "sticky left-0 z-[1] border-r bg-white" : ""}`}>
+                    <td key={cell.id} className={`px-2 py-2 align-top ${cell.column.id === "week" ? "sticky left-0 z-[1] border-r border-border bg-surface" : ""}`}>
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </td>
                   ))}
@@ -244,9 +247,9 @@ export function WeeklyTable({ value, onChange, onSave }: { value?: WeeklyRow[]; 
             )}
           </tbody>
           <tfoot>
-            <tr className="border-t bg-slate-50 font-medium">
-              <td className="sticky left-0 bg-slate-50 px-2 py-2">Σ non-merge</td>
-              <td colSpan={6} className="px-2 py-2 text-xs text-slate-500">
+            <tr className="border-t border-border bg-muted font-medium">
+              <td className="sticky left-0 bg-muted px-2 py-2">Σ non-merge</td>
+              <td colSpan={6} className="px-2 py-2 text-xs text-secondary">
                 8 kolom template — edit tiap tc verbatim; sinkron otomatis ke legacy field untuk kompatibilitas AI lama &amp; DOCX.
               </td>
               <td className="px-2 py-2 text-center">
@@ -258,24 +261,10 @@ export function WeeklyTable({ value, onChange, onSave }: { value?: WeeklyRow[]; 
       </div>
 
       <div className="mt-3 flex flex-wrap gap-2">
-        <button className="rounded-full border px-4 py-2 text-sm" onClick={() => emit(default9.map(normalizeRow))}>
-          Reset contoh 9 (8 kolom)
-        </button>
-        {onSave && (
-          <button
-            className="rounded-full bg-[#1E3A5F] px-5 py-2 text-sm font-medium text-white disabled:opacity-50"
-            disabled={!ok}
-            onClick={() => onSave(rows)}
-          >
-            {ok ? "Simpan 9 baris" : "Perbaiki bobot dulu"}
-          </button>
-        )}
+        <Button label="Reset contoh 9 (8 kolom)" variant="secondary" size="sm" onClick={() => emit(default9.map(normalizeRow))} />
+        {onSave && <Button label={ok ? "Simpan 9 baris" : "Perbaiki bobot dulu"} variant="primary" size="sm" isDisabled={!ok} tooltip={!ok ? "Σ non-merge harus 100" : undefined} onClick={() => onSave(rows)} />}
       </div>
-      <div className="mt-2 text-xs leading-relaxed text-slate-500">
-        Merge lock: baris 8 <code className="rounded bg-slate-100 px-1">is_merged true</code> week 8 UTS &amp; week 16 UAS — jangan pecah. Kolom (5) Daring hook{" "}
-        <code className="rounded bg-slate-100 px-1">Menyesuaikan perkembangan pandemic COVID-19</code> &amp; (6) Luring must include{" "}
-        <code className="rounded bg-slate-100 px-1">TM 1×(4×50&quot;)</code> / <code className="rounded bg-slate-100 px-1">BM+PT (1+1)×(2×60&quot;)</code>. Bobot Σ non-merge = 100.
-      </div>
+      <div className="mt-2"><Text type="supporting">Merge lock: baris 8 is_merged true week 8 UTS &amp; week 16 UAS — jangan pecah. Kolom (5) Daring hook Menyesuaikan perkembangan pandemic COVID-19 &amp; (6) Luring must include TM 1×(4×50") / BM+PT (1+1)×(2×60"). Bobot Σ non-merge = 100.</Text></div>
     </Card>
   );
 }
@@ -285,7 +274,7 @@ function TextAreaCell({ value, onSave, minW = 200 }: { value: string; onSave: (v
   useEffect(() => setV(value), [value]);
   return (
     <textarea
-      className="rounded border px-2 py-1 text-xs leading-relaxed focus:border-[#1E3A5F] focus:outline-none focus:ring-1 focus:ring-[#1E3A5F]"
+      className="rounded border border-border bg-surface px-2 py-1 text-xs leading-relaxed text-primary focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
       style={{ minWidth: minW, width: "100%", minHeight: 56 }}
       value={v}
       onChange={(e) => setV(e.target.value)}
@@ -295,6 +284,6 @@ function TextAreaCell({ value, onSave, minW = 200 }: { value: string; onSave: (v
   );
 }
 function WeightCell({ value, merged, onSave }: { value: number; merged: boolean; onSave: (v: number) => void }) {
-  if (merged) return <span className="text-center text-xs text-slate-400">0 (merge)</span>;
-  return <input type="number" className="w-[72px] rounded border px-2 py-1 text-center text-xs" value={value} onChange={(e) => onSave(Number(e.target.value))} min={0} max={100} />;
+  if (merged) return <Text type="supporting">0 (merge)</Text>;
+  return <input type="number" className="w-[72px] rounded border border-border bg-surface px-2 py-1 text-center text-xs text-primary" value={value} onChange={(e) => onSave(Number(e.target.value))} min={0} max={100} />;
 }

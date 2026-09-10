@@ -1,11 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { DraftList } from "@/components/DraftList";
 import { CreateRpsForm } from "@/components/CreateRpsForm";
+import { Heading } from "@astryxdesign/core/Heading";
+import { Text } from "@astryxdesign/core/Text";
 export const Route = createFileRoute("/")({ component: () => (
   <div className="grid gap-6">
     <div>
-      <h1 className="text-xl font-semibold text-slate-900">RPS OBE Generator — Simple (BYOK)</h1>
-      <p className="mt-1 text-sm text-slate-600">Tanpa login. 3 langkah: Identitas → Deskripsi → Generate AI 9 baris (16 minggu) → DOCX.</p>
+      <Heading level={1}>RPS OBE Generator — Simple (BYOK)</Heading>
+      <Text type="supporting">Tanpa login. 3 langkah: Identitas → Deskripsi → Generate AI 9 baris (16 minggu) → DOCX.</Text>
     </div>
     <DraftList />
     <CreateRpsForm />

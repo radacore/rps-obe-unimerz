@@ -7,6 +7,8 @@ import { Card } from "@/components/ui/Card";
 import { Banner } from "@/components/ui/Banner";
 import { Badge } from "@/components/ui/Badge";
 import { ProgressBar } from "@/components/ui/ProgressBar";
+import { Button } from "@astryxdesign/core/Button";
+import { Text } from "@astryxdesign/core/Text";
 import { useEffect, useMemo, useState } from "react";
 
 type Detail = {
@@ -109,39 +111,26 @@ function RpsDetail() {
     onError: (e: unknown) => setErr(e instanceof Error ? e.message : String(e)),
   });
 
-  if (q.isLoading) return <div className="text-sm text-slate-500">Memuat…</div>;
+  if (q.isLoading) return <div className="text-sm text-secondary">Memuat…</div>;
   if (!d) return <Banner status="error">Draft tidak ditemukan — kembali ke Drafts.</Banner>;
 
   const downloadLabel = `${safeFilename(d.course_code)}-${safeFilename(d.course_name)}-RPS.docx`;
   const downloadHref = `/api/rps/${id}/download`;
 
   return (
-    <div className="grid gap-4">
+    <div className="grid min-w-0 max-w-full gap-4">
       <Card>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <div className="font-semibold text-slate-900">
-              {d.course_name} <span className="font-mono text-xs text-slate-500">({d.course_code})</span>
-            </div>
-            <div className="text-xs text-slate-500">
-              SKS {d.sks_theory}/{d.sks_practice} total {d.sks_total} · Semester {d.semester} ·{" "}
-              {new Date(d.preparation_date).toLocaleDateString("id-ID")} · Rumpun {d.course_cluster ?? "—"}
-            </div>
-            <div className="mt-1 text-xs text-slate-600">Dosen: {d.lecturers.map((l) => `${l.name} (${l.role})`).join(" · ")}</div>
+            <Text weight="semibold">{d.course_name} <span className="font-mono text-xs text-secondary">({d.course_code})</span></Text>
+            <Text type="supporting">SKS {d.sks_theory}/{d.sks_practice} total {d.sks_total} · Semester {d.semester} · {new Date(d.preparation_date).toLocaleDateString("id-ID")} · Rumpun {d.course_cluster ?? "—"}</Text>
+            <Text type="supporting">Dosen: {d.lecturers.map((l) => `${l.name} (${l.role})`).join(" · ")}</Text>
           </div>
-          <span
-            className={`rounded-full border px-2.5 py-1 text-xs font-medium ${d.status === "generated" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "bg-slate-50 text-slate-600"}`}
-          >
-            {d.status}
-            {d.file_hash ? ` · ${d.file_hash.slice(0, 8)}` : ""}
-            {d.ai_provider ? ` · ${d.ai_provider}/${d.ai_model}` : ""}
-          </span>
+          <Badge variant={d.status === "generated" ? "success" : "default"}>{[d.status, d.file_hash?.slice(0, 8), d.ai_provider ? `${d.ai_provider}/${d.ai_model}` : null].filter(Boolean).join(" · ")}</Badge>
         </div>
         <div className="mt-3 flex items-center gap-2">
-          <span className="text-xs text-slate-500">Σ non-merge</span>
-          <span className="flex-1">
-            <ProgressBar value={localSum} max={100} />
-          </span>
+          <Text type="supporting">Σ non-merge</Text>
+          <span className="flex-1"><ProgressBar value={localSum} max={100} /></span>
           <Badge variant={localOk ? "success" : "danger"}>{localOk ? "100 ✓" : `${localSum} — harus 100`}</Badge>
         </div>
       </Card>
@@ -151,25 +140,23 @@ function RpsDetail() {
       {audit && (
         <Card>
           <div className="flex items-center justify-between">
-            <div className="text-sm font-medium text-slate-800">Audit Gate</div>
+            <Text weight="semibold">Audit Gate</Text>
             <Badge variant={audit.passed ? "success" : "danger"}>{audit.passed ? "passed ✓" : "blocked — perbaiki critical dulu"}</Badge>
           </div>
           {audit.issues.length === 0 ? (
-            <div className="mt-2 text-xs text-slate-500">Tidak ada issue — siap Generate DOCX.</div>
+            <Text type="supporting">Tidak ada issue — siap Generate DOCX.</Text>
           ) : (
             <ul className="mt-2 grid gap-1">
               {audit.issues.map((it, i) => (
-                <li
-                  key={i}
-                  className={`rounded-lg border px-3 py-2 text-xs ${it.severity === "critical" ? "border-red-200 bg-red-50 text-red-900" : "border-amber-200 bg-amber-50 text-amber-900"}`}
-                >
-                  <span className="font-mono text-[11px]">[{it.severity}] {it.code}</span> — {it.message}
-                  {it.field && <span className="ml-1 text-slate-500">· {it.field}</span>}
+                <li key={i}>
+                  <Banner status={it.severity === "critical" ? "error" : "warning"} title={`[${it.severity}] ${it.code}`}>
+                    {it.message}{it.field ? ` · ${it.field}` : ""}
+                  </Banner>
                 </li>
               ))}
             </ul>
           )}
-          {!audit.passed && <div className="mt-2 text-xs text-red-600">Critical memblokir Generate DOCX — perbaiki Σ100 / week 8 & 16 merge dulu.</div>}
+          {!audit.passed && <div className="text-xs text-error">Critical memblokir Generate DOCX — perbaiki Σ100 / week 8 &amp; 16 merge dulu.</div>}
         </Card>
       )}
 
@@ -179,41 +166,19 @@ function RpsDetail() {
       {err && <Banner status="error">{err}</Banner>}
 
       <Card>
-        <div className="text-sm font-medium text-slate-800">Generate & Download</div>
-        <div className="mt-1 text-xs text-slate-500">
-          Alur demo: <span className="font-medium">Audit → Generate DOCX → Download</span> · file disimpan `storage/files/{`{id}`}/{`{hash}`}.docx` · fallback JS bila Python mati.
-        </div>
+        <Text weight="semibold">Generate &amp; Download</Text>
+        <Text type="supporting">Alur demo: Audit → Generate DOCX → Download · file disimpan storage/files/{`{id}`}/{`{hash}`}.docx · fallback JS bila Python mati.</Text>
         <div className="mt-3 flex flex-wrap gap-2">
-          <button
-            className="rounded-full border px-4 py-2 text-sm hover:bg-slate-50 disabled:opacity-40"
-            onClick={() => auditMut.mutate()}
-            disabled={auditMut.isPending}
-          >
-            {auditMut.isPending ? "Audit…" : auditQ.isFetching ? "Audit (refresh)…" : "Audit"}
-          </button>
-          <button
-            className="rounded-full bg-[#1E3A5F] px-5 py-2 text-sm font-medium text-white hover:bg-[#16304f] disabled:opacity-40"
-            onClick={() => gen.mutate()}
-            disabled={gen.isPending || hasCritical}
-            title={hasCritical ? (audit?.issues.filter((i) => i.severity === "critical").map((i) => i.message).join("; ") ?? "Audit critical") : "Generate DOCX via Python (fallback JS)"}
-          >
-            {gen.isPending ? "Generate DOCX…" : "Generate DOCX"}
-          </button>
+          <Button label={auditMut.isPending ? "Audit…" : auditQ.isFetching ? "Audit (refresh)…" : "Audit"} variant="secondary" isLoading={auditMut.isPending} onClick={() => auditMut.mutate()} />
+          <Button label={gen.isPending ? "Generate DOCX…" : "Generate DOCX"} variant="primary" isLoading={gen.isPending} isDisabled={hasCritical} tooltip={hasCritical ? (audit?.issues.filter((i) => i.severity === "critical").map((i) => i.message).join("; ") ?? "Audit critical") : "Generate DOCX via Python (fallback JS)"} onClick={() => gen.mutate()} />
           {d.file_hash ? (
-            <a
-              className="rounded-full border border-[#1E3A5F] bg-white px-5 py-2 text-sm font-medium text-[#1E3A5F] hover:bg-[#1E3A5F]/5"
-              href={downloadHref}
-              download={downloadLabel}
-              title={downloadLabel}
-            >
-              Download DOCX
-            </a>
+            <Button label="Download DOCX" variant="secondary" href={downloadHref} />
           ) : (
-            <span className="rounded-full border border-dashed px-5 py-2 text-sm text-slate-400">Belum ada file — Generate dulu</span>
+            <Text type="supporting">Belum ada file — Generate dulu</Text>
           )}
         </div>
-        {hasCritical && <div className="mt-2 text-xs text-red-600">Tombol Generate DOCX dikunci — critical audit harus 0. Perbaiki Σ atau merge UTS/UAS.</div>}
-        <div className="mt-2 text-xs text-slate-400">Filename download: {downloadLabel} · hash {d.file_hash?.slice(0, 12) ?? "—"}</div>
+        {hasCritical && <div className="text-xs text-error">Tombol Generate DOCX dikunci — critical audit harus 0. Perbaiki Σ atau merge UTS/UAS.</div>}
+        <Text type="supporting">Filename download: {downloadLabel} · hash {d.file_hash?.slice(0, 12) ?? "—"}</Text>
       </Card>
     </div>
   );

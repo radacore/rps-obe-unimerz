@@ -25,9 +25,9 @@ app.put("/api/settings/api-keys", async (c) => {
   const { provider, apiKey } = body as { provider?: string; apiKey?: string };
   if (!provider || !apiKey) return c.json({ success: false, error: "validation_error", message: "provider & apiKey required" }, 422);
   if (!["openai", "gemini", "claude"].includes(provider)) return c.json({ success: false, message: "provider invalid" }, 422);
-  // format check
+  // format check — gemini longgarkan: terima AIza... maupun AQ.../Vertex & key panjang >=20 (tidak hard-require AIza)
   if (provider === "openai" && !/^sk-/.test(apiKey)) return c.json({ success: false, message: "Format key OpenAI harus sk-..." }, 422);
-  if (provider === "gemini" && !/^AIza/.test(apiKey)) return c.json({ success: false, message: "Format key Gemini harus AIza..." }, 422);
+  if (provider === "gemini" && apiKey.trim().length < 20) return c.json({ success: false, message: "API key Gemini terlalu pendek (min 20 char)" }, 422);
   if (provider === "claude" && !/^sk-ant-/.test(apiKey)) return c.json({ success: false, message: "Format key Claude harus sk-ant-..." }, 422);
   const encrypted = encrypt(apiKey);
   const hint = keyHint(apiKey);
