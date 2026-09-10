@@ -1,0 +1,13 @@
+node_modules/
+dist/
+.tanstack/
+.env
+prisma/dev.db
+prisma/dev.db-journal
+storage/files/
+*.log
+.DS_Store
+__pycache__/
+.venv/
+venv/
+*.pyc

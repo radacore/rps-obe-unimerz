@@ -1,0 +1,51 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model ApiKey {
+  id           Int      @id @default(autoincrement())
+  provider     String   @unique // openai|gemini|claude
+  encryptedKey String   @map("encrypted_key")
+  keyHint      String?  @map("key_hint")
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("api_key")
+}
+
+model RpsDraft {
+  id              Int      @id @default(autoincrement())
+  courseName      String   @map("course_name")
+  courseCode      String   @map("course_code")
+  courseCluster   String?  @map("course_cluster")
+  sksTotal        Int      @map("sks_total")
+  sksTheory       Int      @map("sks_theory")
+  sksPractice     Int      @map("sks_practice")
+  semester        String
+  preparationDate DateTime @map("preparation_date")
+  lecturers       String   @default("[]") // JSON string
+  cpl             String   @default("[]")
+  cpmk            String   @default("[]")
+  subCpmk         String   @default("[]") @map("sub_cpmk")
+  weeklyPlans     String   @default("[]") @map("weekly_plans")
+  rtmTasks        String?  @map("rtm_tasks")
+  rubrics         String?  // {observation:[], assessment:[]}
+  mediaMethods    String   @default("[]") @map("media_methods")
+  aiProvider      String?  @map("ai_provider")
+  aiModel         String?  @map("ai_model")
+  status          String   @default("draft") // draft|generated
+  fileHash        String?  @map("file_hash")
+  storagePath     String?  @map("storage_path")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@index([courseCode])
+  @@index([updatedAt])
+  @@map("rps_draft")
+}

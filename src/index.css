@@ -1,0 +1,6 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+@import "tailwindcss";
+@import "./styles/tailwind-theme.css";
+@layer reset, theme, base, astryx-base, astryx-theme, components, utilities;
+:root { --font-sans: Inter, -apple-system, BlinkMacSystemFont, sans-serif; --font-mono: JetBrains Mono, monospace; }
+* { font-family: var(--font-sans); }
