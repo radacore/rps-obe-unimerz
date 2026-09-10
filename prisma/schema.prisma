@@ -19,17 +19,65 @@ model ApiKey {
   @@map("api_key")
 }
 
+model UniversityProfile {
+  id              Int      @id @default(autoincrement())
+  vision          String?  // "Menjadi Universitas Unggul..."
+  mission         String   @default("[]") // JSON string array
+  tujuan          String   @default("[]") // JSON array
+  sasaran         String?  // optional
+  sejarah         String?  // ringkas
+  sourceUrl       String?  @map("source_url")
+  sourceTimestamp String?  @map("source_timestamp")
+  verifiedAt      DateTime? @map("verified_at")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@map("university_profile")
+}
+
+model StudyProgram {
+  id              Int      @id @default(autoincrement())
+  slug            String   @unique // s1-keperawatan, d3-farmasi
+  facultyLabel    String   @map("faculty_label")
+  facultySlug     String   @map("faculty_slug")
+  label           String   // S1 Ilmu Keperawatan
+  value           String   @unique // same as label, digunakan di RpsDraft.studyProgram
+  akreditasi      String?
+  href            String?
+  vision          String?  // text
+  mission         String   @default("[]") // JSON array string
+  objective       String   @default("[]") // JSON array / tujuan
+  graduateProfile String   @default("[]") // JSON array — profil lulusan
+  curriculum      String?  // JSON string summary / null
+  sourceUrl       String?  @map("source_url")
+  sourceTimestamp String?  @map("source_timestamp")
+  completeness    String   @default("partial") // verified|partial|missing|lorem
+  cpl             String   @default("[]") // JSON array formal SN-Dikti CPL (belum ada di web)
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@index([facultySlug])
+  @@index([facultyLabel])
+  @@map("study_program")
+}
+
 model RpsDraft {
   id              Int      @id @default(autoincrement())
   courseName      String   @map("course_name")
   courseCode      String   @map("course_code")
   courseCluster   String?  @map("course_cluster")
+  faculty         String?  @map("faculty")
+  studyProgram    String?  @map("study_program")
   sksTotal        Int      @map("sks_total")
   sksTheory       Int      @map("sks_theory")
   sksPractice     Int      @map("sks_practice")
   semester        String
   preparationDate DateTime @map("preparation_date")
   lecturers       String   @default("[]") // JSON string
+  description     String?  // Deskripsi MK 3-5 baris — bahan kajian singkat (R23, prompt AI)
+  bahanKajian     String?  @map("bahan_kajian") // JSON array string — R24
+  pustakaUtama    String?  @map("pustaka_utama") // JSON array string — R26
+  pustakaPendukung String? @map("pustaka_pendukung") // JSON array string — R28
   cpl             String   @default("[]")
   cpmk            String   @default("[]")
   subCpmk         String   @default("[]") @map("sub_cpmk")

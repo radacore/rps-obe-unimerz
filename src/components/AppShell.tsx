@@ -7,6 +7,7 @@ import { Text } from "@astryxdesign/core/Text";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const isRpsDetail = pathname.startsWith("/rps/");
   return (
     <AstryxAppShell
       variant="elevated"
@@ -22,11 +23,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         />
       }
     >
-      <div className="mx-auto box-border w-full min-w-0 max-w-5xl px-4 py-6">
+      <div className={isRpsDetail ? "box-border w-full min-w-0 px-3 py-4 xl:px-4" : "mx-auto box-border w-full min-w-0 max-w-5xl px-4 py-6"}>
         <div className="min-w-0 w-full max-w-full">{children}</div>
         <div className="py-8 text-center">
           <Text type="supporting" color="secondary">
-            Universitas Megarezky · Fakultas Keperawatan dan Kebidanan · S1 Keperawatan dan Profesi Ners · Academic Navy #1E3A5F
+            Universitas Megarezky · 8 Fakultas + Pascasarjana · 30 Prodi (S1/S2/D3/D4/Profesi) · Kop surat dinamis per Fakultas/Prodi · Academic Navy #1E3A5F
           </Text>
         </div>
       </div>

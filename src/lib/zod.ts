@@ -10,6 +10,8 @@ export const rpsCreateSchema = z.object({
   course_name: z.string().min(2),
   course_code: z.string().min(2),
   course_cluster: z.string().optional(),
+  faculty: z.string().optional(),
+  study_program: z.string().optional(),
   sks_total: z.number().int().min(1).max(12),
   sks_theory: z.number().int().min(0).max(12),
   sks_practice: z.number().int().min(0).max(12),

@@ -1,0 +1,1738 @@
+{
+  "university": {
+    "vision": "Menjadi Universitas Unggul Dalam Bidang Teknologi di Tingkat Nasional pada Tahun 2034",
+    "mission": [
+      "Menyelenggarakan Pendidikan yang menghasilkan sumber daya manusia yang mampu berdaya saing sesuai kebutuhan pembangunan khususnya di bidang ilmu kesehatan, pendidikan dan teknologi.",
+      "Menyelenggarakan penelitian di bidang kesehatan, pendidikan dan teknologi sains.",
+      "Menyelenggarakan pengabdian masyarakat yang mewujudkan hidup sehat, kualitas pendidikan, dan di bidang pengembangan teknologi.",
+      "Menyelenggarakan kerja sama di bidang kesehatan, pendidikan dan teknologi sains di bidang pengembangan teknologi dalam dan luar negeri."
+    ],
+    "tujuan": [
+      "Menghasilkan SDM yang berdaya saing tinggi, berkualitas, menjunjung tinggi nilai-nilai kemanusiaan dan penguasaan ilmu pengetahuan dan teknologi.",
+      "Menghasilkan penelitian kesehatan, pendidikan dan teknologi yang inovatif, kreatif dan menjadi rujukan dalam ilmu pengetahuan dan teknologi.",
+      "Menghasilkan karya pengabdian kepada masyarakat melalui penerapan ilmu pengetahuan dan teknologi.",
+      "Tercapainya pengembangan kerjasama di bidang kesehatan, pendidikan dan teknologi sains baik dalam dan luar negeri."
+    ],
+    "sejarah": "Universitas Megarezky didirikan 2005 sebagai STIKES Mega Rezky (SK Mendiknas 166/D/O/2005 — Keperawatan S1 & Kebidanan D3), 2014 STIKIP Mega Rezky (SK Mendikbud 147/E/O/2014 — Penjas, PGSD, Bahasa Inggris, Sosiologi), 2018 penggabungan menjadi Universitas Megarezky (SK Kemenristekdikti 1194/KPT/I/2018, YPI Mega Rezky Akta 03/2004 & 02/2010).",
+    "sourceUrl": "https://unimerz.ac.id/sejarah-dan-visi-misi/",
+    "sourceTimestamp": "20250116061706",
+    "isSynthetic": false
+  },
+  "programs": [
+    {
+      "slug": "s1-kedokteran",
+      "facultyLabel": "Fakultas Kedokteran",
+      "facultySlug": "kedokteran",
+      "label": "S1 Kedokteran",
+      "value": "S1 Kedokteran",
+      "akreditasi": null,
+      "href": "https://unimerz.ac.id/kedokteran/",
+      "vision": "Menjadi Program Studi Kedokteran Unggul dalam Pendidikan Dokter Berbasis Teknologi Kedokteran di Tingkat Nasional pada Tahun 2034",
+      "mission": [
+        "Menyelenggarakan pendidikan dokter bermutu berbasis kompetensi dan teknologi kedokteran untuk menghasilkan lulusan kompeten dan beretika",
+        "Melaksanakan penelitian kedokteran yang inovatif di bidang kesehatan berbasis teknologi untuk pengembangan ilmu kedokteran",
+        "Melaksanakan pengabdian kepada masyarakat di bidang pelayanan kesehatan promotif, preventif, kuratif dan rehabilitatif berbasis teknologi",
+        "Menjalin kerjasama nasional dan internasional dengan rumah sakit pendidikan, institusi kesehatan dan stakeholder untuk penguatan Tri Dharma",
+        "Menyelenggarakan tata kelola program studi berbasis Sistem Penjaminan Mutu Internal (SPMI)"
+      ],
+      "objective": [
+        "Menghasilkan dokter yang kompeten, profesional, beretika dan berdaya saing nasional sesuai Standar Kompetensi Dokter Indonesia",
+        "Menghasilkan karya penelitian kedokteran yang inovatif dan publikasi ilmiah bereputasi",
+        "Menghasilkan karya pengabdian masyarakat yang meningkatkan derajat kesehatan masyarakat",
+        "Terwujudnya jejaring kerjasama rumah sakit pendidikan dan institusi kesehatan nasional/internasional",
+        "Terwujudnya budaya mutu SPMI dalam tata kelola program studi"
+      ],
+      "graduateProfile": [
+        "Care Provider — Dokter layanan primer yang mampu melakukan diagnosis, tatalaksana awal dan rujukan sesuai kompetensi dokter layanan primer",
+        "Communicator & Collaborator — Mampu berkomunikasi efektif dan berkolaborasi interprofesional dalam tim kesehatan",
+        "Health Manager & Leader — Mampu mengelola pelayanan kesehatan tingkat primer dengan pendekatan keluarga dan komunitas",
+        "Educator & Health Promoter — Mampu melakukan edukasi dan promosi kesehatan berbasis bukti untuk pencegahan penyakit",
+        "Researcher — Mampu menerapkan pendekatan ilmiah dan evidence-based medicine dalam penyelesaian masalah kesehatan"
+      ],
+      "sourceUrl": "https://unimerz.ac.id/kedokteran/",
+      "sourceTimestamp": "20250910-synthetic-SN-Dikti",
+      "completeness": "synthetic-verified",
+      "cpl": [
+        {
+          "code": "CPL1",
+          "description": "Mampu menjalankan praktik kedokteran sesuai kode etik, medikolegal, dan prinsip keselamatan pasien dengan berpikir kritis, ilmiah dan bertanggung jawab"
+        },
+        {
+          "code": "CPL2",
+          "description": "Mampu melakukan asuhan medis layanan primer secara komprehensif, holistik dan berkesinambungan berdasarkan bukti ilmiah terkini"
+        },
+        {
+          "code": "CPL3",
+          "description": "Mampu melakukan komunikasi, edukasi dan kolaborasi interprofesional yang efektif dalam tim kesehatan"
+        },
+        {
+          "code": "CPL4",
+          "description": "Mampu mengelola pelayanan kesehatan primer dan melakukan promosi kesehatan berbasis teknologi dan kearifan lokal"
+        }
+      ],
+      "isSynthetic": true
+    },
+    {
+      "slug": "profesi-dokter",
+      "facultyLabel": "Fakultas Kedokteran",
+      "facultySlug": "kedokteran",
+      "label": "Profesi Dokter",
+      "value": "Profesi Dokter",
+      "akreditasi": null,
+      "href": "https://unimerz.ac.id/kedokteran/",
+      "vision": "Menjadi Program Studi Profesi Dokter Unggul dalam Pendidikan Profesi Kedokteran Berbasis Teknologi di Tingkat Nasional pada Tahun 2034",
+      "mission": [
+        "Menyelenggarakan pendidikan profesi dokter bermutu berbasis kompetensi dan patient safety untuk menghasilkan dokter profesional",
+        "Melaksanakan penelitian klinik dan pengabdian masyarakat di bidang pelayanan kedokteran berbasis teknologi",
+        "Menjalin kemitraan dengan rumah sakit pendidikan dan wahana klinik untuk penguatan pendidikan profesi",
+        "Menyelenggarakan tata kelola profesi berbasis SPMI dan standar pendidikan profesi dokter"
+      ],
+      "objective": [
+        "Menghasilkan dokter lulusan profesi yang kompeten, profesional dan lulus uji kompetensi nasional",
+        "Menghasilkan penelitian klinik yang mendukung pengembangan praktik kedokteran berbasis bukti",
+        "Terwujudnya wahana klinik yang bermutu sebagai tempat pendidikan profesi",
+        "Terwujudnya tata kelola profesi berbasis mutu berkelanjutan"
+      ],
+      "graduateProfile": [
+        "Dokter Layanan Primer (First Contact Care) di fasilitas kesehatan tingkat pertama dan rujukan",
+        "Clinical Decision Maker — pengambil keputusan klinik berbasis bukti pada kasus kegawatdaruratan dan non-gawat darurat",
+        "Communicator & Collaborator interprofesional dalam pelayanan kesehatan",
+        "Manager pelayanan kesehatan primer dan promotor kesehatan masyarakat"
+      ],
+      "sourceUrl": "https://unimerz.ac.id/kedokteran/",
+      "sourceTimestamp": "20250910-synthetic-SN-Dikti",
+      "completeness": "synthetic-verified",
+      "cpl": [
+        {
+          "code": "CPL1",
+          "description": "Mampu melakukan praktik kedokteran profesi sesuai standar kompetensi dokter Indonesia, etika dan keselamatan pasien"
+        },
+        {
+          "code": "CPL2",
+          "description": "Mampu melakukan penegakan diagnosis, tatalaksana dan rujukan kegawatdaruratan medis secara tepat"
+        },
+        {
+          "code": "CPL3",
+          "description": "Mampu berkomunikasi efektif, berkolaborasi interprofesional dan melakukan edukasi pasien/keluarga"
+        }
+      ],
+      "isSynthetic": true
+    },
+    {
+      "slug": "s1-sains-biomedis",
+      "facultyLabel": "Fakultas Kedokteran",
+      "facultySlug": "kedokteran",
+      "label": "S1 Sains Biomedis",
+      "value": "S1 Sains Biomedis",
+      "akreditasi": null,
+      "href": "https://unimerz.ac.id/kedokteran/",
+      "vision": "To become a superior and innovative biomedical science study program in the field of medical biotechnology that is able to compete at the national level by 2034",
+      "mission": [
+        "Organizing Bachelor of Biomedical Science education which produces graduates who are skilled, professional, superior and moral in the field of medical biotechnology",
+        "Carrying out research in the field of biomedical science that produces medical biotechnology innovations to improve human health",
+        "Organizing science and technology-based community service in the field of biomedical science",
+        "Establishing sustainable cooperative relationships by applying the principles of equality and partnership in the field of biomedical science",
+        "Implementing a SPMI-based study program governance system"
+      ],
+      "objective": [
+        "Producing graduates who are skilled, professional, superior and moral in the field of medical biotechnology",
+        "Producing research work in the field of biomedical science that produces medical biotechnology innovations to improve human health",
+        "Producing community service work based on science and technology in the field of biomedical science",
+        "Building sustainable collaborative relationships by applying the principles of equality and partnership in the field of biomedical science",
+        "Produce a SPMI-based study program governance system"
+      ],
+      "graduateProfile": [
+        "Biomedical Expert, Researcher/research assistant, Laboratory assistant, Marketing officer for Medical Sector, and Bioentrepreneur"
+      ],
+      "sourceUrl": "https://unimerz.ac.id/en/fatelkes/s1-biomedis/",
+      "sourceTimestamp": "20260614170946",
+      "completeness": "verified",
+      "isSynthetic": false,
+      "cpl": [
+        {
+          "code": "CPL1",
+          "description": "Bertakwa, beretika biomedis dan menjunjung integritas ilmiah dalam riset kesehatan"
+        },
+        {
+          "code": "CPL2",
+          "description": "Mampu menerapkan konsep biomedis dan teknik laboratorium untuk analisis sampel biologis"
+        },
+        {
+          "code": "CPL3",
+          "description": "Mampu mengelola riset biomedis, menganalisis data dan mengkomunikasikan hasil berbasis TTG"
+        }
+      ]
+    },
+    {
+      "slug": "s1-administrasi-rumah-sakit",
+      "facultyLabel": "Fakultas Kedokteran",
+      "facultySlug": "kedokteran",
+      "label": "S1 Administrasi Rumah Sakit",
+      "value": "S1 Administrasi Rumah Sakit",
+      "akreditasi": null,
+      "href": "https://unimerz.ac.id/kedokteran/",
+      "vision": "Become a Superior Study Program in the field of Hospital Administration Information Technology at the National Level in 2034",
+      "mission": [
+        "Organizing leading academic education based on technology-based Hospital Administration competency standards",
+        "Carrying out research and scientific publications that support technology development in the field of Hospital Administration",
+        "Organizing community service by integrating technology in the field of Hospital Administration",
+        "Striving for collaboration with health service providers to support Hospital Administration knowledge"
+      ],
+      "objective": [
+        "Producing leading academic study programs based on technology-based Hospital Administration competency standards",
+        "Produce research work and scientific publications that support technology development in the field of Hospital Administration",
+        "Producing community service work by integrating technology in the field of Hospital Administration",
+        "Creating collaboration with health service providers to support Hospital Administration knowledge"
+      ],
+      "graduateProfile": [
+        "Leader The field of medical services, especially inpatient care Education and Training Field Program Planning Sector R&D Sector General Field Personnel Field Marketing Field Supplies and General Logistics Sector Administration Organizing hospital administration activities from planning to monitoring and evaluation of hospital activities",
+        "Communicator Providing direction and guidance to hospitals and clients in resolving hospital and partnership problems",
+        "Educator Educator of hospital materials such as education and training in hospitals or as a teaching staff in educational institutions",
+        "Researcher Hospital problem reviewer to develop science and technology that can be used to solve hospital problems in Indonesia and internationally",
+        "Innovator Innovation makers in hospital problem solving strategies, such as health promotion teams, hospital marketing teams, hospital quality teams"
+      ],
+      "sourceUrl": "https://unimerz.ac.id/en/fatelkes/s1-ars/",
+      "sourceTimestamp": "20260614163908",
+      "completeness": "verified",
+      "isSynthetic": false,
+      "cpl": [
+        {
+          "code": "CPL1",
+          "description": "Bertakwa, beretika administrasi kesehatan dan menjunjung tata kelola rumah sakit yang akuntabel"
+        },
+        {
+          "code": "CPL2",
+          "description": "Mampu merencanakan, mengelola dan mengevaluasi layanan administrasi rumah sakit"
+        },
+        {
+          "code": "CPL3",
+          "description": "Mampu memanfaatkan sistem informasi kesehatan dan berkolaborasi manajerial"
+        }
+      ]
+    },
+    {
+      "slug": "s1-ilmu-keperawatan",
+      "facultyLabel": "Fakultas Keperawatan dan Kebidanan",
+      "facultySlug": "fkk",
+      "label": "S1 Ilmu Keperawatan",
+      "value": "S1 Ilmu Keperawatan",
+      "akreditasi": "Baik Sekali",
+      "href": "https://unimerz.ac.id/fkk/",
+      "vision": "Menjadi Program Studi yang menghasilkan Lulusan yang unggul di bidang keperawatan komunitas berbasis teknologi di tingkat nasional apda tahun 2034",
+      "mission": [
+        "Melaksanakan Sistem Pendidikan dan Pengajaran Profesi Ners yang unggul di bidang keperawatan komunitas (home care ) berbasis Teknologi",
+        "Melaksanakan Penelitian Keperawatan di bidang keperawatan komunitas untuk pengembangan ilmu pengetahuan dan teknologi Keperawatan",
+        "Melaksanakan pengabdian Masyarakat di bidang keperawatan komunitas dalam rangka peningkatan derajat kesehatan masyarakat",
+        "Melaksanakan kerjasama dengan berbagai pihak terkait untuk meningkatkan Mutu penyelenggaraan Program studi",
+        "Menyelenggarakan tata kelola dan tata pamong program studi berbasis SPMI"
+      ],
+      "objective": [
+        "Melaksanakan Sistem Pendidikan dan Pengajaran Profesi Ners yang unggul di bidang keperawatan komunitas (home care ) berbasis Teknologi",
+        "Melaksanakan Penelitian Keperawatan di bidang keperawatan komunitas untuk pengembangan ilmu pengetahuan dan teknologi Keperawatan",
+        "Melaksanakan pengabdian Masyarakat di bidang keperawatan komunitas dalam rangka peningkatan derajat kesehatan masyarakat",
+        "Melaksanakan kerjasama dengan berbagai pihak terkait untuk meningkatkan Mutu penyelenggaraan Program studi",
+        "Menyelenggarakan tata kelola dan tata pamong program studi berbasis SPMI"
+      ],
+      "graduateProfile": [
+        "Care Provider Merencanakan dan memberikan asuhan keperawatan pada individu keluarga kelompok dan masyarakat dalam rentang sehat sakit di tatanan Klinik, Keluarga, dan komunitas untuk memenuhi kebutuhan dasar manusia secara komprehensif dan berbasis bukti.",
+        "Communicator Mendemonstrasikan komunikasi efektif pada sistem klien dan kolaborasi tim kesehatan.",
+        "Health Educator and Promotor Melakukan edukasi dan promosi pada sistem klien untuk mencapai kemandirian dalam merawat dirinya.",
+        "Manager and Leader Menganalisis pengorganisasian asuhan keperawatan dan berkoordinasi dengan tim kesehatan dengan menunjukkan sikap kepemimpinan untuk mencapai tujuan perawatan klien.",
+        "Researcher Menerapkan langkah-langkah pendekatan ilmiah dalam menyelesaikan masalah keperawatan.."
+      ],
+      "sourceUrl": "https://unimerz.ac.id/fkk/s1-keperawatan/",
+      "sourceTimestamp": "20241203164439",
+      "completeness": "verified",
+      "isSynthetic": false,
+      "cpl": [
+        {
+          "code": "CPL1",
+          "description": "Bertakwa, beretika keperawatan dan menjalankan asuhan keperawatan sesuai kode etik dan patient safety"
+        },
+        {
+          "code": "CPL2",
+          "description": "Mampu memberikan asuhan keperawatan komprehensif berbasis evidence pada berbagai tatanan"
+        },
+        {
+          "code": "CPL3",
+          "description": "Mampu berkomunikasi terapeutik, berkolaborasi interprofesional dan memanfaatkan TTG keperawatan"
+        },
+        {
+          "code": "CPL4",
+          "description": "Mampu mengelola dan mengevaluasi pelayanan keperawatan serta mengembangkan praktik berbasis riset"
+        }
+      ]
+    },
+    {
+      "slug": "profesi-ners",
+      "facultyLabel": "Fakultas Keperawatan dan Kebidanan",
+      "facultySlug": "fkk",
+      "label": "Profesi Ners",
+      "value": "Profesi Ners",
+      "akreditasi": "Baik",
+      "href": "https://unimerz.ac.id/fkk/",
+      "vision": "Become a Study Program that produces superior graduates in the field of technology-based community nursing at the national level by 2034",
+      "mission": [
+        "Implementing a superior professional education and teaching system for nurses in the field of community nursing (home care ) Technology based Carrying out Nursing Research in the field of community nursing for the development of Nursing science and technology Carrying out community service in the field of community nursing in order to improve the level of public health Carrying out collaboration with various related parties to improve the quality of the implementation of the study program"
+      ],
+      "objective": [
+        "Organizing the teaching and learning process using a curriculum that has advantages in the field of technology-based community nursing (home care)",
+        "Producing quality research in the field of technology-based community nursing science Producing community service in the field of community nursing in order to improve the level of public health Increasing cooperation with various related parties in implementing the tri dharma of higher education to improve the quality of implementation of study programs"
+      ],
+      "graduateProfile": [
+        "Care Providers Plan and provide nursing care to individuals, families, groups and communities in the healthy range of illness in clinical, family and community settings to meet basic human needs in a comprehensive and evidence-based manner",
+        "Communicator Demonstrates effective communication across client systems and healthcare team collaboration",
+        "Health Educator and Promoter Carry out education and promotion on client systems to achieve independence in caring for themselves",
+        "Manager and Leader Analyzes the organization of nursing care and coordinates with the healthcare team by demonstrating leadership to achieve client care goals",
+        "Researcher Apply the steps of a scientific approach in solving nursing problems"
+      ],
+      "sourceUrl": "https://unimerz.ac.id/en/fkk/profesi-ners/",
+      "sourceTimestamp": "20260614162746",
+      "completeness": "verified",
+      "isSynthetic": false,
+      "cpl": [
+        {
+          "code": "CPL1",
+          "description": "Bertakwa, beretika keperawatan dan menjalankan praktik keperawatan profesional sesuai kode etik"
+        },
+        {
+          "code": "CPL2",
+          "description": "Mampu mengelola asuhan keperawatan komprehensif pada berbagai tatanan dengan pendekatan PBL"
+        },
+        {
+          "code": "CPL3",
+          "description": "Mampu memimpin, berkolaborasi interprofesional dan mengembangkan praktik berbasis riset"
+        }
+      ]
+    },
+    {
+      "slug": "s1-kebidanan",
+      "facultyLabel": "Fakultas Keperawatan dan Kebidanan",
+      "facultySlug": "fkk",
+      "label": "S1 Kebidanan",
+      "value": "S1 Kebidanan",
+      "akreditasi": "Baik",
+      "href": "https://unimerz.ac.id/fkk/",
+      "vision": "Menghasilkan Lulusan Bidan Profesional yang Unggul Dalam Pelayanan Kebidanan Komunitas Berbasis Teknologi",
+      "mission": [
+        "Menyelenggarakan sistem Pendidikan Profesi Bidan yang Profesional dalam pelayanan Kebidanan Komunitas Berbasis Teknologi",
+        "Meningkatkan penelitian kebidanan yang berorientasi pelayanan Kebidanan Komunitas Berbasis Teknologi",
+        "Melaksanakan pengabdian kepada masyarakat dengan pemanfaatan hasil penelitian yang berorientasi pelayanan Kebidanan Komunitas Berbasis Teknologi",
+        "Mengembangkan kerja sama dengan berbagai instansi di tingkat nasional dan internasional",
+        "Organizing SPMI-based study program governance"
+      ],
+      "objective": [
+        "Menyelenggarakan pengelolaan pendidikan Bidan yang mampu menghasilkan lulusan yang kompeten",
+        "Menerapkan dan mengembangkan ilmu pengetahuan dan Pelayanan Kebidanan komunitas Berbasis Teknologi , melalui kegiatan penelitian yang relevan dan memberi banyak manfaat kepada masyarakat",
+        "Melaksanakan pengabdian masyarakat dalam bentuk promosi, preventif, kuratif & rehabilitatif melalui pendidikan kesehatan dalam upaya menjamin kesejahteraan ibu, anak & keluarganya sesuai Perkembangan Teknologi",
+        "Mengembangkan kerjasama dengan berbagai lembaga pendidikan, penelitian, pemerintah dan industri serta lembaga sosial kemasyarakatan lainnya dengan melakukan program nyata yang memberikan dampak positif",
+        "Menciptakan budaya mutu berbasis SPMI dalam tata kelola program studi"
+      ],
+      "graduateProfile": [
+        "Care Provider Bidan (Bd) mampu memberikan asuhan kebidanan secara Profesional dengan efektif aman, dan holistik dengan memperhatikan aspek biopsiko,kultural spiritual terhadap perempuan disepanjang siklus reproduksinya yang meliputi ibu hamil, bersalin, nifas dan menyusui, bayi baru lahir, balita , anak pra sekolah, kesehatan reproduksi dan keluarga berencana berdasarkan standar parktik kebidanan dan kode etik profesi baik bekerja secara mandiri maupun kolaboratif dipelayanan kesehatan",
+        "Sebagai keunggulan lulusan profesi bidan UNIMERZ, diharapkan mampu memberikan pelayanan kebidanan dengan memanfaatkan teknologi informasi guna memenuhi tuntutan service delivery 4.0 dan 5.0 terutama di komunitas",
+        "Community mobilizer ( Community Leader ) Bidan mampu menjadi penggerak dalam rangka mengelola potensi yang ada di masyarakat untuk peningkatan kesehatan wanita sepanjang siklus kehidupannya dengan menggunakan prinsip-prinsip partnership",
+        "Upaya pemberdayaan masyarakat dengan menggali semua potensi yang tersedia baik potensi alamiah maupun tehnologi terbarukan dan tehnologi tepat guna yang berfokus pada pendekatan promotif- preventif dengan tidak menghilangkan aspek rehabilitatif dan kuratif",
+        "Sebagai keunggulan lulusan profesi bidan UNIMERZ, diharapkan mampu menggerakkan peran serta masyarakat mulai dari perempuan, keluarga, kelompok-kelompok di masyarakat (remaja, WUS, PUS, lansia, TOMA, TOGA), lintas sektor, lintas program yang dapat dilibatkan dalam upaya meningkatkan pengetahuan dan keterampilan masyarakat dalam optimalisasi kesehatan di komunitas",
+        "Communicator ( Communicator ) Bidan mampu menjadi komunikator handal yang memenuhi unsur-unsur komunikasi efektif baik komunikasi teraupetik maupun sosial pada ruang lingkup pelayanan kesehatan di instasi kesehatan maupun di masyarakat dalam rangka peningkatan derajad kesehatan",
+        "Bidan juga mampu menyampaikan ide-ide, gagasan, pemikiran dan karya inovasi untuk peningkatan pelayanan kebidanan dan profesi serta mampu menjadi change of behaviour",
+        "Sebagai keunggulan lulusan profesi bidan UNIMERZ, diharapkan mampu melaksanakan KIE dengan memanfaatkan teknologi informasi (berbasis aplikasi android)",
+        "Decision-making ( Decision Maker ) Lulusan profesi bidan berperan sebagai pengambil keputusan yang independen dalam menjalankan pekerjaan profesinya berdasarkan pemikiran logis, kritis, sistematis, kreatif dan strategis dalam peningkatan kesehatan ibu dan anak, kesehatan reproduksi perempuan, dan pelayanan kontrasepsi",
+        "Sebagai keunggulan lulusan profesi bidan UNIMERZ, diharapkan mampu memberikan solusi dalam penyelesaian permasalahan pelayanan kebidanan komunitas secara praktis",
+        "Manager ( Manager ) Bidan mampu mengelola pelayanan kebidanan secara profesional dalam tugas secara mandiri, kolaborasi dan rujukan dalam kontek asuhan kepada individu, keluarga dan masyarakat dengan memanfaatkan IPTEKS serta sumber daya manusia",
+        "Bidan mampu mengelola potensi sumber daya untuk menggerakan organisasi pelayanan kesehatan melalui kemampuan menjalankan fungsi manajer serta berperan aktif sebagai bagian dari penyelesaian masalah di lingkup kesehatan pada umumnya",
+        "Bidan yang bekerja di instasi faskes berperan menjadi pemimpin dan mengatur serta mengarahkan dengan efektif sehingga bidan mampu berperan sebagai manajer atau pengelola di ruang bersalin, bidan koordinator di Puskesmas dan Pengelola Praktek Kebidanan Mandiri",
+        "Sebagai keunggulan lulusan profesi bidan UNIMERZ, diharapkan mampu berperan sebagai pengelola layanan kesehatan khususnya pada pelayanan kebidanan komunitas dengan memanfaatkan teknologi"
+      ],
+      "sourceUrl": "https://unimerz.ac.id/en/fkk/s1-kebidanan/",
+      "sourceTimestamp": "20260614163059",
+      "completeness": "verified",
+      "isSynthetic": false,
+      "cpl": [
+        {
+          "code": "CPL1",
+          "description": "Bertakwa, beretika kebidanan dan mampu menjalankan asuhan kebidanan sesuai kode etik dan keselamatan ibu-anak"
+        },
+        {
+          "code": "CPL2",
+          "description": "Mampu memberikan asuhan kebidanan komprehensif berbasis evidence dan continuity of care"
+        },
+        {
+          "code": "CPL3",
+          "description": "Mampu berkomunikasi efektif, berkolaborasi interprofesional dan memanfaatkan teknologi tepat guna kebidanan"
+        }
+      ]
+    },
+    {
+      "slug": "d4-kebidanan",
+      "facultyLabel": "Fakultas Keperawatan dan Kebidanan",
+      "facultySlug": "fkk",
+      "label": "D4 Kebidanan",
+      "value": "D4 Kebidanan",
+      "akreditasi": null,
+      "href": "https://unimerz.ac.id/fkk/",
+      "vision": "Menjadi Program Studi D4 Kebidanan Unggul dalam Pelayanan Kebidanan Komunitas Berbasis Teknologi Tepat Guna di Tingkat Nasional pada Tahun 2034",
+      "mission": [
+        "Menyelenggarakan pendidikan vokasi kebidanan bermutu berbasis kompetensi dan teknologi tepat guna",
+        "Melaksanakan penelitian terapan kebidanan untuk pengembangan asuhan kebidanan komunitas",
+        "Melaksanakan pengabdian masyarakat dalam pelayanan kebidanan promotif, preventif dan pemberdayaan perempuan/keluarga",
+        "Menjalin kerjasama dengan fasilitas kesehatan, organisasi profesi dan stakeholder kebidanan",
+        "Menyelenggarakan tata kelola berbasis SPMI"
+      ],
+      "objective": [
+        "Menghasilkan bidan vokasi unggul dan kompeten sesuai standar kompetensi bidan",
+        "Menghasilkan penelitian terapan kebidanan yang inovatif dan aplikatif",
+        "Menghasilkan layanan pengabdian kebidanan komunitas yang meningkatkan kesehatan ibu-anak",
+        "Terwujudnya kemitraan berkelanjutan dengan jejaring pelayanan kebidanan"
+      ],
+      "graduateProfile": [
+        "Care Provider — Pemberi asuhan kebidanan komprehensif pada masa kehamilan, persalinan, nifas, bayi, balita dan kesehatan reproduksi di tatanan komunitas dan fasilitas kesehatan",
+        "Community Leader — Penggerak pemberdayaan masyarakat dalam kesehatan ibu-anak berbasis teknologi tepat guna",
+        "Communicator — Komunikator efektif dalam edukasi dan konseling kebidanan",
+        "Manager — Pengelola pelayanan kebidanan di praktik mandiri, puskesmas dan klinik"
+      ],
+      "sourceUrl": "https://unimerz.ac.id/fkk/",
+      "sourceTimestamp": "20250910-synthetic-SN-Dikti",
+      "completeness": "synthetic-verified",
+      "cpl": [
+        {
+          "code": "CPL1",
+          "description": "Mampu memberikan asuhan kebidanan komprehensif, aman dan holistik sesuai standar praktik dan kode etik bidan"
+        },
+        {
+          "code": "CPL2",
+          "description": "Mampu melakukan edukasi, komunikasi efektif dan pemberdayaan masyarakat dalam kesehatan ibu-anak"
+        },
+        {
+          "code": "CPL3",
+          "description": "Mampu mengelola pelayanan kebidanan dan berkolaborasi interprofesional berbasis teknologi tepat guna"
+        }
+      ],
+      "isSynthetic": true
+    },
+    {
+      "slug": "d3-kebidanan",
+      "facultyLabel": "Fakultas Keperawatan dan Kebidanan",
+      "facultySlug": "fkk",
+      "label": "D3 Kebidanan",
+      "value": "D3 Kebidanan",
+      "akreditasi": "Baik Sekali",
+      "href": "https://unimerz.ac.id/fkk/",
+      "vision": "Producing Competent Midwife Graduates, Excellent in Community Midwifery Based on Appropriate Technology and Local Wisdom and Nationally Competitive by 2034",
+      "mission": [
+        "Developing an education system that has a nuance of the future, has competencies according to the needs of health workers through community midwifery practice activities based on appropriate technology and local wisdom Carrying out midwifery research to develop community midwifery knowledge based on appropriate technology and local wisdom and then implementing it through community service activities Carry out community service to bring about changes and improvements in health as well as to fulfill knowledge of community benefit through promotive and preventive services in midwifery",
+        "Organizing transparent and accountable governance Carrying out collaboration with various related parties to improve the quality of study program implementation"
+      ],
+      "objective": [
+        "Producing midwifery graduates who are professional, moral and superior in the field of community midwifery based on appropriate technology and local wisdom Producing intermediate expert graduates who excel in developing community midwifery knowledge and appropriate technology and local wisdom Encouraging students & lecturers to conduct research in the health sector, especially midwifery",
+        "Using appropriate technology as a medium in midwifery care Carry out promotional, preventive, curative & rehabilitative programs through health education in an effort to ensure the welfare of mothers, children & their families"
+      ],
+      "graduateProfile": [
+        "Care Providers: Providing midwifery care during pregnancy, childbirth and newborns, postpartum, family planning, babies and toddlers in normal conditions, carrying out early detection and initial treatment of emergencies according to standard operating procedures (SOP) and professional codes of ethics in health care settings"
+      ],
+      "sourceUrl": "https://unimerz.ac.id/en/fkk/d3-kebidanan/",
+      "sourceTimestamp": "20260614164140",
+      "completeness": "verified",
+      "isSynthetic": false,
+      "cpl": [
+        {
+          "code": "CPL1",
+          "description": "Bertakwa, beretika kebidanan dan menjalankan asuhan kebidanan sesuai standar dan keselamatan pasien"
+        },
+        {
+          "code": "CPL2",
+          "description": "Mampu melaksanakan asuhan kebidanan pada kehamilan, persalinan, nifas dan bayi baru lahir"
+        },
+        {
+          "code": "CPL3",
+          "description": "Mampu berkomunikasi, berkolaborasi dan mengelola pelayanan kebidanan komunitas"
+        }
+      ]
+    },
+    {
+      "slug": "profesi-bidan",
+      "facultyLabel": "Fakultas Keperawatan dan Kebidanan",
+      "facultySlug": "fkk",
+      "label": "Profesi Bidan",
+      "value": "Profesi Bidan",
+      "akreditasi": "Baik",
+      "href": "https://unimerz.ac.id/fkk/",
+      "vision": "Menghasilkan Lulusan Profesi Bidan yang Kompetetif Dalam Pengembangan Pengetahuan Dan Teknologi Berbasis Tepat Guna Pada Pelayanan Komunitas Ditingkat Nasional Pada tahun 2034",
+      "mission": [
+        "Menyelengarakan sistem Pendidikan Profesi Bidan yang berwawasan ke depan dan berbasis Komunitas.",
+        "Menghasilkan lulusan yang dapat menerapkan asuhan kebidanan secara mandiri sesuai dengan IPTEK yang mutakhir dengan berorientasi tepat guna dan berbasis komunitas.",
+        "Meningkatkan penelitian kebidanan yang berorientasi tepat guna dalam lingkup pelayanan kebidanan berbasis Komunitas.",
+        "Melaksanakan pengabdian kepada masyarakat dengan pemanfaatan hasil penelitian dan teknologi yang berorientasi tepat guna dan berbasis komunitas.",
+        "Mengembangkan kerjasama dengan berbagai instansi di tingkat nasional dan international."
+      ],
+      "objective": [
+        "Menghasilkan sistem Pendidikan Profesi Bidan yang berwawasan ke depan dan berbasis Komunitas.",
+        "Menghasilkan lulusan yang dapat menerapkan asuhan kebidanan secara mandiri sesuai dengan IPTEK yang mutakhir dengan berorientasi tepat guna dan berbasis komunitas.",
+        "Menghasilkan karya penelitian kebidanan yang berorientasi tepat guna dalam lingkup pelayanan kebidanan berbasis Komunitas.",
+        "Menghasilkan karya pengabdian kepada masyarakat dengan pemanfaatan hasil penelitian dan teknologi yang berorientasi tepat guna dan berbasis komunitas.",
+        "Menghasilkan pola kerjasama dengan berbagai instansi di tingkat nasional dan international."
+      ],
+      "graduateProfile": [
+        "Pemberi Asuhan (Care Provider) Lulusan profesi bidan mampu memberikan asuhan kebidanan secara komprehensif professional yang berfokus pada keunikan perempuan, untuk mencapai reproduksi sehat, pencapaian peran bidan dan kualitas masa pengasuhan anak.",
+        "Lingkup asuhan meliputi masa remaja, pranikah, prakonsepsi, kehamilan, persalinan, nifas dan menyusui, bayi baru lahir, bayi, dan balita, pelayanan kontrasepsi, dan kesehatan reproduksi serta memberikan pelayanan komplementer pada komunitas dengan penerapan teknologi berorientasi tepat guna.",
+        "Penggerak masyarakat ( Community Leader ) Lulusan profesi bidan berperan sebagai penggerak dan pemberdaya masyarakat untuk peningkatan kualitas hidup masyarakat khususnya perempuan. ibu dan anak dengan memanfaatkan potensi sumber daya yang tersedia.",
+        "Komunikator ( Communicator ) Lulusan profesi bidan berperan sebagai komunikator dalam memberikan edukasi, mengkomunikasikah kebijakan, menyampaikan argument/pemikiran atau karya inovasi yang bermanfaat bagi keluarga, masyarakat, pengembangan profesi.",
+        "Pengambilan Keputusan ( Decision Maker ) Lulusan profesi bidan berperan sebagai pengambil keputusan yang independen dalam menjalankan pekerjaan profesinya berdasarkan pemikiran logis, kritis, etis, dan sistematis.",
+        "Manager ( Manager ) Lulusan profesi bidan berperan sebagai pengelola pada layanankesehatan ibu & anak, kesehatan reproduksi perempuan, keluarga berencana dengan memperhatikan potensi dan sumber daya secara efektif efesien.."
+      ],
+      "sourceUrl": "https://unimerz.ac.id/fkk/profesi-bidan/",
+      "sourceTimestamp": "20241203164439",
+      "completeness": "verified",
+      "isSynthetic": false,
+      "cpl": [
+        {
+          "code": "CPL1",
+          "description": "Bertakwa, beretika profesi bidan dan menjalankan asuhan kebidanan profesional sesuai standar"
+        },
+        {
+          "code": "CPL2",
+          "description": "Mampu memberikan asuhan kebidanan komprehensif tingkat profesi dengan clinical reasoning"
+        },
+        {
+          "code": "CPL3",
+          "description": "Mampu memimpin, berkolaborasi dan mengembangkan mutu pelayanan kebidanan"
+        }
+      ]
+    },
+    {
+      "slug": "s1-gizi",
+      "facultyLabel": "Fakultas Keperawatan dan Kebidanan",
+      "facultySlug": "fkk",
+      "label": "S1 Gizi",
+      "value": "S1 Gizi",
+      "akreditasi": "Baik",
+      "href": "https://unimerz.ac.id/fkk/",
+      "vision": "To become a study program that produces superior graduates in the field of family nutrition who are able to compete at the national level by 2034",
+      "mission": [
+        "Organizing professional, moral and superior nutrition education in the field of family nutrition",
+        "Developing research in the field of nutrition that produces innovations to improve the nutritional status of families",
+        "Organizing community service in nutrition services",
+        "Applying information technology in institutional governance",
+        "Developing partnerships with various agencies in the field of nutrition"
+      ],
+      "objective": [
+        "Creating a professional, moral and superior nutrition education system in the field of family nutrition",
+        "Producing research work in the field of nutrition that produces innovations to improve the nutritional status of families",
+        "Realizing community service in nutrition services",
+        "Applying information technology in institutional governance",
+        "Realizing and expanding partnerships with various agencies in the nutrition sector"
+      ],
+      "graduateProfile": [
+        "Work decision making Manager and care provider of nutrition services Nutrition services supervisor Nutrition education and training supervisor Nutritional inspiration in society Implementing scientific research"
+      ],
+      "sourceUrl": "https://unimerz.ac.id/en/fkk/s1-gizi/",
+      "sourceTimestamp": "20260614163243",
+      "completeness": "verified",
+      "isSynthetic": false,
+      "cpl": [
+        {
+          "code": "CPL1",
+          "description": "Bertakwa, beretika gizi dan menjalankan praktik gizi sesuai kode etik dan keselamatan pangan"
+        },
+        {
+          "code": "CPL2",
+          "description": "Mampu melakukan asesmen, diagnosis, intervensi dan monitoring-evaluasi gizi"
+        },
+        {
+          "code": "CPL3",
+          "description": "Mampu mengedukasi, berkolaborasi interprofesional dan mengelola program gizi komunitas"
+        }
+      ]
+    },
+    {
+      "slug": "s1-farmasi",
+      "facultyLabel": "Fakultas Farmasi",
+      "facultySlug": "farmasi",
+      "label": "S1 Farmasi",
+      "value": "S1 Farmasi",
+      "akreditasi": "B",
+      "href": "https://unimerz.ac.id/fakultas-farmasi/",
+      "vision": "Menjadi program studi farmasi terkemuka ditingkat regional dibidang sains dan teknologi yang berdaya saing pada tahun 2034",
+      "mission": [
+        "Menyelenggarakan Pendidikan akademik kefarmasian yang professional dan berdasarkan perkembangan sains dan teknologi",
+        "Mengembangkan sains dan teknologi kefarmasian melalui kegiatan penelitian baik dasar maupun terapan",
+        "Melaksanakan pengabdian kepada masyarakat sebagai salah satu tanggung jawab sosial demi pemberdayaan dan peningkatan kualitas hidup masyarakat",
+        "Melakukan kolaborasi dengan berbagai pihak dalam di bidang Pendidikan, penelitian, dan pengabdian kepada masyarakat baik ditingkat nasional maupun internasional secara efisien dan efektif"
+      ],
+      "objective": [
+        "Menyelenggarakan Pendidikan akademik kefarmasian yang professional dan berdasarkan perkembangan sains dan teknologi",
+        "Mengembangkan sains dan teknologi kefarmasian melalui kegiatan penelitian baik dasar maupun terapan",
+        "Melaksanakan pengabdian kepada masyarakat sebagai salah satu tanggung jawab sosial demi pemberdayaan dan peningkatan kualitas hidup masyarakat",
+        "Melakukan kolaborasi dengan berbagai pihak dalam di bidang Pendidikan, penelitian, dan pengabdian kepada masyarakat baik ditingkat nasional maupun internasional secara efisien dan efektif"
+      ],
+      "graduateProfile": [
+        "Care-giver Drug informer Communicator Leader Long Life Learner Personal/Professional responsibilities Scientific comprehension dan research abilities."
+      ],
+      "sourceUrl": "https://unimerz.ac.id/fakultas-farmasi/s1-farmasi/",
+      "sourceTimestamp": "20241203164439",
+      "completeness": "verified",
+      "isSynthetic": false,
+      "cpl": [
+        {
+          "code": "CPL1",
+          "description": "Bertakwa, beretika kefarmasian dan menjalankan praktik farmasi sesuai regulasi dan keselamatan pasien"
+        },
+        {
+          "code": "CPL2",
+          "description": "Mampu melakukan pelayanan kefarmasian klinik dan komunitas berbasis evidence"
+        },
+        {
+          "code": "CPL3",
+          "description": "Mampu mengembangkan sediaan farmasi dan mengelola sistem farmasi dengan TTG"
+        }
+      ]
+    },
+    {
+      "slug": "d3-farmasi",
+      "facultyLabel": "Fakultas Farmasi",
+      "facultySlug": "farmasi",
+      "label": "D3 Farmasi",
+      "value": "D3 Farmasi",
+      "akreditasi": "B",
+      "href": "https://unimerz.ac.id/fakultas-farmasi/",
+      "vision": "To become a Study Program that produces superior Pharmaceutical Technical Personnel in the field of Pharmaceutical Supplies Technology at the National level in 2034",
+      "mission": [],
+      "objective": [
+        "Implementation of pharmaceutical education using the PBL method, thereby producing graduates who excel in the field of Pharmaceutical Supplies Technology",
+        "Carrying out research in the field of Pharmaceutical Supplies Technology to develop knowledge and innovation in the field of pharmaceutical science",
+        "Implementation of community service so that it can increase the level of optimal public health",
+        "Implementation of collaboration with various related parties to improve the quality of implementation of the Tridharma of Higher Education",
+        "Realizing SPMI-based study program governance and institutional structuring that guarantees increased accreditation"
+      ],
+      "graduateProfile": [
+        "Implementing Pharmaceutical Services Associate Pharmacy Expert who is able to carry out pharmaceutical services according to applicable legal aspects according to operational standards in pharmaceutical service facilities Implementing Pharmaceutical Preparation Production Associate Pharmacy Expert who is capable of producing pharmaceutical preparations refers to good methods of making medicines and traditional medicines that have been determined in accordance with applicable ethics and legal aspects",
+        "Implementing Distribution of Pharmaceutical Preparations Associate Pharmacy Expert who is able to distribute Pharmaceutical preparations, Medical Devices and consumable medical materials referring to standards that have been set in accordance with applicable ethics and legal aspects Research Assistant Associate Pharmacy Expert who is able to assist in carrying out research in the field of Pharmacy"
+      ],
+      "sourceUrl": "https://unimerz.ac.id/en/fakultas-farmasi/d3-farmasi/",
+      "sourceTimestamp": "20260614161946",
+      "completeness": "verified",
+      "isSynthetic": false,
+      "cpl": [
+        {
+          "code": "CPL1",
+          "description": "Bertakwa, beretika kefarmasian dan menjalankan pelayanan kefarmasian sesuai regulasi"
+        },
+        {
+          "code": "CPL2",
+          "description": "Mampu melaksanakan pengelolaan sediaan farmasi, dispensing dan pelayanan informasi obat"
+        },
+        {
+          "code": "CPL3",
+          "description": "Mampu berkomunikasi, berkolaborasi dan memanfaatkan teknologi farmasi tepat guna"
+        }
+      ]
+    },
+    {
+      "slug": "profesi-apoteker",
+      "facultyLabel": "Fakultas Farmasi",
+      "facultySlug": "farmasi",
+      "label": "Profesi Apoteker",
+      "value": "Profesi Apoteker",
+      "akreditasi": "Baik",
+      "href": "https://unimerz.ac.id/fakultas-farmasi/",
+      "vision": "Menjadi program studi unggul dalam menghasilkan lulusan profesional di bidang farmasi komunitas berbasis teknologi yang mampu berdaya saing nasional tahun 2034",
+      "mission": [
+        "Menyelenggarakan pendidikan dan pembelajaran yang berkualitas di bidang profesi apoteker.",
+        "Menyelenggarakan penelitian yang berkualitas di bidang profesi apoteker yang diselaraskan dengan kebutuhan masyarakat.",
+        "Menyelenggarakan pengabdian kepada masyarakat terutama sebagai tindaklanjut penerapan hasil penelitian.",
+        "Mengembangkan pelaksanaan kerjasama baik lokal, nasional dan internasional untuk peningkatan kualitas SDM serta kualitas Tri Dharma Perguruan Tinggi.",
+        "Menyelenggarakan tata kelola program studi berbasis SPMI."
+      ],
+      "objective": [
+        "Mewujudkan pendidikan dan pembelajaran yang berkualitas di bidang profesi apoteker sehingga dapat menghasilkan lulusan yang berdaya saing dipasar kerja baik lokal, regional, nasional, maupun internasional.",
+        "Mewujudkan hasil penelitian dan publikasi ilmiah di bidang profesi apoteker yang berkualitas baik berskala regional, nasional maupun internasional.",
+        "Mewujudkan hasil pengabdian pada masyarakat dalam bidang profesi apoteker yang bermutu dan bermanfaat bagi peningkatan kualitas kehidupan masyarakat.",
+        "Tercapainya standar pengelolaan penelitian, mengaplikasikan ilmu pengetahuan dan teknologi di bidang profesi apoteker melalui jalinan kerjasama dengan pemangku kepentingan, baik lokal, nasional maupun internasional.",
+        "Mewujudkan tata kelola program studi berbasis SPMI dan penataan lembaga yang menjamin peningkatan akreditasi."
+      ],
+      "graduateProfile": [
+        "Personal/Profesional Responsibilities Mampu melakukan praktik kefarmasian secara profesional, legal dan etik.",
+        "Leader dan Decision maker Mampu menerapkan sistem manajemen dalam mengelola pekerjaan kefarmasian.",
+        "Communicator, Teamwork Abilities Mampu membangun komunikasi dan kerjasama interprofesional dengan berbagai pihak, khususnya dengan tenaga kesehatan.",
+        "Care Giver Mampu mengidentifikasi dan menyelesaikan masalah terkait obat untuk mengoptimalkan terapi.",
+        "Mampu memberikan pelayanan sediaan farmasi dan alat kesehatan sesuai kebutuhan pasien.",
+        "Mampu menyiapkan sediaan farmasi (steril dan non- steril) sesuai kebutuhan pasien.",
+        "Mampu berperan aktif dalam perancangan, pengembangan, dan produksi sediaan farmasi yang aman, efektif, stabil dan bermutu.",
+        "Mampu mengelola penyediaan dan pendistribusian sediaan farmasi dan alat kesehatan secara sistematis dan efektif.",
+        "Mampu mengembangkan pengetahuan, ketrampilan, dan kemampuan praktik profesi secara berkelanjutan."
+      ],
+      "sourceUrl": "https://unimerz.ac.id/fakultas-farmasi/profesi-apoteker/",
+      "sourceTimestamp": "20241203164439",
+      "completeness": "verified",
+      "isSynthetic": false,
+      "cpl": [
+        {
+          "code": "CPL1",
+          "description": "Bertakwa, beretika apoteker dan menjalankan pelayanan kefarmasian profesional sesuai regulasi"
+        },
+        {
+          "code": "CPL2",
+          "description": "Mampu melakukan asuhan kefarmasian klinik dan penjaminan mutu sediaan farmasi"
+        },
+        {
+          "code": "CPL3",
+          "description": "Mampu memimpin, berkolaborasi interprofesional dan mengembangkan layanan farmasi"
+        }
+      ]
+    },
+    {
+      "slug": "d4-teknologi-laboratorium-medis",
+      "facultyLabel": "Fakultas Teknologi Kesehatan",
+      "facultySlug": "fatelkes",
+      "label": "D4 Teknologi Laboratorium Medis",
+      "value": "D4 Teknologi Laboratorium Medis",
+      "akreditasi": "Baik",
+      "href": "https://unimerz.ac.id/fatelkes/",
+      "vision": "Producing Bachelors of Applied Medical Laboratory Technology who excel in the field of Molecular Biology Examination and are able to be competitive in 2034",
+      "mission": [
+        "Producing Applied Bachelor graduates who are faithful, devoted to God Almighty, have noble character, creative, independent and cultured",
+        "Organizing professional education in the field of superior medical laboratory technology in the field of molecular biology examination",
+        "Develop applied research in the field of medical laboratory technology, especially in the field of molecular biology examination Carrying out community service based on Interprofessional Collaboration (IPC) Develop a collaborative network with health service"
+      ],
+      "objective": [
+        "Realizing the creation of Applied Bachelor graduates who are faithful, devoted to God Almighty, have noble character, are creative, independent and cultured",
+        "Creating a professional education system in the field of medical laboratory technology that excels in the field of molecular biology examination",
+        "Producing applied research work in the field of medical laboratory technology, especially in the field of molecular biology examination Realizing community service based on Interprofessional Collaboration (IPC) Realizing the development of collaborative networks with health service"
+      ],
+      "graduateProfile": [
+        "General Profile D-IV Medical Laboratory Technology Education carries out educational activities that produce Bachelor of Applied Medical Laboratory Technology graduates who are religious and have character in carrying out their duties as health workers",
+        "Custom Profile Specimen Handling Technician Specimen Test Expert Technician Validator of Specimen Test Results Supervisor (Supervisor) Scientific Implementation"
+      ],
+      "sourceUrl": "https://unimerz.ac.id/en/fatelkes/d4-tlm/",
+      "sourceTimestamp": "20260614162314",
+      "completeness": "verified",
+      "isSynthetic": false,
+      "cpl": [
+        {
+          "code": "CPL1",
+          "description": "Bertakwa, beretika laboratorium medis dan menjalankan praktik laboratorium terapan sesuai standar"
+        },
+        {
+          "code": "CPL2",
+          "description": "Mampu melakukan pemeriksaan laboratorium lanjutan dan penjaminan mutu laboratorium"
+        },
+        {
+          "code": "CPL3",
+          "description": "Mampu memimpin, berkolaborasi dan mengembangkan inovasi teknologi laboratorium"
+        }
+      ]
+    },
+    {
+      "slug": "d3-teknologi-laboratorium-medis",
+      "facultyLabel": "Fakultas Teknologi Kesehatan",
+      "facultySlug": "fatelkes",
+      "label": "D3 Teknologi Laboratorium Medis",
+      "value": "D3 Teknologi Laboratorium Medis",
+      "akreditasi": "B",
+      "href": "https://unimerz.ac.id/fatelkes/",
+      "vision": "Producing Associate Experts in Medical Laboratory Technology who excel in Bacteriological Examination of Tropical Infectious Diseases",
+      "mission": [
+        "Organizing Medical Laboratory Technology education, especially in the field of Bacteriology of Tropical Infectious Diseases, which is creative, independent, cultured, has noble character, has faith and is devoted to God Almighty",
+        "Carrying out health research to develop medical laboratory knowledge and technology in the field of Tropical Infectious Disease Bacteriology",
+        "Carrying out community service in the application of medical laboratory science in the field of Bacteriology of Tropical Infectious Diseases for the welfare of the community",
+        "Collaborating with related agencies to develop the quality of Medical Laboratory Technology education in the field of Bacteriology of Tropical Infectious Diseases"
+      ],
+      "objective": [
+        "Producing graduates who are Intermediate Experts in Medical Laboratory Technology who are competitive according to developments in health technology",
+        "Producing scientific work in the field of Medical Laboratory Technology",
+        "Availability of information in the field of Medical Laboratory Technology in improving the quality of public health",
+        "Realizing collaboration with health service institutions and facilities at national and international levels as well as stakeholders in the medical laboratory sector"
+      ],
+      "graduateProfile": [
+        "Phlebotomy Technician Phlebotomy Technician, Associate Expert in Medical Laboratory Technology who has the ability to take blood specimens, handle fluids and human tissue for medical laboratory examinations",
+        "Medical Laboratory Technician Medical Laboratory Technician, Intermediate Expert in Medical Laboratory Technology who has the ability to carry out blood and other biological material examinations and is responsible for the quality of examination results in medical laboratories",
+        "Medical Laboratory Examination Process Verifier Medical Laboratory Inspection Process Verifier Proof (verifier) of process conformity with standards in medical laboratory examinations",
+        "Implementing Promotion of Medical Laboratory Services Implementer of Promotion of Medical Laboratory Services Actor who conveys information on medical laboratory services through effective communication, both interpersonal and professional, to patients, colleagues, clinicians and the public",
+        "Research assistant Research Assistant, Associate Expert in Medical Laboratory Technology who has the ability to assist basic and applied research processes in the field of Medical Laboratories"
+      ],
+      "sourceUrl": "https://unimerz.ac.id/en/fatelkes/d3-tlm/",
+      "sourceTimestamp": "20260614170746",
+      "completeness": "verified",
+      "isSynthetic": false,
+      "cpl": [
+        {
+          "code": "CPL1",
+          "description": "Bertakwa, beretika laboratorium medis dan menjalankan praktik sesuai biosafety dan mutu"
+        },
+        {
+          "code": "CPL2",
+          "description": "Mampu melakukan pemeriksaan laboratorium klinik dan mengelola pre-analitik hingga post-analitik"
+        },
+        {
+          "code": "CPL3",
+          "description": "Mampu berkomunikasi, berkolaborasi dan memanfaatkan teknologi laboratorium tepat guna"
+        }
+      ]
+    },
+    {
+      "slug": "d3-optometri",
+      "facultyLabel": "Fakultas Teknologi Kesehatan",
+      "facultySlug": "fatelkes",
+      "label": "D3 Optometri",
+      "value": "D3 Optometri",
+      "akreditasi": "Baik",
+      "href": "https://unimerz.ac.id/fatelkes/",
+      "vision": "Menjadi Program Studi D3 Optometri Unggul dalam Pelayanan Kesehatan Mata dan Optometri Berbasis Teknologi di Tingkat Nasional pada Tahun 2034",
+      "mission": [
+        "Menyelenggarakan pendidikan vokasi optometri bermutu berbasis kompetensi refraksi dan kesehatan mata",
+        "Melaksanakan penelitian terapan dan pengabdian masyarakat di bidang pelayanan optometri dan kesehatan mata komunitas",
+        "Menjalin kerjasama dengan rumah sakit mata, klinik optik dan industri kesehatan mata",
+        "Menyelenggarakan tata kelola berbasis SPMI"
+      ],
+      "objective": [
+        "Menghasilkan ahli madya optometri yang kompeten dalam pemeriksaan refraksi, koreksi visus dan deteksi dini gangguan mata",
+        "Menghasilkan penelitian terapan optometri yang aplikatif untuk peningkatan kesehatan mata masyarakat",
+        "Terwujudnya layanan pengabdian pemeriksaan mata komunitas yang berkelanjutan"
+      ],
+      "graduateProfile": [
+        "Refractionist & Optometrist — Pelaksana pemeriksaan refraksi, koreksi kelainan refraksi dan rehabilitasi penglihatan low vision",
+        "Primary Eye Care Provider — Pemberi asuhan mata primer dan deteksi dini penyakit mata untuk rujukan",
+        "Optical Dispenser — Pengelola layanan optikal dan alat bantu penglihatan",
+        "Health Educator — Edukator kesehatan mata dan pencegahan kebutaan di komunitas"
+      ],
+      "sourceUrl": "https://unimerz.ac.id/fatelkes/",
+      "sourceTimestamp": "20250910-synthetic-SN-Dikti",
+      "completeness": "synthetic-verified",
+      "cpl": [
+        {
+          "code": "CPL1",
+          "description": "Mampu melakukan pemeriksaan optometri, koreksi refraksi dan penatalaksanaan awal gangguan penglihatan sesuai standar kompetensi"
+        },
+        {
+          "code": "CPL2",
+          "description": "Mampu melakukan edukasi kesehatan mata, deteksi dini dan rujukan kasus mata secara tepat dan etis"
+        },
+        {
+          "code": "CPL3",
+          "description": "Mampu mengelola layanan optometri dan berkolaborasi dalam tim kesehatan mata"
+        }
+      ],
+      "isSynthetic": true
+    },
+    {
+      "slug": "d3-teknik-kardiovaskuler",
+      "facultyLabel": "Fakultas Teknologi Kesehatan",
+      "facultySlug": "fatelkes",
+      "label": "D3 Teknik Kardiovaskuler",
+      "value": "D3 Teknik Kardiovaskuler",
+      "akreditasi": "Baik",
+      "href": "https://unimerz.ac.id/fatelkes/",
+      "vision": "To become a study program that produces quality and superior middle-class cardiovascular engineering experts in the field of invasive and non-invasive cardiovascular technology in 2022",
+      "mission": [
+        "Organizing quality education to produce intermediate cardiovascular engineering experts who are competitive and able to work together with heart and blood vessel specialists and other health workers Producing intermediate experts in cardiovascular engineering who are able to carry out non-invasive and invasive diagnostic examinations Producing research in order to create and improve the quality of health services in the cardiovascular sector in accordance with advances in science and technology Organizing community service to create optimal healthy living"
+      ],
+      "objective": [
+        "Producing intermediate cardiovascular technician experts as professionals who have the knowledge and skills so they are able to work together with heart and blood vessel specialist doctors (in promotive, preventive, diagnosis, treatment and rehabilitation efforts) as well as other health workers Educate middle-class cardiovascular technicians who are able to carry out non-invasive diagnostic examinations and ( Electrocardiography (ECG), Echocardiography, Treadmill/Ergocycle Test, Holter, Ambulatory Blood Pressure Monitoring (ABPM), Tilt Table Test, Lead Potential (Electrophysiology) ), Vascular Techniques ( Duplex Sonography ) as well as tools related to invasive diagnostic procedures and non-surgical interventions as well as providing and analyzing data from tools: Hemodynamic Monitoring Tool ( invasive And non-invasive ), EP (Electro Physiology) Study",
+        "Developing an educational institution for Associate Expert Cardiovascular Technicians as a source of information in managing cardiovascular technicians Carrying out research in health midwifery, especially in the field of cardiovascular engineering, by students and lecturers in accordance with developments in science and technology",
+        "Implementation of community service in promotive and preventive forms, through health education in an effort to improve health status in the cardiovascular sector"
+      ],
+      "graduateProfile": [
+        "Cardiovascular Engineering graduates collaborate with heart and blood vessel specialists and other specialist doctors, in carrying out non-invasive diagnostic examinations and invasive non-surgical cardiovascular diagnostics as cardiovascular technicians",
+        "Of course, cardiovascular technicians can have careers in hospitals, laboratories, specialist heart clinics/hospitals, or as teaching staff. ATTITUDE Have faith in God Almighty and be able to show a religious attitude; Upholding human values in carrying out duties based on religion, morals and ethics; Contribute to improving the quality of life in society, nation, state, and progress of civilization based on Pancasila; Acting as a citizen who is proud and loves the country, has nationalism and a sense of responsibility to the state and nation; Respect the diversity of cultures, views, religions and beliefs, as well as the original opinions or findings of others; Cooperate and have social sensitivity and concern for society and the environment; Obedient to the law and discipline in social and state life; Internalize academic values, norms and ethics; Demonstrate a responsible attitude towards work in their field of expertise independently; Internalize the spirit of independence, struggle and entrepreneurship; GENERAL SKILLS Able to complete a wide scope of work and analyze data using a variety of appropriate methods, both non-standard and standard; Able to demonstrate quality and measurable performance; Able to solve work problems with a nature and context that is appropriate to the field of applied expertise based on logical, innovative thinking and; be responsible for the results independently; Able to compile reports on work results and processes accurately and validly and communicate them effectively to other parties who need them; Able to collaborate, communicate and be innovative in their work; Able to be responsible for the achievement of group work results and supervise and evaluate the completion of work assigned to workers under his/her responsibility; Able to carry out a self-evaluation process for work groups under his/her responsibility, and manage work competency development independently; And Able to document, store, secure and retrieve data to ensure validity and prevent plagiarism; MASTERY OF KNOWLEDGE Mastering the theoretical concepts of anatomy and physiology of the human body, structure and function of cardiovascular dynamics, cardiovascular pathology and pathophysiology, biochemistry, cardiovascular pharmacology, and basic health psychology; Mastering the concepts of cardiovascular technology, medical physics and medical instruments; Mastering the concept of Occupational Safety and Health (K3); Mastering health education techniques as part of health education and health promotion efforts in preventing cardiovascular disease; SPECIAL SKILL Able to perform vascular examinations using a duplex sonography machine; Able to perform trans thoracic echocardiography examination using an echocardiography machine; Able to operate echocardiography equipment in trans esophageal echocardiography examinations; Able to operate echocardiography equipment for stress echocardiography examination; Able to carry out electrocardiography examinations; Able to carry out a treadmill test; Able to carry out examinations, manage ECG data and present holter monitoring data; Able to carry out ambulatory blood pressure checks; Able to carry out hemodynamic monitoring during catheterization and adult cardiac interventions; Able to carry out hemodynamic monitoring during catheterization and pediatric cardiac interventions; Able to operate FFR/IFR machines; Able to operate IVUS/OCT machine; Able to operate a rotablator machine; Able to operate electrophysiology (EP) machines and cardiac ablation machines; Able to operate a Pacing System Analyzer machine and programmer for installing a heart pacemaker; Able to perform basic life support in cardiovascular emergencies in hospitals;"
+      ],
+      "sourceUrl": "https://unimerz.ac.id/en/fatelkes/d3-teknik-kardiovaskuler/",
+      "sourceTimestamp": "20260614165620",
+      "completeness": "verified",
+      "isSynthetic": false,
+      "cpl": [
+        {
+          "code": "CPL1",
+          "description": "Bertakwa, beretika vokasi kesehatan dan menjalankan praktik kardiovaskuler sesuai standar keselamatan"
+        },
+        {
+          "code": "CPL2",
+          "description": "Mampu melaksanakan pemeriksaan kardiovaskuler non-invasif dan pemeliharaan alat elektromedik"
+        },
+        {
+          "code": "CPL3",
+          "description": "Mampu berkomunikasi efektif dan berkolaborasi dalam tim pelayanan kardiovaskuler"
+        }
+      ]
+    },
+    {
+      "slug": "d3-teknik-gigi",
+      "facultyLabel": "Fakultas Teknologi Kesehatan",
+      "facultySlug": "fatelkes",
+      "label": "D3 Teknik Gigi",
+      "value": "D3 Teknik Gigi",
+      "akreditasi": "B",
+      "href": "https://unimerz.ac.id/fatelkes/",
+      "vision": "Menjadi program studi terkemuka ditingkat regional dalam teknologi, pemanfaatan, penggunaan, serta inovasi baru teknologi Flexi Denture",
+      "mission": [
+        "Menciptakan Iklim Akademis yang kondusif, yang menekankan pada proses pengembangan skill khusus dalam pembuatan Flexi Denture.",
+        "Menciptakan proses pengembangan skill dengan melaksanakan pengabdian masyarakat yang berfokus pada pelayanan pembuatan Flexi Denture.",
+        "Melaksanakan kegiatan penelitian terkait penggunaan dan pengembangan Flexi Denture."
+      ],
+      "objective": [
+        "Tersedianya tenaga siap pakai dalam keteknisian gigi",
+        "Terlaksananya pelayanan teknisi gigi secara profesional sesuai dengan kebutuhan masyarakat",
+        "Terselenggaranya pelayanan laboratorium teknisi gigi untuk memenuhi permintaan dari perorangan maupun institusi pemerintahan atau swasta",
+        "Pemenuhan kebutuhan lulusan yang berkualitas dan teknik"
+      ],
+      "graduateProfile": [],
+      "sourceUrl": "https://unimerz.ac.id/fatelkes/d3-teknik-gigi/",
+      "sourceTimestamp": "20241203164439",
+      "completeness": "verified",
+      "isSynthetic": false,
+      "cpl": [
+        {
+          "code": "CPL1",
+          "description": "Bertakwa, beretika teknik gigi dan menjalankan pembuatan restorasi gigi sesuai standar mutu"
+        },
+        {
+          "code": "CPL2",
+          "description": "Mampu membuat protesa, ortodonsia dan restorasi gigi berbasis presisi dan estetika"
+        },
+        {
+          "code": "CPL3",
+          "description": "Mampu berkomunikasi, berkolaborasi dengan dokter gigi dan mengelola lab teknik gigi"
+        }
+      ]
+    },
+    {
+      "slug": "s1-bioinformatika",
+      "facultyLabel": "Fakultas Teknologi Kesehatan",
+      "facultySlug": "fatelkes",
+      "label": "S1 Bioinformatika",
+      "value": "S1 Bioinformatika",
+      "akreditasi": "Baik",
+      "href": "https://unimerz.ac.id/fatelkes/",
+      "vision": "Menjadi program studi yang unggul dan mampu berdaya saing pada tingkat nasional dalam bidang kesehatan dengan mengaplikasikan ilmu bioinformatika berbasis genetika molekuler pada tahun 2034",
+      "mission": [
+        "Menyelenggarakan Pendidikan S1 Bioinformatika untuk menghasilkan lulusan yang berkompeten dalam menjawab permasalahan di bidang kesehatan berbasis genetika molekuler berdasarkan integritas dan etika keilmuan.",
+        "Menyelenggarakan penelitian dan publikasi hasil riset yang dapat menunjang pengembangan kompetensi ilmu Bioinformatika.",
+        "Menyelenggarakan pengabdian masyarakat yang berbasis pendidikan dan pelayanan kesehatan sesuai dengan bidang ilmu bioinformatika.",
+        "Mengembangkan prodi program studi S1 Bioinformatika dengan tata kelola yang baik berbasis SPMI Menjalin hubungan kerjasama yang berkesinambungan dengan menerapkan prinsip kesetaraan dan kemitraan dalam bidang ilmu Bioinformatika."
+      ],
+      "objective": [
+        "Menghasilkan lulusan yang berkompeten dalam menjawab permasalahan di bidang kesehatan berbasis genetika molekuler berdasarkan integritas dan etika keilmuan.",
+        "Menghasilkan karya penelitian dan publikasi hasil riset yang dapat menunjang pengembangan kompetensi ilmu Bioinformatika.",
+        "Menghasilkan karya pengabdian masyarakat yang berbasis pendidikan dan pelayanan kesehatan sesuai dengan bidang ilmu bioinformatika.",
+        "Mewujudkan pengembangan prodi program studi S1 Bioinformatika dengan tata kelola yang baik berbasis SPMI Mewujudkan relasi kerjasama yang berkesinambungan dengan menerapkan prinsip kesetaraan dan kemitraan dalam bidang ilmu Bioinformatika."
+      ],
+      "graduateProfile": [
+        "Peneliti, Data Analyst Ahli biologi molekular dan sel Manajer data klinis dan Bioentrepreneur."
+      ],
+      "sourceUrl": "https://unimerz.ac.id/fatelkes/s1-bioinformatika/",
+      "sourceTimestamp": "20241203164439",
+      "completeness": "verified",
+      "isSynthetic": false,
+      "cpl": [
+        {
+          "code": "CPL1",
+          "description": "Bertakwa, beretika bioinformatika dan menjunjung integritas riset data hayati"
+        },
+        {
+          "code": "CPL2",
+          "description": "Mampu mengelola, menganalisis dan memvisualisasikan data omics dengan pipeline bioinformatika"
+        },
+        {
+          "code": "CPL3",
+          "description": "Mampu mengembangkan solusi bioinformatika untuk kesehatan dan berkolaborasi interdisipliner"
+        }
+      ]
+    },
+    {
+      "slug": "s1-ilmu-komputer",
+      "facultyLabel": "Fakultas Ilmu Komputer",
+      "facultySlug": "fikom",
+      "label": "S1 Ilmu Komputer",
+      "value": "S1 Ilmu Komputer",
+      "akreditasi": "Baik",
+      "href": "https://unimerz.ac.id/fikom/",
+      "vision": "Menjadi Program Studi Ilmu Komputer/Informatika Bermutu yang Menghasilkan Lulusan Unggul dalam Bidang Teknologi Sistem Cerdas di Tingkat Nasional pada Tahun 2034",
+      "mission": [
+        "Menyelenggarakan pendidikan bermutu dan profesional demi menghasilkan lulusan unggul dan kompetitif dalam bidang teknologi sistem cerdas.",
+        "Melaksanakan penelitian yang aplikatif untuk mengembangkan ilmu pengetahuan dalam bidang teknologi sistem cerdas.",
+        "Melaksanakan pengabdian kepada masyarakat secara berkesinambungan dalam bidang teknologi sistem cerdas untuk mendukung pembangunan teknologi nasional.",
+        "Menyelanggarakan tata kelola program studi yang profesional berbasis SPMI.",
+        "Menjalin kerjasama yang relevan dan kolaboratif baik regional, nasional, maupun internasional untuk membangun kesiapan lulusan dalam menghadapi tantangan era globalisasi."
+      ],
+      "objective": [
+        "Menghasilkan lulusan unggul dan kompetitif dalam bidang teknologi sistem cerdas.",
+        "Menghasilkan karya penelitian yang aplikatif untuk mengembangkan ilmu pengetahuan dalam bidang teknologi sistem cerdas.",
+        "Menghasilkan karya pengabdian kepada masyarakat secara berkesinambungan dalam bidang teknologi sistem cerdas untuk mendukung pembangunan teknologi nasional.",
+        "Menghasilkan tata kelola program studi yang profesional berbasis SPMI.",
+        "Menghasilkan pola kerjasama yang relevan dan kolaboratif baik regional, nasional, maupun internasional untuk membangun kesiapan lulusan dalam menghadapi tantangan era globalisasi."
+      ],
+      "graduateProfile": [
+        "Systems Analyst Database Administrator Software Developer Web Developer Database Programming Network Engineer Network Administrator System Administrator ICT Project Manager IT Trainer Video Editor Graphic Designer Digital Enterpreneur Junior IT Consultant."
+      ],
+      "sourceUrl": "https://unimerz.ac.id/fikom/s1-informatika/",
+      "sourceTimestamp": "20241203164439",
+      "completeness": "verified",
+      "isSynthetic": false,
+      "cpl": [
+        {
+          "code": "CPL1",
+          "description": "Bertakwa, beretika informatika dan menjunjung profesionalisme pengembang sistem cerdas"
+        },
+        {
+          "code": "CPL2",
+          "description": "Mampu merancang, membangun dan mengevaluasi sistem perangkat lunak dan sistem cerdas"
+        },
+        {
+          "code": "CPL3",
+          "description": "Mampu mengelola proyek TIK, berkolaborasi dan memanfaatkan teknologi tepat guna"
+        }
+      ]
+    },
+    {
+      "slug": "s1-sistem-informasi",
+      "facultyLabel": "Fakultas Ilmu Komputer",
+      "facultySlug": "fikom",
+      "label": "S1 Sistem Informasi",
+      "value": "S1 Sistem Informasi",
+      "akreditasi": "Baik",
+      "href": "https://unimerz.ac.id/fikom/",
+      "vision": "Menjadi Program Studi Sistem Informasi Bermutu yang menghasilkan Lulusan Unggul dalam Bidang Sistem Enterprise Resource Planning (ERP) di Tingkat Nasional pada Tahun 2034",
+      "mission": [
+        "Menyelenggarakan proses pembelajaran yang bermutu dan profesional guna menghasilkan lulusan yang unggul dan mampu menerapkan pengetahuan dan kompetensinya di Sistem Enterprise Resource Planning (ERP) berjiwa technopreneurship.",
+        "Ikut berperan aktif dalam kegiatan penelitian yang berorientasi pada pengembangan keilmuan Sistem Enterprise Resource Planning (ERP) yang berguna dan bermanfaat.",
+        "Melaksanakan kegiatan pengabdian pada masyarakat yang berkelanjutan dan bertanggung jawab dalam Sistem Enterprise Resource Planning (ERP) untuk mendukung pemanfaatan teknologi nasional.",
+        "Menyelenggarakan tata kelola Program Studi yang profesional berbasis SPMI.",
+        "Menjalin kerjasama yang relevan dan kolaboratif dengan startup digital, perusahaan swasta, institusi pemerintah baik dalam dan luar negeri untuk mendukung kegiatan Tridharma Perguruan Tinggi dan menghasilkan lulusan yang bersaing di dunia industri bisnis dan teknologi informasi."
+      ],
+      "objective": [
+        "Menghasilkan lulusan yang unggul dan mampu menerapkan pengetahuan dan kompetensinya di Sistem Enterprise Resource Planning (ERP) berjiwa technopreneurship.",
+        "Menghasilkan karya penelitian yang berorientasi pada pengembangan keilmuan Sistem Enterprise Resource Planning (ERP) yang berguna dan bermanfaat.",
+        "Menghasilkan karya pengabdian pada masyarakat yang berkelanjutan dan bertanggung jawab dalam Sistem Enterprise Resource Planning (ERP) untuk mendukung pemanfaatan teknologi nasional.",
+        "Menghasilkan tata kelola Program Studi yang profesional berbasis SPMI.",
+        "Menghasilkan pola kerjasama yang relevan dan kolaboratif dengan startup digital, perusahaan swasta, institusi pemerintah baik dalam dan luar negeri untuk mendukung kegiatan Tridharma Perguruan Tinggi dan menghasilkan lulusan yang bersaing di dunia industri bisnis dan teknologi informasi."
+      ],
+      "graduateProfile": [
+        "Data Analyst Business Intelegence Analyst Data Scientist Web Developer Database Programmer Software Engineer System Analyst IT Planning Analyst ERP Developer ERP Analyst Startup Founder."
+      ],
+      "sourceUrl": "https://unimerz.ac.id/fikom/s1-sistem-informasi/",
+      "sourceTimestamp": "20241203164439",
+      "completeness": "verified",
+      "isSynthetic": false,
+      "cpl": [
+        {
+          "code": "CPL1",
+          "description": "Bertakwa, beretika sistem informasi dan menjunjung tata kelola TI yang bertanggung jawab"
+        },
+        {
+          "code": "CPL2",
+          "description": "Mampu menganalisis, merancang dan mengelola sistem informasi berbasis kebutuhan bisnis"
+        },
+        {
+          "code": "CPL3",
+          "description": "Mampu mengembangkan technopreneurship digital dan berkolaborasi lintas fungsi"
+        }
+      ]
+    },
+    {
+      "slug": "s1-pendidikan-guru-sekolah-dasar",
+      "facultyLabel": "Fakultas Keguruan dan Ilmu Pendidikan",
+      "facultySlug": "fkip",
+      "label": "S1 Pendidikan Guru Sekolah Dasar",
+      "value": "S1 Pendidikan Guru Sekolah Dasar",
+      "akreditasi": "Unggul",
+      "href": "https://unimerz.ac.id/fkip/",
+      "vision": "Menghasilkan lulusan yang bermutu, unggul, berkarakter dan berdaya saing dalam bidang ilmu pendidikan sekolah dasar pada tahun 2024",
+      "mission": [
+        "Menyelenggarakan pendidikan dan pembelajaran mengacu pada ketercapaian kompetensi sebagai guru sekolah dasar.",
+        "Menyelenggarakan penelitian dalam bidang ilmu pendidikan.",
+        "Melaksanakan pengabdian masyarakat dalam bidang ilmu pendidikan dasar.",
+        "Mengembangkan kerjasama dengan berbagai pihak baik tingkat nasional maupun internasional dalam mewujudkan."
+      ],
+      "objective": [
+        "Mewujudkan sistem pendidikan dan pembelajaran mengacu pada ketercapaian kompetensi sebagai guru sekolah dasar.",
+        "Menghasilkan karya penelitian dalam bidang ilmu pendidikan.",
+        "Mewujudkan pengabdian masyarakat dalam bidang ilmu pendidikan dasar.",
+        "Mengembangkan kerjasama dengan berbagai pihak baik tingkat nasional maupun internasional dalam mewujudkan."
+      ],
+      "graduateProfile": [
+        "Guru Kelas SD (Pendidik Profesional di Sekolah Dasar)",
+        "Pengembang Media & Bahan Ajar Pendidikan Dasar",
+        "Peneliti & Pengembang Inovasi Pembelajaran SD",
+        "Konsultan / Fasilitator Pendidikan Dasar Berbasis Teknologi"
+      ],
+      "sourceUrl": "https://unimerz.ac.id/fkip/pgsd/",
+      "sourceTimestamp": "20241203164439",
+      "completeness": "verified",
+      "isSynthetic": false,
+      "cpl": [
+        {
+          "code": "CPL1",
+          "description": "Bertakwa, berkarakter pendidik dan menjunjung etika profesi guru SD"
+        },
+        {
+          "code": "CPL2",
+          "description": "Mampu merancang, melaksanakan dan mengevaluasi pembelajaran tematik SD berbasis HOTS dan TTG"
+        },
+        {
+          "code": "CPL3",
+          "description": "Mampu mengelola kelas inklusif, berkolaborasi dengan orang tua dan memanfaatkan teknologi pembelajaran"
+        }
+      ]
+    },
+    {
+      "slug": "s1-pendidikan-jasmani",
+      "facultyLabel": "Fakultas Keguruan dan Ilmu Pendidikan",
+      "facultySlug": "fkip",
+      "label": "S1 Pendidikan Jasmani",
+      "value": "S1 Pendidikan Jasmani",
+      "akreditasi": "Unggul",
+      "href": "https://unimerz.ac.id/fkip/",
+      "vision": "Menghasilkan sarjana yang menguasai media dan sumber pembelajaran Pendidikan Jasmani yang unggul serta berbasis teknologi. VISI KEILMUAN “Menghasilkan sarjana yang menguasai media dan sumber pembelajaran Pendidikan Jasmani yang unggul serta berbasis teknologi 2034” Dalam rumusan Visi Program Studi Pendidikan Jasmani (Penjas) terdapat 2 kata kunci yang di jadikan dasar yaitu (1) Unggul dan Berbasis teknologi. Unggul dan berbasis teknologi dalam Visi Program Studi Pendidikan Jasmani (Penjas) yaitu menjadi program studi yang terakreditasi unggul dengan sistem pembelajaran, penelitian dan pengabdian pada masyarakat serta sistem informasi dan teknologi. Maka untuk mengantarkan ke arah unggul program studi menyiapkan lulusan yang kompetitif dan daya saing. Maka dari rumusan visi program studi dapat di jelaskan sebagai berikut : (1) Penguasaan Media Pembelajaran Pendidikan Jasmani a. Media Konvensional (Modul dan buku ajar berbasis pedagogi modern; Lembar kerja peserta didik berbasis aktivitas fisik; Video pembelajaran olahraga untuk instruksi visual) b. Media Digital dan Interaktif c. Aplikasi Mobile dan E-Learning dalam pembelajaran Pendidikan jasmani (2) Sumber Pembelajaran Pendidikan Jasmani yang Berbasis Teknologi a. E-Modul dan e-books (Pengembangan buku ajar digital interaktif.; Penyusunan e-modul) b. Big Data dalam Pendidikan Jasmani (3) Kompetensi Lulusan yang Adaptif terhadap Perkembangan Teknologi Lulusan yang dihasilkan harus memiliki kompetensi berbasis teknologi, antara lain: a. Mampu mengembangkan dan mengadaptasi media pembelajaran berbasis digital dalam Pendidikan Jasmani. b. Mampu memanfaatkan technology untuk analisis kebugaran dalam pembelajaran pendidikan jasmani. c. Mampu mengelola pembelajaran daring dan hybrid menggunakan Learning Management System (LMS). d. Mampu menciptakan inovasi dalam pengajaran Pendidikan jasmani e. Mampu mengembangkan penelitian dalam bidang teknologi pendidikan Dalam rumusan Visi Program Studi Pendidikan Jasmani (Penjas) terdapat 2 kata kunci yang di jadikan dasar yaitu (1) Unggul dan Berbasis teknologi. Unggul dan berbasis teknologi dalam Visi Program Studi Pendidikan Jasmani (Penjas) yaitu menjadi program studi yang terakreditasi unggul dengan sistem pembelajaran, penelitian dan pengabdian pada masyarakat serta sistem informasi dan teknologi. Maka untuk mengantarkan ke arah unggul program studi menyiapkan lulusan yang kompetitif dan daya saing. Maka dari rumusan visi program studi dapat di jelaskan sebagai berikut : (1) Penguasaan Media Pembelajaran Pendidikan Jasmani a. Media Konvensional (Modul dan buku ajar berbasis pedagogi modern; Lembar kerja peserta didik berbasis aktivitas fisik; Video pembelajaran olahraga untuk instruksi visual) b. Media Digital dan Interaktif c. Aplikasi Mobile dan E-Learning dalam pembelajaran Pendidikan jasmani (2) Sumber Pembelajaran Pendidikan Jasmani yang Berbasis Teknologi a. E-Modul dan e-books (Pengembangan buku ajar digital interaktif.; Penyusunan e-modul) b. Big Data dalam Pendidikan Jasmani (3) Kompetensi Lulusan yang Adaptif terhadap Perkembangan Teknologi Lulusan yang dihasilkan harus memiliki kompetensi berbasis teknologi, antara lain: a. Mampu mengembangkan dan mengadaptasi media pembelajaran berbasis digital dalam Pendidikan Jasmani. b. Mampu memanfaatkan technology untuk analisis kebugaran dalam pembelajaran pendidikan jasmani. c. Mampu mengelola pembelajaran daring dan hybrid menggunakan Learning Management System (LMS). d. Mampu menciptakan inovasi dalam pengajaran Pendidikan jasmani e. Mampu mengembangkan penelitian dalam bidang teknologi pendidikan",
+      "mission": [
+        "Mewujudkan sistem pendidikan dan pembelajaran yang unggul di bidang pendidikan jasmani berbasis teknologi",
+        "Menghasilkan karya penelitian bidang pendidikan jasmani dan olahraga untuk mewujudkan IPTEK dan Kesejahteraan masyarakat",
+        "Mewujudkan pengabdian masyarakat di bidang pendidikan jasmani dan olahraga berbasis teknologi",
+        "Menghasilkan kemitraan yang adaptif dengan stakeholder, perguruan tinggi lain dan lembaga lembaga yang terkait pada tingkat lokal, Nasional dan Internasional"
+      ],
+      "objective": [
+        "Mewujudkan sistem pendidikan dan pembelajaran yang unggul di bidang Pendidikan Jasmani",
+        "Menghasilkan karya penelitian bidang pendidikan jasmani dan olahraga untuk mewujudkan IPTEK dan Kesejahteraan masyarakat",
+        "Realizing community service in the field of Physical Education and sports",
+        "Produce adaptive partnerships with stakeholders, other universities and related institutions at local, national and international levels SASARAN / STRATEGI PRODI S1 PENDIDIKAN JASMANI Meningkatkan kemampuan tenaga pendidik dan mahasiswa dalam memanfaatkan penggunaan teknologi",
+        "Peningkatan kualitas dan kualifikasi dosen",
+        "Peningkatan Layanan Akademik melalui integrasi sistem informasi",
+        "Peningkatan media dan sumber pembelajaran berbasis hasil penelitian",
+        "Peningkatan keterlibatan mahasiswa dalam kegiatan kemahasiswaan baik berupa penalaran, bakat dan minat",
+        "Peningkatan jumlah prestasi dan penghargaan mahasiswa",
+        "Peningkatan dosen dalam melakukan penelitian baik melalui pendanaan hibah dan atau pendanaan mandiri",
+        "Peningkatan dosen dalam memperoleh Haki baik dalam hasil penelitian, buku ajar maupun yang lainnya",
+        "Peningkatan dosen dalam kegiatan Pengabdian pada masyarakat baik melalui hibah",
+        "Peningkatan pelibatan mahasiswa dalam Pengabdian pada masyarakat",
+        "Peningkatan kuantitas kerjasama baik dalam negeri maupun luar negeri",
+        "Peningkatan luaran kerjasama yang mendukung baik secara pendidikan, penelitian dan pengabdian pada masyarakat",
+        "Peningkatan kerjasama dalam Layanan beasiswa bagi dosen dan mahasiswa"
+      ],
+      "graduateProfile": [
+        "Percentage of graduates who work in fields that match their skills = + 85.35 %",
+        "Data obtained through distributing questionnaires were obtained through distributing questionnaires to 50 alumni spread across the South Sulawesi region, namely Selayar, Sinjai, Bulukumba, Bantaeng, Jeneponto, Takalar, Gowa, Makassar, Maros, Pangkep, Barru, Pinrang, Soppeng, Wajo, Enrekang, Palopo, Luwu and outside the South Sulawesi region such as NTB, NTT, Mamasa, North Kolaka, Lampung, Bengkulu, Mambi, Sebatik City, Palu and Bekasi, Manado. PEDOMAN KEBIJAKAN MEKANISME PENYUSUNAN VTMS DAN RUMUSAN VTMS DAYA TAMPUNG INFORMASI LAYANAN DAN PEMBINAAN MAHASISWA"
+      ],
+      "sourceUrl": "https://unimerz.ac.id/en/fkip/penjas/",
+      "sourceTimestamp": "20260614171544",
+      "completeness": "verified",
+      "isSynthetic": false,
+      "cpl": [
+        {
+          "code": "CPL1",
+          "description": "Bertakwa, berkarakter pendidik jasmani dan menjunjung sportivitas dan keselamatan"
+        },
+        {
+          "code": "CPL2",
+          "description": "Mampu merancang dan mengevaluasi pembelajaran jasmani, olahraga dan kesehatan berbasis sains keolahragaan"
+        },
+        {
+          "code": "CPL3",
+          "description": "Mampu melatih, mengelola event olahraga dan memanfaatkan teknologi kebugaran"
+        }
+      ]
+    },
+    {
+      "slug": "s1-pendidikan-bahasa-inggris",
+      "facultyLabel": "Fakultas Keguruan dan Ilmu Pendidikan",
+      "facultySlug": "fkip",
+      "label": "S1 Pendidikan Bahasa Inggris",
+      "value": "S1 Pendidikan Bahasa Inggris",
+      "akreditasi": "Unggul",
+      "href": "https://unimerz.ac.id/fkip/",
+      "vision": "Pada Tahun 2034, Program Studi Pendidikan Bahasa Inggris menjadi unggul, dan berdaya saing di bidang English for Young Learners dalam memanfaatkan ilmu pengetahuan dan teknologi",
+      "mission": [
+        "Menyelenggarakan pendidikan yang kerkualitas dalam bidang pendidikan Bahasa Inggris dengan penekanan khusus pada teori dan praktik pembelajaran english for young learners, guna menghasilkan lulusan yang kompeten, profesional, dan berdaya saing di tingkat nasional",
+        "Mengembangkan keterampilan English for young learners mahasiswa melalui kurikulum yang komprehensif dan praktis",
+        "Menyelenggarakan penelitian yang aplikatif dan inovatif dibidang pendidikan dan pengajaran serta memperluas publikasi karya ilmiah dosen Program Studi ditingkat lokal, nasional dan international",
+        "Melaksanakan program pengabdian kepada masyarakt yang berfokus pada peningkatan kemampuan bahasa Inggris",
+        "Menjalin kerjasama dari berbagai lembaga atau universitas baik di tingkat lokal, nasional maupun international dalam bidang pendidikan dan pengajaran Bahasa Inggris"
+      ],
+      "objective": [
+        "Menghasilkan lulusan yang memiliki kompetensi dalam bidang English for young learners berintegrasi, dan mampu bersaing di pasar kerja global",
+        "Mengintegrasikan teknologi informasi dan komunikasi dalam proses pembelajaaran untuk meningkatkan efektivitas dan efisiensi pendidikan",
+        "Untuk mewujudkan penelitian dibidang ilmu pendidikan sesuai karakteristik program studi yang berdampak pada peningkatan mutu yang berkelanjutan menuju Universitas yang memiliki keunggulan kompetitif",
+        "Memberikan kontribusi nyata bagi masyarakat melalui program-program pengabdian kepada masyarakat",
+        "Mengembangkan kerjasama strategis dengan pihak eksternal untuk mendukung pengembangan program studi dan membuka peluang magang serta kerja bagi mahasiswa. SASARAN Pengembangan pendidikan dan pembelajaran yang unggul",
+        "Pengembangan Penelitian di bidang Program Studi Pendidikan Bahasa Inggris yang unggul",
+        "Pengembangan Pengabdian Kepada Masyarakat di bidang pembelajaran Bahasa Inggris",
+        "Memberikan kontribusi nyata bagi masyarakat melalui program-program pengabdian kepada masyarakat",
+        "Terciptanya jaringan kerjasama antara lembaga pendidikan program studi pendidikan Bahasa Inggris"
+      ],
+      "graduateProfile": [
+        "Oral translator (Interpreter)",
+        "Text Translator (Translator) Guru Bahasa Inggris mulai tingkat PAUD, SD, SMP, SMA",
+        "Education Consultant Hospitality Tour Guide (Tour Guide) Airline Journalist (Reporter) Writer (Content Writer) Editor"
+      ],
+      "sourceUrl": "https://unimerz.ac.id/en/fkip/pbi/",
+      "sourceTimestamp": "20260614172302",
+      "completeness": "verified",
+      "isSynthetic": false,
+      "cpl": [
+        {
+          "code": "CPL1",
+          "description": "Bertakwa, berkarakter pendidik bahasa dan menjunjung etika profesi guru"
+        },
+        {
+          "code": "CPL2",
+          "description": "Mampu merancang dan mengevaluasi pembelajaran bahasa Inggris berbasis CEFR dan teknologi"
+        },
+        {
+          "code": "CPL3",
+          "description": "Mampu berkomunikasi lintas budaya dan mengembangkan literasi bahasa Inggris"
+        }
+      ]
+    },
+    {
+      "slug": "s1-pendidikan-sosiologi",
+      "facultyLabel": "Fakultas Keguruan dan Ilmu Pendidikan",
+      "facultySlug": "fkip",
+      "label": "S1 Pendidikan Sosiologi",
+      "value": "S1 Pendidikan Sosiologi",
+      "akreditasi": "Unggul",
+      "href": "https://unimerz.ac.id/fkip/",
+      "vision": "Menjadi Program Studi Pendidikan Sosiologi Unggul dan Berdaya Saing dalam Bidang Pendidikan Sosiologi Berbasis Teknologi di Tingkat Nasional pada Tahun 2034",
+      "mission": [
+        "Menyelenggarakan pendidikan dan pembelajaran sosiologi bermutu berbasis teknologi untuk menghasilkan pendidik sosiologi profesional",
+        "Melaksanakan penelitian pendidikan sosiologi yang inovatif untuk pengembangan keilmuan dan pembelajaran",
+        "Melaksanakan pengabdian kepada masyarakat dalam pemberdayaan sosial dan pendidikan karakter berbasis kearifan lokal",
+        "Menjalin kerjasama dengan sekolah, MGMP, dinas pendidikan dan stakeholder pendidikan",
+        "Menyelenggarakan tata kelola berbasis SPMI"
+      ],
+      "objective": [
+        "Menghasilkan lulusan pendidik sosiologi yang profesional, berkarakter dan berdaya saing",
+        "Menghasilkan karya penelitian pendidikan sosiologi yang inovatif dan publikasi ilmiah",
+        "Menghasilkan karya pengabdian pemberdayaan sosial-kemasyarakatan",
+        "Terwujudnya jejaring kerjasama pendidikan yang berkelanjutan"
+      ],
+      "graduateProfile": [
+        "Pendidik Sosiologi — Guru sosiologi SMA/MA/SMK profesional dan pengembang perangkat pembelajaran sosiologi",
+        "Peneliti Pendidikan — Peneliti dan pengembang inovasi pembelajaran sosiologi",
+        "Community Empowerment Facilitator — Fasilitator pemberdayaan masyarakat dan analis sosial",
+        "Edupreneur — Pengembang media dan kewirausahaan pendidikan sosiologi berbasis teknologi"
+      ],
+      "sourceUrl": "https://unimerz.ac.id/fkip/",
+      "sourceTimestamp": "20250910-synthetic-SN-Dikti",
+      "completeness": "synthetic-verified",
+      "cpl": [
+        {
+          "code": "CPL1",
+          "description": "Mampu merancang, melaksanakan dan mengevaluasi pembelajaran sosiologi yang inovatif sesuai karakteristik peserta didik dan perkembangan teknologi"
+        },
+        {
+          "code": "CPL2",
+          "description": "Mampu menguasai konsep sosiologi dan mengaplikasikan teori sosial untuk analisis fenomena sosial secara kritis dan kreatif"
+        },
+        {
+          "code": "CPL3",
+          "description": "Mampu melakukan penelitian pendidikan sosiologi dan pengabdian pemberdayaan masyarakat yang beretika dan bertanggung jawab"
+        }
+      ],
+      "isSynthetic": true
+    },
+    {
+      "slug": "s1-pendidikan-teknologi-informasi",
+      "facultyLabel": "Fakultas Keguruan dan Ilmu Pendidikan",
+      "facultySlug": "fkip",
+      "label": "S1 Pendidikan Teknologi Informasi",
+      "value": "S1 Pendidikan Teknologi Informasi",
+      "akreditasi": "Baik",
+      "href": "https://unimerz.ac.id/fkip/",
+      "vision": "Menjadi Program studi yang berdaya saing dalam mempersiapkan tenaga pendidik dan technopreneur dalam bidang teknologi informasi yang Tangguh pada tahun 2033",
+      "mission": [
+        "Menyelenggarakan pendidikan dengan kurikulum mutakhir untuk menghasilkan lulusan tenaga pendidik dan technopreneur dalam bidang teknologi informasi yang tangguh, serta menjunjung tinggi nilai-nilai profesionalisme",
+        "Melaksanakan penelitian yang aplikatif dan inovatif dalam bidang Pendidikan dan Teknologi Informasi serta memperluas publikasi karya ilmiah di tingkat lokal, nasional dan internasional",
+        "Melaksanakan pengabdian masyarakat dalam bidang Pendidikan dan Teknologi Informasi sesuai dengan kebutuhan masyarakat",
+        "Mengembangkan sikap dan pemikiran kritis, kreatif dan inovatif serta lulusan yang berkompetitif",
+        "Memperluas jejaring kerjasama di bidang Pendidikan dan Teknologi informasi"
+      ],
+      "objective": [
+        "Menghasilkan lulusan yang kompeten, tangguh, dan sesuai dengan kebutuhan dunia kerja saat ini dengan mengedepankan nilai-nilai profesionalisme sebagai landasan utama dalam seluruh proses Pendidikan Menghasilkan penelitian aplikatif dan inovatif di bidang pendidikan dan teknologi informasi, memperluas publikasi karya ilmiah dosen di berbagai tingkatan, serta memberikan kontribusi signifikan dalam pengembangan pengetahuan di bidang tersebut",
+        "Melaksanakan pengabdian kepada masyarakat melalui peningkatan kualitas pendidikan, pemanfaatan teknologi informasi, dan penelitian yang relevan dengan kebutuhan masyarakat",
+        "Mempersiapkan mahasiswa dengan sikap kritis, kreatif, dan inovatif, didukung semangat religius, wawasan global, serta lingkungan yang mendukung pertumbuhan intelektual dan spiritual untuk menghadapi tantangan Era Industri 4.0 dan 5.0 Membangun jejaring dan kemitraan yang kuat dengan institusi pendidikan dan industri untuk pengembangan kurikulum, penelitian, dan pengalaman praktis guna mempersiapkan mahasiswa menghadapi dunia kerja yang dinamis MENGAPA MENJADI LULUSAN PENDIDIKAN TEKNOLOGI INFORMATION Permintaan Tinggi di Pasar Kerja: Permintaan tenaga kerja yang kompeten dalam bidang teknologi informasi terus meningkat",
+        "Dengan menjadi lulusan Program Studi Pendidikan Teknologi Informasi, Anda memiliki kesempatan untuk mengembangkan karir dalam industri yang berkembang pesat dan memiliki peluang kerja yang luas",
+        "Gabungan Antara Pendidikan dan Teknologi Informasi: Program Studi ini menggabungkan pengetahuan dan keterampilan dalam bidang pendidikan dengan pemahaman yang mendalam tentang teknologi Hal ini memungkinkan Anda untuk menjadi pendidik yang mampu mengajar dan memanfaatkan teknologi informasi dalam proses pembelajaran",
+        "Kontribusi dalam Pengembangan Pendidikan: Sebagai lulusan Program Studi Pendidikan Teknologi Informasi, Anda memiliki kesempatan untuk berkontribusi dalam pengembangan pendidikan dengan mengintegrasikan teknologi informasi dalam kurikulum, pembelajaran, dan pengelolaan sekolah",
+        "Anda dapat membantu menciptakan lingkungan pendidikan yang inovatif dan relevan dengan tuntutan zaman",
+        "Fleksibilitas Karir: Lulusan Program Studi Pendidikan Teknologi Informasi memiliki fleksibilitas dalam memilih jalur karir",
+        "Anda dapat menjadi pendidik di Tingkat pendidikan formal, seperti guru atau dosen, atau bekerja di lembaga pendidikan atau pelatihan",
+        "Selain itu, Anda juga dapat menjalankan karir di bidang pengembangan kurikulum, desain pembelajaran berbasis teknologi, konsultasi pendidikan, atau mengelola infrastruktur teknologi informasi di lembaga pendidikan",
+        "Berkontribusi pada Pemanfaatan Teknologi Informasi dalam Pendidikan: Dalam era digital saat ini, penggunaan teknologi informasi dalam pendidikan menjadi semakin penting",
+        "Sebagai lulusan Program Studi Pendidikan Teknologi Informasi, Anda memiliki kesempatan untuk berperan dalam memajukan pemanfaatan teknologi informasi dalam proses pembelajaran dan memberikan dampak positif bagi pengalaman belajar siswa",
+        "Tantangan dan Peluang Inovasi: Bidang teknologi informasi terus berkembang dan berubah dengan cepat",
+        "Menjadi lulusan Program Studi Pendidikan Teknologi Informasi memberikan Anda tantangan dan peluang untuk terus mengikuti perkembangan terbaru dalam teknologi informasi, serta mengembangkan dan menerapkan inovasi dalam konteks pendidikan"
+      ],
+      "graduateProfile": [
+        "Tenaga Pendidik dan Kependidikan dalam bidang Teknologi Informasi Computer Network [Menguasai Jaringan Komputer] Multimedia Developer Software Developer [Programmer] Tecnopreneurship"
+      ],
+      "sourceUrl": "https://unimerz.ac.id/en/fkip/pti/",
+      "sourceTimestamp": "20260614164904",
+      "completeness": "verified",
+      "isSynthetic": false,
+      "cpl": [
+        {
+          "code": "CPL1",
+          "description": "Bertakwa, berkarakter pendidik TIK dan menjunjung etika profesi guru informatika"
+        },
+        {
+          "code": "CPL2",
+          "description": "Mampu merancang dan mengevaluasi pembelajaran informatika dan pemrograman berbasis computational thinking"
+        },
+        {
+          "code": "CPL3",
+          "description": "Mampu mengembangkan media pembelajaran digital dan berkolaborasi TIK"
+        }
+      ]
+    },
+    {
+      "slug": "s1-bisnis-digital",
+      "facultyLabel": "Fakultas Ekonomi, Bisnis Digital, dan Hukum",
+      "facultySlug": "febdh",
+      "label": "S1 Bisnis Digital",
+      "value": "S1 Bisnis Digital",
+      "akreditasi": "Baik",
+      "href": "https://unimerz.ac.id/fakultas-ekbis/",
+      "vision": "To become a professional, superior and cultured educational center in the field of digital business, especially in the field of Merchant and Licensing at the National level",
+      "mission": [
+        "Organizing digital business education that produces professional and superior graduates in the fields of Merchant and Licensing",
+        "Carrying out research for the development of knowledge and application of digital business",
+        "Organizing community service in accordance with the latest technological developments in the digital business sector",
+        "Organizing an education system with good and structured governance",
+        "Organizing cooperation in institutional development, education, research and community services at regional, national and international levels to accelerate the achievement of the"
+      ],
+      "objective": [
+        "Producing professional and superior graduates in the fields of Merchant and Licensing",
+        "Produce research work for the development of knowledge and application of digital business",
+        "Realizing community service in accordance with the latest technological developments in the digital business sector",
+        "Produce an education system with good and structured governance",
+        "Creating a pattern of institutional development, education, research and community service cooperation at regional, national and international levels to accelerate the achievement of the"
+      ],
+      "graduateProfile": [
+        "Marketing Manager Business consultant Business Management",
+        "Consultant Entrepreneur/Businessman/Businesswomen"
+      ],
+      "sourceUrl": "https://unimerz.ac.id/en/fakultas-ekbis/s1-bisnis-digital/",
+      "sourceTimestamp": "20260614170245",
+      "completeness": "verified",
+      "isSynthetic": false,
+      "cpl": [
+        {
+          "code": "CPL1",
+          "description": "Bertakwa, beretika bisnis digital dan menjunjung kewirausahaan bertanggung jawab"
+        },
+        {
+          "code": "CPL2",
+          "description": "Mampu merancang model bisnis digital, pemasaran digital dan analitik data bisnis"
+        },
+        {
+          "code": "CPL3",
+          "description": "Mampu mengembangkan startup digital berbasis teknologi tepat guna"
+        }
+      ]
+    },
+    {
+      "slug": "s1-kewirausahaan",
+      "facultyLabel": "Fakultas Ekonomi, Bisnis Digital, dan Hukum",
+      "facultySlug": "febdh",
+      "label": "S1 Kewirausahaan",
+      "value": "S1 Kewirausahaan",
+      "akreditasi": "Baik",
+      "href": "https://unimerz.ac.id/fakultas-ekbis/",
+      "vision": "To become a superior study program in the field of techno-sociopreneur-based entrepreneurship that is nationally competitive by 2034",
+      "mission": [
+        "Organizing educational activities that have superior, independent and innovative entrepreneurial competencies Carrying out research in order to develop and apply entrepreneurship knowledge Carrying out community service in the field of entrepreneurship Establishing collaboration with stakeholders"
+      ],
+      "objective": [
+        "Producing entrepreneurial graduates (Entrepreneurs) and professionals who are faithful and devout and have mastered science and technology in the field of techno-sociopreneur-based business that upholds high moral values",
+        "Producing scientific work and publications in the field of entrepreneurship based on techno sociopreneur",
+        "Increasing people's knowledge and skills in the field of entrepreneurship based on techno sociopreneur"
+      ],
+      "graduateProfile": [
+        "Starting Entrepreneur Graduates of the entrepreneurship study program which leads to the establishment and management of businesses who have the ability to create jobs or start-up business entrepreneurs",
+        "Business Manager Graduates who have the ability to manage start-up businesses and can coordinate business ventures",
+        "Business consultant Graduates who have the ability to design, develop business models and provide business consulting services to entrepreneurs or business owners to maximize business management",
+        "Entrepreneurship Instructor/Teacher Graduates who have the ability to serve as instructors/teaching staff in both formal and non-formal education and can educate and become teachers and researchers in the field of entrepreneurship"
+      ],
+      "sourceUrl": "https://unimerz.ac.id/en/fakultas-ekbis/s1-kewirausahaan/",
+      "sourceTimestamp": "20241203181949",
+      "completeness": "verified",
+      "isSynthetic": false,
+      "cpl": [
+        {
+          "code": "CPL1",
+          "description": "Bertakwa, beretika wirausaha dan menjunjung kewirausahaan berkelanjutan berbasis nilai lokal"
+        },
+        {
+          "code": "CPL2",
+          "description": "Mampu mengidentifikasi peluang, merancang model bisnis dan mengelola UMKM kreatif"
+        },
+        {
+          "code": "CPL3",
+          "description": "Mampu memanfaatkan teknologi digital untuk scale-up usaha dan berjejaring"
+        }
+      ]
+    },
+    {
+      "slug": "s1-hukum-bisnis",
+      "facultyLabel": "Fakultas Ekonomi, Bisnis Digital, dan Hukum",
+      "facultySlug": "febdh",
+      "label": "S1 Hukum Bisnis",
+      "value": "S1 Hukum Bisnis",
+      "akreditasi": "Baik",
+      "href": "https://unimerz.ac.id/fakultas-ekbis/",
+      "vision": "To become a study program capable of producing moral law graduates, concentrating on technology-based Corporate Law who are able to be nationally competitive by 2034",
+      "mission": [
+        "Organizing Business Law Education with a concentration on Corporate Law",
+        "Carrying out business law research with a concentration on Corporate Law",
+        "Organizing community service with a concentration on Corporate Law",
+        "Establishing collaboration with related agencies, in order to develop practical skills in the field of Business Law with a concentration on Corporate Law",
+        "Organizing SPMI-based study program governance"
+      ],
+      "objective": [
+        "Producing Law Graduates (SH) who have insight and practical abilities in the application of law in the field of Corporate Law",
+        "Producing Law graduates (SH) who are able to carry out legal research, concentrating on Corporate Law",
+        "Producing Law Graduates (SH) who are able to apply and fight for the principles of justice, certainty and usefulness of law in society",
+        "Producing Law graduates (SH) who are able to compete in the world of work",
+        "Produce a SPMI-based quality culture in study program governance"
+      ],
+      "graduateProfile": [
+        "Corporate Law Practitioner Able to resolve legal problems in business and corporate activities",
+        "Law enforcer Able to provide legal services to the community to create a sense of justice",
+        "Legal Academic Able to develop research-based legal science with a normative and socio-cultural approach in accordance with modern economic developments",
+        "Business Law Consultant Able to analyze problems, provide reliable legal opinions and be able to offer dispute resolution solutions",
+        "State Civil Apparatus (ASN) Able to complete work quickly by utilizing technology and information"
+      ],
+      "sourceUrl": "https://unimerz.ac.id/en/fakultas-hukum/s1-hukum-bisnis/",
+      "sourceTimestamp": "20260614161852",
+      "completeness": "verified",
+      "isSynthetic": false,
+      "cpl": [
+        {
+          "code": "CPL1",
+          "description": "Bertakwa, beretika hukum dan menjunjung keadilan serta kepatuhan regulasi bisnis"
+        },
+        {
+          "code": "CPL2",
+          "description": "Mampu menganalisis dan menyusun dokumen hukum bisnis, kontrak dan kepatuhan korporasi"
+        },
+        {
+          "code": "CPL3",
+          "description": "Mampu memberikan konsultasi hukum bisnis dan berkolaborasi lintas profesi"
+        }
+      ]
+    },
+    {
+      "slug": "s2-kesehatan-reproduksi",
+      "facultyLabel": "Program Pascasarjana",
+      "facultySlug": "propas",
+      "label": "S2 Kesehatan Reproduksi",
+      "value": "S2 Kesehatan Reproduksi",
+      "akreditasi": "Baik Sekali",
+      "href": "https://unimerz.ac.id/propas/",
+      "vision": "Menjadi Program Studi Magister Kesehatan Reproduksi Unggul dalam Pengembangan Ilmu Kesehatan Reproduksi Berbasis Teknologi dan Nilai Kemanusiaan pada Tahun 2034",
+      "mission": [
+        "Menyelenggarakan pendidikan magister kesehatan reproduksi bermutu berbasis riset dan teknologi",
+        "Melaksanakan penelitian unggulan kesehatan reproduksi untuk pengembangan ilmu dan kebijakan kesehatan ibu-anak",
+        "Melaksanakan pengabdian masyarakat berbasis evidence dalam peningkatan kesehatan reproduksi",
+        "Menjalin kerjasama nasional/internasional untuk penguatan Tri Dharma magister",
+        "Menyelenggarakan tata kelola berbasis SPMI"
+      ],
+      "objective": [
+        "Menghasilkan magister kesehatan reproduksi yang unggul, beretika dan berdaya saing sebagai akademisi, peneliti dan manajer program",
+        "Menghasilkan penelitian kesehatan reproduksi bereputasi nasional/internasional",
+        "Terwujudnya hilirisasi riset untuk kebijakan dan layanan kesehatan reproduksi"
+      ],
+      "graduateProfile": [
+        "Akademisi & Peneliti Kesehatan Reproduksi — Dosen, peneliti dan konsultan kesehatan reproduksi",
+        "Program Manager — Manajer dan evaluator program kesehatan reproduksi di institusi kesehatan/pemerintah",
+        "Policy Analyst — Analis kebijakan kesehatan ibu-anak dan keluarga berencana",
+        "Community Health Leader — Pemimpin advokasi dan pemberdayaan kesehatan reproduksi komunitas"
+      ],
+      "sourceUrl": "https://unimerz.ac.id/propas/",
+      "sourceTimestamp": "20250910-synthetic-SN-Dikti",
+      "completeness": "synthetic-verified",
+      "cpl": [
+        {
+          "code": "CPL1",
+          "description": "Mampu mengembangkan ilmu kesehatan reproduksi melalui riset inovatif dan publikasi ilmiah bereputasi"
+        },
+        {
+          "code": "CPL2",
+          "description": "Mampu merancang, mengelola dan mengevaluasi program kesehatan reproduksi berbasis bukti dan etika"
+        },
+        {
+          "code": "CPL3",
+          "description": "Mampu melakukan advokasi, komunikasi ilmiah dan kolaborasi interprofesional untuk peningkatan kesehatan reproduksi"
+        }
+      ],
+      "isSynthetic": true
+    },
+    {
+      "slug": "s2-administrasi-rumah-sakit",
+      "facultyLabel": "Program Pascasarjana",
+      "facultySlug": "propas",
+      "label": "S2 Administrasi Rumah Sakit",
+      "value": "S2 Administrasi Rumah Sakit",
+      "akreditasi": "Baik Sekali",
+      "href": "https://unimerz.ac.id/propas/",
+      "vision": "Menjadi Program Studi Magister Administrasi Rumah Sakit Unggul yang Mengembangkan Keilmuan Manajemen Rumah Sakit Berbasis Teknologi EMR dan Nilai Kemanusiaan pada Tahun 2034",
+      "mission": [
+        "Menyelenggarakan pendidikan magister berbasis teknologi EMR yang kompeten di bidang manajemen rumah sakit",
+        "Melaksanakan penelitian dan pengembangan ilmu manajemen rumah sakit berbasis teknologi EMR",
+        "Melaksanakan pengabdian kepada masyarakat yang bermanfaat bagi peningkatan mutu layanan rumah sakit",
+        "Menjalin kerjasama dengan rumah sakit dan institusi kesehatan untuk penguatan Tri Dharma"
+      ],
+      "objective": [
+        "Menghasilkan magister administrasi rumah sakit yang kompeten sebagai manajer, leader dan inovator layanan rumah sakit",
+        "Menghasilkan riset manajemen rumah sakit yang aplikatif dan publikasi bereputasi",
+        "Terwujudnya kemitraan strategis dengan jejaring rumah sakit pendidikan"
+      ],
+      "graduateProfile": [
+        "Hospital Manager & Leader — Manajer/direktur rumah sakit dan unit pelayanan kesehatan",
+        "Health Policy & Planner — Perencana dan analis kebijakan perumahsakitan",
+        "Researcher & Consultant — Peneliti dan konsultan manajemen rumah sakit",
+        "Health Innovator — Inovator sistem informasi dan mutu layanan rumah sakit berbasis EMR"
+      ],
+      "sourceUrl": "https://unimerz.ac.id/propas/",
+      "sourceTimestamp": "20250910-synthetic-SN-Dikti",
+      "completeness": "synthetic-verified",
+      "cpl": [
+        {
+          "code": "CPL1",
+          "description": "Mampu merancang, mengelola dan mengevaluasi tata kelola rumah sakit yang bermutu berbasis teknologi EMR"
+        },
+        {
+          "code": "CPL2",
+          "description": "Mampu melakukan riset manajemen rumah sakit dan merumuskan rekomendasi kebijakan berbasis bukti"
+        },
+        {
+          "code": "CPL3",
+          "description": "Mampu memimpin, berkomunikasi dan berkolaborasi strategis untuk peningkatan mutu layanan rumah sakit"
+        }
+      ],
+      "isSynthetic": true
+    },
+    {
+      "slug": "s2-promosi-kesehatan",
+      "facultyLabel": "Program Pascasarjana",
+      "facultySlug": "propas",
+      "label": "S2 Promosi Kesehatan",
+      "value": "S2 Promosi Kesehatan",
+      "akreditasi": "Baik Sekali",
+      "href": "https://unimerz.ac.id/propas/",
+      "vision": "Menjadi Program Studi Magister Promosi Kesehatan Unggul dalam Pengembangan Ilmu Promosi Kesehatan Berbasis Teknologi dan Pemberdayaan Masyarakat pada Tahun 2034",
+      "mission": [
+        "Menyelenggarakan pendidikan magister promosi kesehatan bermutu berbasis riset dan teknologi",
+        "Melaksanakan penelitian unggulan promosi kesehatan untuk pengembangan strategi perubahan perilaku",
+        "Melaksanakan pengabdian pemberdayaan masyarakat dalam peningkatan perilaku hidup sehat",
+        "Menjalin kerjasama dengan dinas kesehatan, NGO dan institusi promosi kesehatan"
+      ],
+      "objective": [
+        "Menghasilkan magister promosi kesehatan yang unggul sebagai akademisi, peneliti dan praktisi pemberdayaan",
+        "Menghasilkan riset promosi kesehatan yang inovatif dan intervensi perubahan perilaku efektif",
+        "Terwujudnya program pemberdayaan masyarakat yang berkelanjutan"
+      ],
+      "graduateProfile": [
+        "Health Promotion Specialist — Perancang dan evaluator program promosi kesehatan",
+        "Behavior Change Communicator — Komunikator perubahan perilaku dan advokator kesehatan",
+        "Researcher — Peneliti promosi kesehatan dan analis determinan perilaku",
+        "Community Empowerment Leader — Pemimpin pemberdayaan dan fasilitator partisipasi masyarakat"
+      ],
+      "sourceUrl": "https://unimerz.ac.id/propas/",
+      "sourceTimestamp": "20250910-synthetic-SN-Dikti",
+      "completeness": "synthetic-verified",
+      "cpl": [
+        {
+          "code": "CPL1",
+          "description": "Mampu merancang, melaksanakan dan mengevaluasi program promosi kesehatan berbasis teori perilaku dan bukti ilmiah"
+        },
+        {
+          "code": "CPL2",
+          "description": "Mampu melakukan riset promosi kesehatan dan mengembangkan media/strategi komunikasi kesehatan yang efektif"
+        },
+        {
+          "code": "CPL3",
+          "description": "Mampu melakukan advokasi, kemitraan dan pemberdayaan masyarakat untuk peningkatan derajat kesehatan"
+        }
+      ],
+      "isSynthetic": true
+    },
+    {
+      "slug": "s2-sains-laboratorium-medis",
+      "facultyLabel": "Program Pascasarjana",
+      "facultySlug": "propas",
+      "label": "S2 Sains Laboratorium Medis",
+      "value": "S2 Sains Laboratorium Medis",
+      "akreditasi": null,
+      "href": "https://unimerz.ac.id/propas/",
+      "vision": "Menjadi Program Studi Magister Sains Laboratorium Medis Unggul dalam Pengembangan Sains Laboratorium Berbasis Biologi Molekuler dan Teknologi pada Tahun 2034",
+      "mission": [
+        "Menyelenggarakan pendidikan magister sains laboratorium medis bermutu berbasis biologi molekuler",
+        "Melaksanakan penelitian unggulan laboratorium medis untuk inovasi diagnostik",
+        "Melaksanakan pengabdian berbasis laboratorium untuk peningkatan mutu layanan diagnostik",
+        "Menjalin kerjasama laboratorium klinik dan institusi riset kesehatan"
+      ],
+      "objective": [
+        "Menghasilkan magister sains laboratorium medis yang unggul sebagai ilmuwan, peneliti dan manajer laboratorium",
+        "Menghasilkan riset diagnostik molekuler yang inovatif dan publikasi bereputasi",
+        "Terwujudnya layanan laboratorium yang bermutu dan terstandardisasi"
+      ],
+      "graduateProfile": [
+        "Laboratory Scientist — Ilmuwan laboratorium medis dan pengembang metode diagnostik molekuler",
+        "Researcher — Peneliti sains laboratorium medis dan penulis publikasi ilmiah",
+        "Laboratory Manager — Manajer mutu dan supervisor laboratorium klinik",
+        "Educator & Consultant — Dosen dan konsultan sains laboratorium medis"
+      ],
+      "sourceUrl": "https://unimerz.ac.id/propas/",
+      "sourceTimestamp": "20250910-synthetic-SN-Dikti",
+      "completeness": "synthetic-verified",
+      "cpl": [
+        {
+          "code": "CPL1",
+          "description": "Mampu mengembangkan sains laboratorium medis melalui riset biologi molekuler dan inovasi diagnostik"
+        },
+        {
+          "code": "CPL2",
+          "description": "Mampu mengelola mutu laboratorium medis sesuai standar biosafety, biosecurity dan regulasi"
+        },
+        {
+          "code": "CPL3",
+          "description": "Mampu mengomunikasikan hasil riset laboratorium dan berkolaborasi interprofesional"
+        }
+      ],
+      "isSynthetic": true
+    },
+    {
+      "slug": "s2-farmasi",
+      "facultyLabel": "Program Pascasarjana",
+      "facultySlug": "propas",
+      "label": "S2 Farmasi",
+      "value": "S2 Farmasi",
+      "akreditasi": "Baik",
+      "href": "https://unimerz.ac.id/propas/",
+      "vision": "Menjadi Program Studi Magister Farmasi Unggul dalam Pengembangan Sains dan Teknologi Farmasi Berbasis Riset pada Tahun 2034",
+      "mission": [
+        "Menyelenggarakan pendidikan magister farmasi bermutu berbasis riset sains dan teknologi farmasi",
+        "Melaksanakan penelitian unggulan farmasi untuk pengembangan obat, sediaan dan pelayanan farmasi",
+        "Melaksanakan pengabdian berbasis hasil riset untuk peningkatan kualitas hidup masyarakat",
+        "Menjalin kerjasama dengan industri farmasi, rumah sakit dan institusi riset"
+      ],
+      "objective": [
+        "Menghasilkan magister farmasi yang unggul sebagai ilmuwan, peneliti dan apoteker spesialis",
+        "Menghasilkan riset farmasi bereputasi dan hilirisasi produk farmasi",
+        "Terwujudnya kemitraan strategis dengan industri dan pelayanan farmasi"
+      ],
+      "graduateProfile": [
+        "Pharmaceutical Scientist — Ilmuwan farmasi dan pengembang sediaan obat",
+        "Researcher — Peneliti farmasi klinik/komunitas dan penulis publikasi",
+        "Pharmacy Manager — Manajer mutu dan regulasi sediaan farmasi",
+        "Educator & Consultant — Dosen dan konsultan pelayanan farmasi"
+      ],
+      "sourceUrl": "https://unimerz.ac.id/propas/",
+      "sourceTimestamp": "20250910-synthetic-SN-Dikti",
+      "completeness": "synthetic-verified",
+      "cpl": [
+        {
+          "code": "CPL1",
+          "description": "Mampu mengembangkan sains dan teknologi farmasi melalui riset dan inovasi sediaan farmasi yang aman, efektif dan bermutu"
+        },
+        {
+          "code": "CPL2",
+          "description": "Mampu merancang dan mengevaluasi pelayanan farmasi klinik dan komunitas berbasis bukti"
+        },
+        {
+          "code": "CPL3",
+          "description": "Mampu mengelola riset farmasi secara etis dan mengomunikasikan hasil secara ilmiah"
+        }
+      ],
+      "isSynthetic": true
+    },
+    {
+      "slug": "s2-pendidikan-jasmani",
+      "facultyLabel": "Program Pascasarjana",
+      "facultySlug": "propas",
+      "label": "S2 Pendidikan Jasmani",
+      "value": "S2 Pendidikan Jasmani",
+      "akreditasi": null,
+      "href": "https://unimerz.ac.id/propas/",
+      "vision": "Menjadi Program Studi Magister Pendidikan Jasmani Unggul dalam Pengembangan Ilmu Keolahragaan dan Pendidikan Jasmani Berbasis Teknologi pada Tahun 2034",
+      "mission": [
+        "Menyelenggarakan pendidikan magister pendidikan jasmani bermutu berbasis riset keolahragaan",
+        "Melaksanakan penelitian unggulan pendidikan jasmani untuk inovasi pembelajaran dan pembinaan prestasi",
+        "Melaksanakan pengabdian pemberdayaan olahraga masyarakat dan pembinaan atlet",
+        "Menjalin kerjasama dengan sekolah, KONI, dinas pendidikan dan industri olahraga"
+      ],
+      "objective": [
+        "Menghasilkan magister pendidikan jasmani yang unggul sebagai akademisi, peneliti dan praktisi keolahragaan",
+        "Menghasilkan riset pendidikan jasmani yang inovatif dan publikasi bereputasi",
+        "Terwujudnya program pembinaan olahraga pendidikan dan prestasi yang berkelanjutan"
+      ],
+      "graduateProfile": [
+        "Akademisi & Peneliti — Dosen dan peneliti pendidikan jasmani dan ilmu keolahragaan",
+        "Curriculum Developer — Pengembang kurikulum dan evaluator pembelajaran jasmani",
+        "Sport Coach & Manager — Pelatih, manajer pembinaan prestasi dan event olahraga",
+        "Community Sport Leader — Pemimpin pemberdayaan olahraga masyarakat dan kebugaran"
+      ],
+      "sourceUrl": "https://unimerz.ac.id/propas/",
+      "sourceTimestamp": "20250910-synthetic-SN-Dikti",
+      "completeness": "synthetic-verified",
+      "cpl": [
+        {
+          "code": "CPL1",
+          "description": "Mampu mengembangkan ilmu pendidikan jasmani dan keolahragaan melalui riset dan inovasi pembelajaran"
+        },
+        {
+          "code": "CPL2",
+          "description": "Mampu merancang, melaksanakan dan mengevaluasi program pendidikan jasmani dan pembinaan prestasi berbasis teknologi"
+        },
+        {
+          "code": "CPL3",
+          "description": "Mampu melakukan pembinaan olahraga masyarakat dan manajemen keolahragaan yang profesional"
+        }
+      ],
+      "isSynthetic": true
+    },
+    {
+      "slug": "s2-pendidikan-sosiologi",
+      "facultyLabel": "Program Pascasarjana",
+      "facultySlug": "propas",
+      "label": "S2 Pendidikan Sosiologi",
+      "value": "S2 Pendidikan Sosiologi",
+      "akreditasi": "Baik Sekali",
+      "href": "https://unimerz.ac.id/propas/",
+      "vision": "Menjadi Program Studi Magister Pendidikan Sosiologi Unggul dan Berdaya Saing dalam Pengembangan Ilmu Pendidikan Sosiologi pada Tahun 2034",
+      "mission": [
+        "Menyelenggarakan pendidikan magister pendidikan sosiologi bermutu berbasis riset sosial",
+        "Melaksanakan penelitian unggulan pendidikan sosiologi untuk pengembangan keilmuan dan kebijakan pendidikan",
+        "Melaksanakan pengabdian pemberdayaan sosial-kemasyarakatan berbasis pendidikan karakter",
+        "Menjalin kerjasama dengan institusi pendidikan dan stakeholder sosial"
+      ],
+      "objective": [
+        "Menghasilkan magister pendidikan sosiologi yang unggul sebagai akademisi, peneliti dan analis sosial",
+        "Menghasilkan riset pendidikan sosiologi bereputasi dan rekomendasi kebijakan",
+        "Terwujudnya program pemberdayaan sosial yang berkelanjutan"
+      ],
+      "graduateProfile": [
+        "Akademisi & Peneliti — Dosen dan peneliti pendidikan sosiologi",
+        "Social Analyst & Consultant — Analis sosial dan konsultan pendidikan/ kebijakan sosial",
+        "Curriculum & Policy Developer — Pengembang kurikulum dan analis kebijakan pendidikan",
+        "Community Empowerment Leader — Pemimpin pemberdayaan dan fasilitator sosial"
+      ],
+      "sourceUrl": "https://unimerz.ac.id/propas/",
+      "sourceTimestamp": "20250910-synthetic-SN-Dikti",
+      "completeness": "synthetic-verified",
+      "cpl": [
+        {
+          "code": "CPL1",
+          "description": "Mampu mengembangkan ilmu pendidikan sosiologi melalui riset sosial yang inovatif dan publikasi bereputasi"
+        },
+        {
+          "code": "CPL2",
+          "description": "Mampu menganalisis fenomena sosial secara kritis dan merumuskan rekomendasi kebijakan pendidikan berbasis bukti"
+        },
+        {
+          "code": "CPL3",
+          "description": "Mampu melakukan pemberdayaan masyarakat dan komunikasi ilmiah di bidang pendidikan sosiologi"
+        }
+      ],
+      "isSynthetic": true
+    }
+  ]
+}

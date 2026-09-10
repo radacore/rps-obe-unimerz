@@ -103,7 +103,7 @@ export function WeeklyTable({ value, onChange, onSave }: { value?: WeeklyRow[]; 
 
   const sum = useMemo(() => rows.filter((r) => !r.is_merged).reduce((s, r) => s + (r.weight ?? 0), 0), [rows]);
   const ok = sum === 100;
-  const warn = !ok ? `Σ non-merge = ${sum} (harus 100)` : "Σ = 100 ✓";
+  const warn = !ok ? `Total bobot ${sum} — harus 100` : "Total bobot 100 ✓";
 
   const emit = (next: WeeklyRow[]) => {
     const synced = next.map(syncLegacy);
@@ -188,25 +188,14 @@ export function WeeklyTable({ value, onChange, onSave }: { value?: WeeklyRow[]; 
   return (
     <Card className="min-w-0 max-w-full overflow-hidden">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <Text weight="semibold">Rencana Pembelajaran Mingguan — 9 baris / 16 minggu (R35-R43)</Text>
-          <Text type="supporting">1:1 template — 8 kolom (1) Minggu (2) Sub-CPMK (3) Indikator (4) Kriteria (5) Daring (6) Luring (7) Materi (8) Bobot. Week 8/16 merged lock.</Text>
+        <div>
+          <Text weight="semibold">Rencana Mingguan</Text>
+          <Text type="supporting">Atur capaian, materi, dan bobot tiap pertemuan.</Text>
         </div>
         <Badge variant={ok ? "success" : "danger"}>{warn}</Badge>
       </div>
-      <div className="mt-2">
-        <ProgressBar value={sum} max={100} />
-      </div>
-      {!ok && (
-        <div className="mt-3">
-          <Banner status="error">{warn} — bobot non-merge harus 100. UTS/UAS weight 0.</Banner>
-        </div>
-      )}
-      {rows.some((r) => (r.daring ?? "").includes("Menyesuaikan perkembangan pandemic COVID-19")) && (
-        <div className="mt-2">
-          <Banner status="warning">Kolom Daring mengandung hook pandemic — sesuaikan jika luring penuh.</Banner>
-        </div>
-      )}
+      <div className="mt-2"><ProgressBar value={sum} max={100} /></div>
+      {!ok && <div className="mt-3"><Banner status="error">{warn}. Baris UTS/UAS bobot 0.</Banner></div>}
 
       {/* Scroll container — horizontal scroll, sticky first col (clamped to card) */}
       <div className="mt-3 max-w-full overflow-x-auto overflow-y-auto rounded-lg border border-border" style={{ maxHeight: "65vh" }}>
@@ -230,9 +219,7 @@ export function WeeklyTable({ value, onChange, onSave }: { value?: WeeklyRow[]; 
                   </td>
                   <td colSpan={7} className="px-3 py-3 text-center">
                     <span className="text-sm font-bold tracking-wide text-accent">{(row.original.materi || row.original.material || (row.original.week === "8" ? "UJIAN MID SEMESTER" : "UJIAN FINAL SEMESTER")).toString().toUpperCase()}</span>
-                    <span className="ml-2">
-                      <Badge variant="warning">MERGED — Bobot 0</Badge>
-                    </span>
+                    <span className="ml-2"><Badge variant="warning">Bobot 0</Badge></span>
                   </td>
                 </tr>
               ) : (
@@ -249,9 +236,7 @@ export function WeeklyTable({ value, onChange, onSave }: { value?: WeeklyRow[]; 
           <tfoot>
             <tr className="border-t border-border bg-muted font-medium">
               <td className="sticky left-0 bg-muted px-2 py-2">Σ non-merge</td>
-              <td colSpan={6} className="px-2 py-2 text-xs text-secondary">
-                8 kolom template — edit tiap tc verbatim; sinkron otomatis ke legacy field untuk kompatibilitas AI lama &amp; DOCX.
-              </td>
+              <td colSpan={6} className="px-2 py-2 text-xs text-secondary">Bobot dihitung tanpa baris UTS/UAS.</td>
               <td className="px-2 py-2 text-center">
                 <span className={ok ? "text-emerald-700" : "text-red-600"}>{sum}</span>
               </td>
@@ -261,10 +246,9 @@ export function WeeklyTable({ value, onChange, onSave }: { value?: WeeklyRow[]; 
       </div>
 
       <div className="mt-3 flex flex-wrap gap-2">
-        <Button label="Reset contoh 9 (8 kolom)" variant="secondary" size="sm" onClick={() => emit(default9.map(normalizeRow))} />
-        {onSave && <Button label={ok ? "Simpan 9 baris" : "Perbaiki bobot dulu"} variant="primary" size="sm" isDisabled={!ok} tooltip={!ok ? "Σ non-merge harus 100" : undefined} onClick={() => onSave(rows)} />}
+        <Button label="Reset" variant="secondary" size="sm" onClick={() => emit(default9.map(normalizeRow))} />
+        {onSave && <Button label={ok ? "Simpan" : "Perbaiki bobot dulu"} variant="primary" size="sm" isDisabled={!ok} tooltip={!ok ? "Total bobot harus 100" : undefined} onClick={() => onSave(rows)} />}
       </div>
-      <div className="mt-2"><Text type="supporting">Merge lock: baris 8 is_merged true week 8 UTS &amp; week 16 UAS — jangan pecah. Kolom (5) Daring hook Menyesuaikan perkembangan pandemic COVID-19 &amp; (6) Luring must include TM 1×(4×50") / BM+PT (1+1)×(2×60"). Bobot Σ non-merge = 100.</Text></div>
     </Card>
   );
 }

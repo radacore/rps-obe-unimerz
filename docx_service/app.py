@@ -277,6 +277,8 @@ async def generate(request: Request):
     sks_practice = draft.get("sks_practice") or draft.get("sksPractice") or 1
     semester = draft.get("semester") or "I"
     preparation_date = draft.get("preparation_date") or draft.get("preparationDate") or "2025-06-28"
+    faculty = draft.get("faculty") or draft.get("faculty_label") or "Fakultas Keperawatan dan Kebidanan"
+    study_program = draft.get("study_program") or draft.get("studyProgram") or draft.get("prodi") or "S1 Ilmu Keperawatan"
     lecturers_raw = draft.get("lecturers") or []
     if isinstance(lecturers_raw, str):
         try: lecturers_raw = json.loads(lecturers_raw)
@@ -318,11 +320,242 @@ async def generate(request: Request):
     doc = Document(str(TEMPLATE_PATH))
 
     # --------------------------------------------------------------
+    # Cover outside tables: P20 Prodi, P21 Fakultas — dinamis per Unimerz
+    # --------------------------------------------------------------
+    def _set_para_text(p, text: str, *, size: int = 11, bold: bool = True):
+        for r in list(p.runs):
+            r._r.getparent().remove(r._r)
+        run = p.add_run(text)
+        run.font.size = Pt(size); run.font.name = FONT; run.bold = bold
+        return run
+    def _prodi_display(raw: str) -> str:
+        s = str(raw or "").strip()
+        if not s: return s
+        up = s.upper()
+        if up.startswith("PROGRAM STUDI") or up.startswith("PROFESI") or up.startswith("MAGISTER"):
+            return up
+        if s.startswith("S1 ") or s.startswith("S2 ") or s.startswith("D3 ") or s.startswith("D4 "):
+            return f"PROGRAM STUDI {up}"
+        return up
+    def _normalise_ws(s: str) -> str:
+        return re.sub(r"\s+", " ", s.strip())
+    try:
+        for p in doc.paragraphs:
+            txt = (p.text or "").strip()
+            norm = _normalise_ws(txt)
+            txt_up = norm.upper()
+            # Cover & sampul body: both variants (P20 dash, P25 DAN double-space)
+            if txt_up.startswith("PROGRAM STUDI") and "KEPERAWATAN" in txt_up:
+                # Either cover variant — replace with actual prodi
+                disp = _prodi_display(str(study_program or "")) or _normalise_ws(txt).upper()
+                _set_para_text(p, disp, size=11, bold=True)
+            elif txt_up.startswith("FAKULTAS") and "KEPERAWATAN" in txt_up:
+                fac_cover = str(faculty or "").strip().upper() or txt_up
+                if not (fac_cover.startswith("FAKULTAS") or fac_cover.startswith("PROGRAM PASCASARJANA")):
+                    fac_cover = f"FAKULTAS {fac_cover}"
+                _set_para_text(p, fac_cover, size=11, bold=True)
+            elif txt.startswith("MATA KULIAH"):
+                mata = str(course_name or "").strip().upper() or "ILMU BIOMEDIK DASAR"
+                new_mata = f"MATA KULIAH \u2013 {mata}"
+                _set_para_text(p, new_mata, size=11, bold=True)
+    except Exception: pass
+    # --- Narasi sampul: Visi / Misi / Profil Lulusan / CPL-PRODI luar tabel (P31–P60) ---
+    # Overwrite dengan payload program jika tersedia; else fallback biarkan template (tapi sudah fak fix di atas)
+    try:
+        prog_vision = draft.get("program_vision") or draft.get("programVision")
+        prog_mission = draft.get("program_mission") or draft.get("programMission") or []
+        prog_profile = draft.get("program_graduate_profile") or draft.get("programGraduateProfile") or []
+        prog_cpl = draft.get("program_cpl") or draft.get("programCpl") or []
+        if isinstance(prog_mission, str):
+            try: prog_mission = json.loads(prog_mission)
+            except: prog_mission = [prog_mission]
+        if isinstance(prog_profile, str):
+            try: prog_profile = json.loads(prog_profile)
+            except: prog_profile = [prog_profile]
+        if isinstance(prog_cpl, str):
+            try: prog_cpl = json.loads(prog_cpl)
+            except: prog_cpl = []
+        # Locate anchor paragraphs by exact flag
+        paras = doc.paragraphs
+        def _find_flag(flag: str):
+            for idx, pp in enumerate(paras):
+                if (pp.text or "").strip() == flag:
+                    return idx
+            return -1
+        # Visi: single paragraph after header "Visi" (P31->P33)
+        if prog_vision and isinstance(prog_vision, str) and prog_vision.strip():
+            visi_idx = _find_flag("Visi")
+            if visi_idx != -1:
+                # Expect P+2 is visi body; but scan forward up to 4 for non-empty non-header
+                for j in range(visi_idx + 1, min(len(paras), visi_idx + 6)):
+                    t = (paras[j].text or "").strip()
+                    if not t: continue
+                    if t in ("Misi", "Profil Lulusan", "Capaian Pembelajaran Lulusan"):
+                        break
+                    # first real body paragraph after Visi header
+                    _set_para_text(paras[j], prog_vision.strip(), size=10, bold=False)
+                    break
+        # Misi: replace up to len(prog_mission) paragraphs after "Misi" header; clear extras or shrink
+        if prog_mission and isinstance(prog_mission, list) and prog_mission:
+            misi_idx = _find_flag("Misi")
+            if misi_idx != -1:
+                # Collect indices of consecutive non-empty non-header paragraphs until next flag
+                body_idxs = []
+                for j in range(misi_idx + 1, len(paras)):
+                    t = (paras[j].text or "").strip()
+                    if not t: continue
+                    if t in ("Profil Lulusan", "Capaian Pembelajaran Lulusan", "Visi"):
+                        break
+                    # header sentinel empty after misi block
+                    if len(body_idxs) >= 12:
+                        break
+                    body_idxs.append(j)
+                    if len(body_idxs) >= len(prog_mission) + 3:  # allow slack
+                        pass
+                # we have up to N misi items; map first N body_idxs
+                clean_misi = [str(x).strip() for x in prog_mission if str(x).strip()]
+                for k, idx in enumerate(body_idxs):
+                    if k < len(clean_misi):
+                        _set_para_text(paras[idx], clean_misi[k], size=10, bold=False)
+                    else:
+                        # clear surplus template misi lines (extra keperawatan)
+                        _set_para_text(paras[idx], "", size=10, bold=False)
+                # If template had fewer paras than misi, append new paras after last body index (before next section)
+                if len(clean_misi) > len(body_idxs):
+                    insert_after = body_idxs[-1] if body_idxs else misi_idx
+                    # Insert new p elements via oxml: create p after insert_after
+                    for extra in clean_misi[len(body_idxs):]:
+                        new_p = OxmlElement('w:p')
+                        # copy pPr? minimal justify
+                        pPr = OxmlElement('w:pPr')
+                        jc = OxmlElement('w:jc'); jc.set(qn('w:val'), 'both')
+                        pPr.append(jc)
+                        new_p.append(pPr)
+                        r_el = OxmlElement('w:r')
+                        rPr = OxmlElement('w:rPr')
+                        _set_sz(rPr, 20)  # 10pt
+                        _ensure_fonts(rPr, FONT)
+                        r_el.append(rPr)
+                        t_el = OxmlElement('w:t'); t_el.text = extra; r_el.append(t_el)
+                        new_p.append(r_el)
+                        paras[insert_after]._p.addnext(new_p)
+                        # shift: re-collect paras reference in next loop not needed; doc.paragraphs rebuilds lazily
+        # Profil Lulusan: header "Profil Lulusan" then 1 title + 5 entries
+        if prog_profile and isinstance(prog_profile, list) and prog_profile:
+            prof_idx = _find_flag("Profil Lulusan")
+            if prof_idx != -1:
+                # Collect body indices until CPL header
+                body2 = []
+                for j in range(prof_idx + 1, len(paras)):
+                    t = (paras[j].text or "").strip()
+                    if not t: continue
+                    if t in ("Capaian Pembelajaran Lulusan", "Analisis Pembelajaran"):
+                        break
+                    body2.append(j)
+                # Expected template: 1 title "Profil lulusan Program Studi ..." + 5 items
+                # Build replacement block: first line is generic title for this prodi
+                clean_prof = [str(x).strip() for x in prog_profile if str(x).strip()]
+                # If clean_prof is a single long string with sentences, split by ". " only for display if needed - but keep as-is for first pass
+                # Title line
+                prodi_label = str(study_program or "Program Studi").strip()
+                title_line = f"Profil lulusan {prodi_label}:"
+                replacement = [title_line] + clean_prof if clean_prof else []
+                # If replacement length < body2, clear surplus; if longer, append
+                for k, idx in enumerate(body2):
+                    if k < len(replacement):
+                        _set_para_text(paras[idx], replacement[k], size=10, bold=False)
+                    else:
+                        _set_para_text(paras[idx], "", size=10, bold=False)
+                if len(replacement) > len(body2):
+                    insert_after = body2[-1] if body2 else prof_idx
+                    for extra in replacement[len(body2):]:
+                        new_p = OxmlElement('w:p')
+                        pPr = OxmlElement('w:pPr')
+                        jc = OxmlElement('w:jc'); jc.set(qn('w:val'), 'both')
+                        pPr.append(jc)
+                        new_p.append(pPr)
+                        r_el = OxmlElement('w:r'); rPr = OxmlElement('w:rPr')
+                        _set_sz(rPr, 20); _ensure_fonts(rPr, FONT); r_el.append(rPr)
+                        t_el = OxmlElement('w:t'); t_el.text = extra; r_el.append(t_el)
+                        new_p.append(r_el)
+                        paras[insert_after]._p.addnext(new_p)
+        # CPL-PRODI narasi (P55 headers): replace items under "Capaian Pembelajaran Lulusan"
+        if prog_cpl and isinstance(prog_cpl, list) and prog_cpl:
+            cpl_idx = _find_flag("Capaian Pembelajaran Lulusan")
+            if cpl_idx != -1:
+                body3 = []
+                for j in range(cpl_idx + 1, len(paras)):
+                    t = (paras[j].text or "").strip()
+                    if not t: continue
+                    if t in ("Analisis Pembelajaran", "Visi", "Misi"):
+                        break
+                    # filter out notes later (Catatan :) but include CPL bodies
+                    if t.startswith("Catatan"):
+                        break
+                    body3.append(j)
+                    if len(body3) >= 6: break
+                clean_cpl = []
+                for item in prog_cpl:
+                    if isinstance(item, dict):
+                        clean_cpl.append(str(item.get("description") or item.get("desc") or "").strip())
+                    else:
+                        clean_cpl.append(str(item).strip())
+                clean_cpl = [x for x in clean_cpl if x]
+                for k, idx in enumerate(body3):
+                    if k < len(clean_cpl):
+                        _set_para_text(paras[idx], clean_cpl[k], size=10, bold=False)
+                    else:
+                        _set_para_text(paras[idx], "", size=10, bold=False)
+                if len(clean_cpl) > len(body3):
+                    insert_after = body3[-1] if body3 else cpl_idx
+                    for extra in clean_cpl[len(body3):]:
+                        new_p = OxmlElement('w:p')
+                        pPr = OxmlElement('w:pPr')
+                        jc = OxmlElement('w:jc'); jc.set(qn('w:val'), 'both')
+                        pPr.append(jc); new_p.append(pPr)
+                        r_el = OxmlElement('w:r'); rPr = OxmlElement('w:rPr')
+                        _set_sz(rPr, 20); _ensure_fonts(rPr, FONT); r_el.append(rPr)
+                        t_el = OxmlElement('w:t'); t_el.text = extra; r_el.append(t_el)
+                        new_p.append(r_el)
+                        paras[insert_after]._p.addnext(new_p)
+    except Exception as _e:
+        # don't fail overall doc on narasi overwrite
+        import traceback as _tb
+        try:
+            print(f"[docx] narasi overwrite failed: {_e} {_tb.format_exc()[:600]}")
+        except: pass
+
+    # --------------------------------------------------------------
     # TBL0 -- 44x13 main
     # Indices via inspection: see earlier dump
     # We replace content in place, preserving gridSpan/vMerge/shd
     # --------------------------------------------------------------
     tbl0 = doc.tables[0]  # 44 rows
+
+    # Kop R00 table header Fakultas+Prodi — update dari faculty/study_program (preserve image cell)
+    # tbl0 R00 has 3 tc (gs 2,9,2): tc1 holds the kop block. Use lxml to avoid python-docx duplicate gridSpan expansion.
+    try:
+        tr00 = tbl0.rows[0]._tr
+        tcs00 = tr00.findall(qn('w:tc'))
+        if len(tcs00) >= 2:
+            fakultas_line = str(faculty or "").strip() or "Fakultas Keperawatan dan Kebidanan"
+            if not (fakultas_line.startswith("Fakultas") or fakultas_line.startswith("Program Pascasarjana")):
+                fakultas_line = f"Fakultas {fakultas_line}"
+            prodi_raw = str(study_program or "").strip() or "Program Studi S1 Ilmu Keperawatan"
+            # normalize prodi display: if already has prefix (Program Studi/Profesi/S1/S2/D3/D4/Magister) keep, else keep raw
+            if prodi_raw.startswith("Program Studi") or prodi_raw.startswith("Profesi") or prodi_raw.startswith("Magister") or prodi_raw.startswith("S1") or prodi_raw.startswith("S2") or prodi_raw.startswith("D3") or prodi_raw.startswith("D4"):
+                prodi_line = prodi_raw
+            else:
+                prodi_line = prodi_raw
+            # ensure Program Studi prefix for display when prodi is S1/S2/D3/D4 without prefix
+            display_prodi = prodi_line
+            if display_prodi.startswith("S1 ") or display_prodi.startswith("S2 ") or display_prodi.startswith("D3 ") or display_prodi.startswith("D4 "):
+                if not display_prodi.startswith("Program Studi"):
+                    display_prodi = f"Program Studi {display_prodi}"
+            new_kop = f"Universitas Megarezky\n{fakultas_line}\n{display_prodi}"
+            set_tc_text(tr00, 1, new_kop)
+    except Exception:
+        pass
     # R03 row 3: course identity — use lxml tc indices (7 tc: 0 name gs3,1 code gs2,2 cluster gs2,3 T,4 P,5 semester,6 date gs3)
     try:
         tr03 = tbl0.rows[3]._tr
@@ -336,78 +569,148 @@ async def generate(request: Request):
         set_tc_text(tr03, 6, _format_date(preparation_date))
     except Exception: pass
 
-    # R05 row 5: Otorisasi names — 4 tc [3,2,4,4]: tc1 pengembang, tc2 koordinator, tc3 ketua_prodi
+    # R05 row 5: Otorisasi names — 4 tc [3,2,4,4]: tc1 pengembang, tc2 koordinator, tc3 ketua_prodi — clear stale Keperawatan when role missing
     try:
         tr05 = tbl0.rows[5]._tr
         by_role = _split_by_role(lecturers)
-        # keep empty tc0 as is
-        if by_role.get("pengembang"):
-            set_tc_text(tr05, 1, by_role["pengembang"])
-        if by_role.get("koordinator_mk"):
-            set_tc_text(tr05, 2, by_role["koordinator_mk"])
-        if by_role.get("ketua_prodi"):
-            set_tc_text(tr05, 3, by_role["ketua_prodi"])
+        koord_name = by_role.get("koordinator_mk") or ""
+        ketua_name = by_role.get("ketua_prodi") or ""
+        # Pengembang: only explicit role 'pengembang'; anggota => blank (hindari isi anggota ke kolom Pengembang)
+        pengembang_name = by_role.get("pengembang") or ""
+        print(f"[docx] R05 lecturers={lecturers} by_role={by_role} peng='{pengembang_name}' koord='{koord_name}' ketua='{ketua_name}'")
+        r1 = set_tc_text(tr05, 1, pengembang_name)
+        r2 = set_tc_text(tr05, 2, koord_name)
+        r3 = set_tc_text(tr05, 3, ketua_name)
+        print(f"[docx] R05 set results r1={r1} r2={r2} r3={r3}")
+        # debug dump after
+        try:
+            from docx.oxml.ns import qn as _qn
+            tcs_dbg = tr05.findall(_qn('w:tc'))
+            for _i,_tc in enumerate(tcs_dbg):
+                _ps=_tc.findall(_qn('w:p'))
+                _txt="".join("".join(_t.text or "" for _t in _p.findall(_qn('w:t'))) for _p in _ps)
+                print(f"[docx] R05 after tc{_i}='{ _txt[:80]}' ps={len(_ps)}")
+        except Exception as _e: print(f"[docx] R05 dbg fail {_e}")
+    except Exception as e:
+        import traceback as _tb
+        print(f"[docx] R05 failed {e} {_tb.format_exc()[:500]}")
+    # Tim Pengajar line outside tables (P07 label + P08 name) — patch stale Ns. Sri... to actual lecturers
+    try:
+        tim_idx = -1
+        for idx, pp in enumerate(doc.paragraphs):
+            if (pp.text or "").strip().startswith("Tim Pengajar"):
+                tim_idx = idx
+                break
+        if tim_idx != -1 and tim_idx + 1 < len(doc.paragraphs):
+            name_para = doc.paragraphs[tim_idx + 1]
+            if lecturers:
+                parts = []
+                forlec = lecturers
+                for l in forlec:
+                    nm = (l.get("name") or "").strip()
+                    if not nm: continue
+                    role = l.get("role") or ""
+                    suffix = ""
+                    if role == "koordinator_mk": suffix = " – (Koordinator)"
+                    elif role == "ketua_prodi": suffix = " – (Ketua Prodi)"
+                    elif role == "pengembang": suffix = " – (Pengembang)"
+                    parts.append(f"{nm}{suffix}")
+                display = ", ".join(parts) if parts else ""
+                if display:
+                    _set_para_text(name_para, display, size=11, bold=False)
     except Exception: pass
 
     # ---- CP section ----
-    # Keep typo "paian Pembelajaran (CP)" as original (header row 6)
     # R07-08 CPL, R10-13 CPMK, R15-21 Sub-CPMK — each has 3 tc [2,1,10] (vMerge header, code, desc)
+    # If payload provides cpl/cpmk/sub_cpmk (even empty), clear surplus rows so Keperawatan template tidak bocor
+    has_cpl = any(k in draft for k in ("cpl",))
+    has_cpmk = any(k in draft for k in ("cpmk",))
+    has_sub = any(k in draft for k in ("sub_cpmk", "subCpmk"))
     try:
-        for idx, cpl_item in enumerate(cpl[:2]):
+        for idx in range(2):
             tr = tbl0.rows[7+idx]._tr
-            code = cpl_item.get("code") or f"CPL{idx+1}"
-            desc = cpl_item.get("description") or cpl_item.get("desc") or ""
-            set_tc_text(tr, 1, str(code))
-            set_tc_text(tr, 2, str(desc))
+            if idx < len(cpl):
+                code = cpl[idx].get("code") or f"CPL{idx+1}"
+                desc = cpl[idx].get("description") or cpl[idx].get("desc") or ""
+                set_tc_text(tr, 1, str(code))
+                set_tc_text(tr, 2, str(desc))
+            elif has_cpl:
+                set_tc_text(tr, 1, "")
+                set_tc_text(tr, 2, "")
     except Exception: pass
     try:
-        for idx, pmk in enumerate(cpmk[:4]):
+        for idx in range(4):
             tr = tbl0.rows[10+idx]._tr
-            code = pmk.get("code") or f"CPMK {idx+1}"
-            desc = pmk.get("description") or pmk.get("desc") or ""
-            set_tc_text(tr, 1, str(code))
-            set_tc_text(tr, 2, str(desc))
+            if idx < len(cpmk):
+                code = cpmk[idx].get("code") or f"CPMK {idx+1}"
+                desc = cpmk[idx].get("description") or cpmk[idx].get("desc") or ""
+                set_tc_text(tr, 1, str(code))
+                set_tc_text(tr, 2, str(desc))
+            elif has_cpmk:
+                set_tc_text(tr, 1, "")
+                set_tc_text(tr, 2, "")
     except Exception: pass
     try:
-        for idx, sc in enumerate(sub_cpmk[:7]):
+        for idx in range(7):
             tr = tbl0.rows[15+idx]._tr
-            code = sc.get("code") or f"Sub-CPMK-{idx+1}"
-            desc = sc.get("description") or sc.get("desc") or ""
-            set_tc_text(tr, 1, str(code))
-            set_tc_text(tr, 2, str(desc))
+            if idx < len(sub_cpmk):
+                code = sub_cpmk[idx].get("code") or f"Sub-CPMK-{idx+1}"
+                desc = sub_cpmk[idx].get("description") or sub_cpmk[idx].get("desc") or ""
+                set_tc_text(tr, 1, str(code))
+                set_tc_text(tr, 2, str(desc))
+            elif has_sub:
+                set_tc_text(tr, 1, "")
+                set_tc_text(tr, 2, "")
     except Exception: pass
 
     # R23 deskripsi singkat (tc 0 header "Deskripsi Singkat MK", tc1 desc span 11), R24 bahan kajian similar
+    # If payload explicitly provides description/bahan (even empty), overwrite template — jangan biarkan Keperawatan bocor ke prodi lain
     try:
-        desc = draft.get("description") or draft.get("deskripsi") or draft.get("short_description") or ""
-        if desc:
-            set_tc_text(tbl0.rows[23]._tr, 1, str(desc))
+        desc_has = any(k in draft for k in ("description", "deskripsi", "short_description"))
+        desc = draft.get("description") if "description" in draft else (draft.get("deskripsi") if "deskripsi" in draft else draft.get("short_description") if "short_description" in draft else "")
+        if desc_has or desc:
+            set_tc_text(tbl0.rows[23]._tr, 1, str(desc or "").strip())
     except Exception: pass
     try:
-        bahan = draft.get("bahan_kajian") or draft.get("bahanKajian") or []
+        bahan_has = any(k in draft for k in ("bahan_kajian", "bahanKajian"))
+        bahan = draft.get("bahan_kajian") if "bahan_kajian" in draft else draft.get("bahanKajian") if "bahanKajian" in draft else []
         if isinstance(bahan, str):
             try: bahan = json.loads(bahan)
             except: bahan = [bahan]
-        if isinstance(bahan, list) and bahan:
-            txt = "\n".join(str(x) for x in bahan if str(x).strip())
-            set_tc_text(tbl0.rows[24]._tr, 1, txt)
+        if bahan_has:
+            if isinstance(bahan, list) and bahan:
+                txt = "\n".join(str(x) for x in bahan if str(x).strip())
+                set_tc_text(tbl0.rows[24]._tr, 1, txt)
+            else:
+                set_tc_text(tbl0.rows[24]._tr, 1, "")
     except Exception: pass
 
     # R25-28 Pustaka — R25 header [2,11] "Pustaka Utama", R26 content [2,11], R27 header "Pendukung", R28 content
     try:
-        pustaka_utama = draft.get("pustaka_utama") or draft.get("pustakaUtama") or draft.get("references_main") or []
-        pustaka_pend = draft.get("pustaka_pendukung") or draft.get("pustakaPendukung") or draft.get("references_support") or []
+        pu_has = any(k in draft for k in ("pustaka_utama", "pustakaUtama", "references_main"))
+        pp_has = any(k in draft for k in ("pustaka_pendukung", "pustakaPendukung", "references_support"))
+        pustaka_utama = draft.get("pustaka_utama") if "pustaka_utama" in draft else draft.get("pustakaUtama") if "pustakaUtama" in draft else draft.get("references_main") if "references_main" in draft else []
+        pustaka_pend = draft.get("pustaka_pendukung") if "pustaka_pendukung" in draft else draft.get("pustakaPendukung") if "pustakaPendukung" in draft else draft.get("references_support") if "references_support" in draft else []
         def _to_lines(arr):
             if isinstance(arr, str):
                 try: arr=json.loads(arr)
                 except: return str(arr)
             if not isinstance(arr, list): return str(arr)
             return "\n".join(str(x) for x in arr if str(x).strip())
-        if pustaka_utama:
-            set_tc_text(tbl0.rows[26]._tr, 1, _to_lines(pustaka_utama))
-        if pustaka_pend:
-            if len(tbl0.rows) > 28:
+        if pu_has:
+            if isinstance(pustaka_utama, list) and pustaka_utama and any(str(x).strip() for x in pustaka_utama):
+                set_tc_text(tbl0.rows[26]._tr, 1, _to_lines(pustaka_utama))
+            elif isinstance(pustaka_utama, str) and pustaka_utama.strip():
+                set_tc_text(tbl0.rows[26]._tr, 1, pustaka_utama)
+            else:
+                set_tc_text(tbl0.rows[26]._tr, 1, "")
+        if len(tbl0.rows) > 28 and pp_has:
+            if isinstance(pustaka_pend, list) and pustaka_pend and any(str(x).strip() for x in pustaka_pend):
                 set_tc_text(tbl0.rows[28]._tr, 1, _to_lines(pustaka_pend))
+            elif isinstance(pustaka_pend, str) and str(pustaka_pend).strip():
+                set_tc_text(tbl0.rows[28]._tr, 1, str(pustaka_pend))
+            else:
+                set_tc_text(tbl0.rows[28]._tr, 1, "")
     except Exception: pass
 
     # R29 Dosen Pengampu: tc 0 header, tc1 names span 11

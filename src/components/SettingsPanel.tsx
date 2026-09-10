@@ -57,13 +57,18 @@ export function SettingsPanel() {
           body: JSON.stringify({ provider }),
         });
         const valid = !!r.data?.valid;
-        const message = r.message ?? (valid ? `Valid — ${r.data.models.length} model(s): ${r.data.models.slice(0, 3).join(", ")}` : "Key invalid");
-        setTestRes((s) => ({ ...s, [provider]: { valid, message, models: r.data?.models } }));
-        // simpan models ke localStorage agar rps/2 dropdown model sinkron otomatis
+        // filter testimoni models hanya yang support generateContent untuk rps/2 dropdown (hindari aqa/tts/embedding/veo di default)
+        const rawModels: string[] = r.data?.models ?? [];
+        const preferred = rawModels.filter(
+          (m) => /^(gemini-|gemma-)/.test(m) && !/(tts|embedding|veo|transcribe|native-audio|aqa|lyria|robotics|antigravity|deep-research)/i.test(m),
+        );
+        const modelsForCache = (preferred.length ? preferred : rawModels).slice(0, 50);
+        const message = r.message ?? (valid ? `Valid — ${rawModels.length} model(s): ${modelsForCache.slice(0, 3).join(", ")}` : "Key invalid");
+        setTestRes((s) => ({ ...s, [provider]: { valid, message, models: modelsForCache } }));
         try {
-          if (valid && r.data.models?.length) {
-            window.localStorage.setItem(`models:${provider}`, JSON.stringify(r.data.models.slice(0, 50)));
-            window.dispatchEvent(new StorageEvent("storage", { key: `models:${provider}`, newValue: JSON.stringify(r.data.models.slice(0, 50)) }));
+          if (valid && modelsForCache.length) {
+            window.localStorage.setItem(`models:${provider}`, JSON.stringify(modelsForCache));
+            window.dispatchEvent(new StorageEvent("storage", { key: `models:${provider}`, newValue: JSON.stringify(modelsForCache) }));
           }
         } catch {}
         qc.invalidateQueries({ queryKey: ["api-keys"] });
