@@ -1,9 +1,17 @@
 import { PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient();
 async function main() {
+  // idempotent: update path keeps demo FELLOWSHIP even after rerun
   await prisma.rpsDraft.upsert({
     where: { id: 1 },
-    update: {},
+    update: {
+      courseName: "Ilmu Biomedik Dasar",
+      courseCode: "IW21ASK1541",
+      courseCluster: "Keperawatan",
+      sksTotal: 4, sksTheory: 3, sksPractice: 1,
+      semester: "I",
+      preparationDate: new Date("2025-06-28"),
+    },
     create: {
       courseName: "Ilmu Biomedik Dasar",
       courseCode: "IW21ASK1541",

@@ -25,6 +25,14 @@ bun run dev:all
 
 Open http://localhost:3000  — Drafts → Buat Draft → `/rps/:id` → Settings → Generate 9 baris → Generate DOCX → Download.
 
+## Demo dosen (2 menit, tanpa AI key juga bisa)
+
+1. **Isi contoh 1 klik**: Drafts → **Isi contoh CONTOH** → Lanjut → Lanjut → **Buat Draft** (auto `IW21ASK1541 Ilmu Biomedik Dasar 3+1=4`, Semester I, 3 dosen, SKS valid).
+2. **Generate AI (butuh BYOK)** *(opsional)*: `/rps/:id` → Settings → tempel `sk-...` atau `AIza...` → Test → kembali → **Generate 9 baris (16 minggu)**. Tanpa key: skip — edit tabel manual tetap bisa.
+3. **Review tabel 1:1 (8 kolom)**: `WeeklyTable` 9 baris `(1) Minggu (2) Sub-CPMK (3) Indikator (4) Kriteria (5) Daring (6) Luring (7) Materi (8) Bobot` — UTS/UAS merge lock week 8/16. Progress `Σ100` di card header + `Audit Gate` panel.
+4. **Audit → DOCX**: Simpan → **Audit** (critical blok Generate bila `Σ≠100` atau merge hilang) → **Generate DOCX** → **Download DOCX** (`IW21...-RPS.docx` 400KB+ PK). Python mati pun tetap download via JS fallback.
+5. **Cari & kelola**: Drafts → search `IW21` + pagination 10 → Download/Hapus per card.
+
 ## Stack
 
 - **Bun 1.1+ + Hono** (`server.ts` ekspor `{port, fetch}` untuk `Bun.serve`) — bukan `node`/`createServer`.
