@@ -51,12 +51,11 @@ export async function buildDocxBuffer(draft: Draft): Promise<Buffer> {
     { week:"16", material:"UJIAN FINAL SEMESTER", method:"Daring/Luring", experience:"Ujian tulis", assessment_criteria:"Soal UAS", weight:0, is_merged:true },
   ];
 
-  const fakultasLine = (draft.faculty ?? "Fakultas Keperawatan dan Kebidanan").toString().toUpperCase();
-  const rawProdi = (draft.study_program ?? "S1 Ilmu Keperawatan").toString();
-  const prodiLine = rawProdi.startsWith("Program Studi") || rawProdi.startsWith("Profesi") || rawProdi.startsWith("S1") || rawProdi.startsWith("S2") || rawProdi.startsWith("D3") || rawProdi.startsWith("D4") ? rawProdi : rawProdi;
-  const displayProdi = prodiLine.startsWith("S1 ") || prodiLine.startsWith("S2 ") || prodiLine.startsWith("D3 ") || prodiLine.startsWith("D4 ") ? `Program Studi ${prodiLine}` : prodiLine;
+  const fakultasLine = (draft.faculty ?? "").toString().toUpperCase();
+  const rawProdi = (draft.study_program ?? "").toString();
+  const displayProdi = /^(S1|S2|S3|D3|D4) /.test(rawProdi) ? `Program Studi ${rawProdi}` : rawProdi;
   const kop = new Paragraph({ alignment: AlignmentType.CENTER, children: [r("UNIVERSITAS MEGAREZKY",{bold:true}), r(`\n${fakultasLine}`), r(`\n${displayProdi}`), r("\nRENCANA PEMBELAJARAN SEMESTER (RPS)",{bold:true}) ]});
-  const identitas = new Paragraph({ children: [r(`${draft.course_name} (${draft.course_code}) — SKS ${draft.sks_theory}/${draft.sks_practice} total ${draft.sks_total} — Semester ${draft.semester} — Tgl ${String(draft.preparation_date).slice(0,10)} — Rumpun ${draft.course_cluster ?? "Keperawatan"}`)] });
+  const identitas = new Paragraph({ children: [r(`${draft.course_name} (${draft.course_code}) — SKS ${draft.sks_theory}/${draft.sks_practice} total ${draft.sks_total} — Semester ${draft.semester} — Tgl ${String(draft.preparation_date).slice(0,10)} — Rumpun ${draft.course_cluster ?? rawProdi}`)] });
   const dosenHeading = new Paragraph({ heading: HeadingLevel.HEADING_2, children: [r("Dosen Pengampu")] });
   const dosenBullets = (draft.lecturers ?? []).map(l => new Paragraph({ bullet: { level: 0 }, children: [r(`${l.name} (${l.role}, NIDN ${l.nidn})`)] }));
   const weeklyHeading = new Paragraph({ heading: HeadingLevel.HEADING_2, children: [r("Rencana Pembelajaran Mingguan — 9 baris / 16 minggu (R35-R43) — JS fallback (template fidelity via Python service disarankan)")] });

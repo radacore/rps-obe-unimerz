@@ -462,7 +462,7 @@ app.post("/api/rps/:id/generate", async (c) => {
         cpl: JSON.parse(draft.cpl as string), cpmk: JSON.parse(draft.cpmk as string), sub_cpmk: JSON.parse(draft.subCpmk as string),
         weekly_plans: plans, rtm_tasks: draft.rtmTasks ? JSON.parse(draft.rtmTasks as string) : [], rubrics: draft.rubrics ? JSON.parse(draft.rubrics as string) : {},
         program_vision: programVision, program_mission: programMission, program_graduate_profile: programGraduateProfile, program_cpl: programCpl,
-        kop: faculty && studyProgram ? `Universitas Megarezky | ${faculty} | ${studyProgram}` : "Universitas Megarezky | Fakultas Keperawatan dan Kebidanan | Program Studi S1 Ilmu Keperawatan",
+        kop: [ "Universitas Megarezky", faculty, studyProgram ].filter(Boolean).join(" | "),
       }
     };
     const r = await fetch(`${docxUrl.replace(/\/$/, "")}/generate`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
@@ -562,7 +562,7 @@ app.post("/api/rps/:id/preview", async (c) => {
         bahan_kajian: bahanKajian, pustaka_utama: pustakaUtama, pustaka_pendukung: pustakaPendukung,
         weekly_plans: plans, rtm_tasks: draft.rtmTasks ? JSON.parse(draft.rtmTasks as string) : [], rubrics: draft.rubrics ? JSON.parse(draft.rubrics as string) : {},
         program_vision: prevProgramVision, program_mission: prevProgramMission, program_graduate_profile: prevProgramProfile, program_cpl: prevProgramCpl,
-        kop: previewFaculty && previewProdi ? `Universitas Megarezky | ${previewFaculty} | ${previewProdi}` : "Universitas Megarezky | Fakultas Keperawatan dan Kebidanan | Program Studi S1 Ilmu Keperawatan",
+        kop: [ "Universitas Megarezky", previewFaculty, previewProdi ].filter(Boolean).join(" | "),
       }
     };
     const r = await fetch(`${docxUrl.replace(/\/$/, "")}/generate`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });

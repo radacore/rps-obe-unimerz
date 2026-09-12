@@ -5,6 +5,7 @@ from docx.shared import Pt, Emu
 from docx.oxml.ns import qn
 from docx.oxml import OxmlElement
 from io import BytesIO
+import copy
 import json
 import pathlib
 import re
@@ -12,6 +13,37 @@ import re
 app = FastAPI(title="RPS DOCX Service")
 
 TEMPLATE_PATH = pathlib.Path(__file__).parent / "template.docx"
+
+
+class DocxAnchorError(RuntimeError):
+    """Raised when an expected anchor (heading/label) is missing from template.docx.
+
+    Anchors are resolved by their visible label, never by a frozen index, so a
+    template revision surfaces as a loud 500 instead of silently writing text
+    into the wrong row.
+    """
+
+
+class _ParaRef:
+    """Minimal stand-in exposing ._p so freshly inserted w:p can be chained."""
+
+    def __init__(self, p_element):
+        self._p = p_element
+
+
+def _as_list(raw) -> list:
+    """Coerce payload field (list | JSON string | scalar | None) into a list."""
+    if raw is None or raw == "":
+        return []
+    if isinstance(raw, list):
+        return raw
+    if isinstance(raw, str):
+        try:
+            parsed = json.loads(raw)
+        except json.JSONDecodeError:
+            return [raw]
+        return parsed if isinstance(parsed, list) else [parsed]
+    return [raw]
 
 # ---------------------------------------------------------------------------
 # helpers: preserve w:sz/w:szCs etc from template run, inject Times 9pt if needed
@@ -47,7 +79,7 @@ def _cell_style_ref(cell):
     sz = rPr.find(qn('w:sz'))
     if sz is not None:
         try: return int(sz.get(qn('w:val')))
-        except: return SZ
+        except (TypeError, ValueError): return SZ
     return SZ
 
 def set_cell_text(cell, text: str, *, bold: bool | None = None, sz: int | None = None, preserve_sz: bool = True):
@@ -134,7 +166,8 @@ def set_tc_text(tr_element, tc_idx: int, text: str, *, bold: bool | None = None)
             if sz_el is not None:
                 try:
                     orig_sz = int(sz_el.get(qn('w:val')))
-                except: pass
+                except (TypeError, ValueError):
+                    pass
             rf = rPr0.find(qn('w:rFonts'))
             if rf is not None:
                 orig_rFonts_attrs = dict(rf.attrib)
@@ -149,6 +182,13 @@ def set_tc_text(tr_element, tc_idx: int, text: str, *, bold: bool | None = None)
             continue
         p.remove(child)
     if not text and text != "0":
+        # A cleared cell must also drop its numbering, otherwise Word still
+        # renders the bullet/number for an empty line.
+        pPr = p.find(qn('w:pPr'))
+        if pPr is not None:
+            numPr = pPr.find(qn('w:numPr'))
+            if numPr is not None:
+                pPr.remove(numPr)
         return None
     r_el = OxmlElement('w:r')
     rPr = OxmlElement('w:rPr')
@@ -175,11 +215,75 @@ def set_tc_text(tr_element, tc_idx: int, text: str, *, bold: bool | None = None)
     return r_el
 
 
+def tc_text(tc) -> str:
+    """Concatenate all w:t inside a w:tc, newline per w:p."""
+    lines = []
+    for p in tc.findall(qn('w:p')):
+        lines.append("".join(
+            "".join(t.text or "" for t in r.findall(qn('w:t')))
+            for r in p.findall(qn('w:r'))
+        ))
+    return "\n".join(lines).strip()
+
+
+def tr_cell_text(tr, tc_idx: int) -> str:
+    tcs = tr.findall(qn('w:tc'))
+    if tc_idx >= len(tcs):
+        return ""
+    return tc_text(tcs[tc_idx])
+
+
+def _flat(s: str) -> str:
+    """Normalise whitespace + case for label matching."""
+    return re.sub(r"\s+", " ", str(s or "")).strip().lower()
+
+
+def remove_paragraph(p) -> None:
+    """Detach a w:p from its parent. Needed because clearing text alone leaves
+    numPr behind, which renders as a dangling empty bullet/number in Word."""
+    parent = p.getparent()
+    if parent is not None:
+        parent.remove(p)
+
+
+def split_profile_items(raw) -> list[str]:
+    """Normalise graduate-profile entries into one item per list element.
+
+    Only the "Label: description" shape can be split reliably. A bare run of
+    role names ("Systems Analyst Database Administrator ...") has no recoverable
+    boundary — guessing produces garbage like "IT Trainer" -> "I" + "T Trainer" —
+    so such an entry is kept intact and must be fixed in the catalog instead.
+    """
+    # Leftmost-greedy so "Health Educator & Promoter:" is one label, not two.
+    label_re = re.compile(r"(?:[A-Z][A-Za-z&/]*[ ]){0,4}[A-Z][A-Za-z&/]*[ ]*:")
+    items: list[str] = []
+    for entry in _as_list(raw):
+        s = re.sub(r"\s+", " ", str(entry or "")).strip()
+        if not s:
+            continue
+        starts = [m.start() for m in label_re.finditer(s)]
+        if len(starts) > 1:
+            bounds = starts + [len(s)]
+            items.extend(
+                chunk for chunk in (
+                    s[bounds[i]:bounds[i + 1]].strip() for i in range(len(starts))
+                ) if chunk
+            )
+        else:
+            items.append(s)
+    return items
+
+
+def _lines(values) -> str:
+    """Join a list-ish payload field into newline-separated text."""
+    return "\n".join(str(x) for x in _as_list(values) if str(x).strip())
+
+
 def _norm_lecturers(raw):
     # raw can be list or JSON string
     if isinstance(raw, str):
         try: raw = json.loads(raw)
-        except: raw = []
+        except json.JSONDecodeError: raw = []
     if not isinstance(raw, list): raw = []
     out=[]
     for item in raw:
@@ -214,7 +318,7 @@ def _format_date(raw):
         d=date.fromisoformat(s)
         bulan=["","Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"]
         return f"{d.day} {bulan[d.month]} {d.year}"
-    except: return s
+    except ValueError: return s
 
 # Canonical 9 variabel 16 minggu (R35-R43)
 CANONICAL_WEEKLY = [
@@ -270,43 +374,25 @@ async def generate(request: Request):
     body = await request.json()
     draft = body.get("rps_draft") or body.get("rpsDraft") or body
 
-    course_code = draft.get("course_code") or draft.get("courseCode") or "IW21ASK1541"
-    course_name = draft.get("course_name") or draft.get("courseName") or "Ilmu Biomedik Dasar"
+    course_code = draft.get("course_code") or draft.get("courseCode") or ""
+    course_name = draft.get("course_name") or draft.get("courseName") or ""
     sks_total = draft.get("sks_total") or draft.get("sksTotal") or 4
     sks_theory = draft.get("sks_theory") or draft.get("sksTheory") or 3
     sks_practice = draft.get("sks_practice") or draft.get("sksPractice") or 1
     semester = draft.get("semester") or "I"
-    preparation_date = draft.get("preparation_date") or draft.get("preparationDate") or "2025-06-28"
-    faculty = draft.get("faculty") or draft.get("faculty_label") or "Fakultas Keperawatan dan Kebidanan"
-    study_program = draft.get("study_program") or draft.get("studyProgram") or draft.get("prodi") or "S1 Ilmu Keperawatan"
-    lecturers_raw = draft.get("lecturers") or []
-    if isinstance(lecturers_raw, str):
-        try: lecturers_raw = json.loads(lecturers_raw)
-        except: lecturers_raw = []
-    weekly_raw = draft.get("weekly_plans") or draft.get("weeklyPlans") or []
-    if isinstance(weekly_raw, str):
-        try: weekly_raw = json.loads(weekly_raw)
-        except: weekly_raw = []
-    cpl = draft.get("cpl") or []
-    cpmk = draft.get("cpmk") or []
-    sub_cpmk = draft.get("sub_cpmk") or draft.get("subCpmk") or []
-    for arr in (cpl, cpmk, sub_cpmk):
-        if isinstance(arr, str):
-            try: arr_vars = json.loads(arr)  # noqa
-            except: pass
-    # Type: after possible string parse above, ensure correct var
-    if isinstance(cpl, str):
-        try: cpl = json.loads(cpl)
-        except: cpl = []
-    if isinstance(cpmk, str):
-        try: cpmk = json.loads(cpmk)
-        except: cpmk = []
-    if isinstance(sub_cpmk, str):
-        try: sub_cpmk = json.loads(sub_cpmk)
-        except: sub_cpmk = []
+    preparation_date = draft.get("preparation_date") or draft.get("preparationDate") or ""
+    # Tanpa default prodi/fakultas: menebak "Keperawatan" di sini berarti dokumen
+    # untuk prodi lain diam-diam terbit dengan identitas yang salah.
+    faculty = draft.get("faculty") or draft.get("faculty_label") or ""
+    study_program = draft.get("study_program") or draft.get("studyProgram") or draft.get("prodi") or ""
+    lecturers_raw = _as_list(draft.get("lecturers"))
+    weekly_raw = _as_list(draft.get("weekly_plans") or draft.get("weeklyPlans"))
+    cpl = _as_list(draft.get("cpl"))
+    cpmk = _as_list(draft.get("cpmk"))
+    sub_cpmk = _as_list(draft.get("sub_cpmk") or draft.get("subCpmk"))
 
     lecturers = _ensure_lecturers(_norm_lecturers(lecturers_raw))
-    weekly_plans = _normalize_weekly(weekly_raw if isinstance(weekly_raw, list) else [])
+    weekly_plans = _normalize_weekly(weekly_raw)
 
     # ------------------------------------------------------------------
     # Load template docx (preserves 6 sectPr, 4 tbl, gridCol, Times New Roman,
@@ -339,191 +425,132 @@ async def generate(request: Request):
         return up
     def _normalise_ws(s: str) -> str:
         return re.sub(r"\s+", " ", s.strip())
+
+    # Sampul: baris prodi/fakultas dikenali dari prefiks strukturalnya
+    # ("PROGRAM STUDI ...", "FAKULTAS ...", "MATA KULIAH ..."), bukan dari kata
+    # "KEPERAWATAN". Deteksi berbasis isi template membuat penggantian mati
+    # senyap begitu template diganti versi prodi lain.
+    cover_prodi = _prodi_display(study_program)
+    cover_faculty = str(faculty or "").strip().upper()
+    if cover_faculty and not (cover_faculty.startswith("FAKULTAS") or cover_faculty.startswith("PROGRAM PASCASARJANA")):
+        cover_faculty = f"FAKULTAS {cover_faculty}"
+    cover_course = str(course_name or "").strip().upper()
+
+    for p in doc.paragraphs:
+        txt_up = _normalise_ws(p.text or "").upper()
+        if not txt_up:
+            continue
+        if txt_up.startswith("PROGRAM STUDI") and cover_prodi:
+            _set_para_text(p, cover_prodi, size=11, bold=True)
+        elif txt_up.startswith("FAKULTAS") and cover_faculty:
+            _set_para_text(p, cover_faculty, size=11, bold=True)
+        elif txt_up.startswith("MATA KULIAH") and cover_course and "(MK)" not in txt_up:
+            _set_para_text(p, f"MATA KULIAH \u2013 {cover_course}", size=11, bold=True)
+
+    # --- Narasi sampul: Visi / Misi / Profil Lulusan / CPL-PRODI (luar tabel) ---
+    # Blok ini diisi per-prodi dari katalog. Item surplus milik template DIHAPUS
+    # (bukan dikosongkan) supaya numPr tidak meninggalkan bullet/nomor menggantung.
+    prog_vision = draft.get("program_vision") or draft.get("programVision") or ""
+    prog_mission = _as_list(draft.get("program_mission") or draft.get("programMission"))
+    prog_profile = _as_list(draft.get("program_graduate_profile") or draft.get("programGraduateProfile"))
+    prog_cpl = _as_list(draft.get("program_cpl") or draft.get("programCpl"))
+
+    SECTION_FLAGS = ("visi", "misi", "profil lulusan", "capaian pembelajaran lulusan",
+                     "analisis pembelajaran", "catatan")
+
+    def _find_heading(flag: str) -> int:
+        target = _flat(flag)
+        for idx, pp in enumerate(doc.paragraphs):
+            if _flat(pp.text) == target:
+                return idx
+        return -1
+
+    def _body_paragraphs(head_idx: int, limit: int = 14):
+        """Paragraf isi setelah heading, berhenti di heading berikutnya.
+
+        Paragraf kosong yang masih membawa numPr ikut dihitung sebagai item:
+        template menyimpan beberapa list item kosong, dan kalau dilewati ia
+        tertinggal sebagai nomor menggantung di dokumen hasil.
+        """
+        out = []
+        if head_idx < 0:
+            return out
+        for j in range(head_idx + 1, len(doc.paragraphs)):
+            pp = doc.paragraphs[j]
+            t = (pp.text or "").strip()
+            pPr = pp._p.find(qn('w:pPr'))
+            numbered = pPr is not None and pPr.find(qn('w:numPr')) is not None
+            if not t and not numbered:
+                continue
+            if _flat(t) in SECTION_FLAGS:
+                break
+            out.append(pp)
+            if len(out) >= limit:
+                break
+        return out
+
+    def _clone_para_after(ref_p, text: str):
+        """Duplikat paragraf referensi (bawa pPr incl. numPr) lalu isi teks baru."""
+        new_p = copy.deepcopy(ref_p._p)
+        for child in list(new_p):
+            if child.tag != qn('w:pPr'):
+                new_p.remove(child)
+        r_el = OxmlElement('w:r')
+        rPr = OxmlElement('w:rPr')
+        _set_sz(rPr, 20)
+        _ensure_fonts(rPr, FONT)
+        r_el.append(rPr)
+        t_el = OxmlElement('w:t')
+        t_el.text = text
+        r_el.append(t_el)
+        new_p.append(r_el)
+        ref_p._p.addnext(new_p)
+        return new_p
+
+    def _fill_block(head_flag: str, items: list[str], *, title: str | None = None) -> None:
+        """Tulis items ke paragraf isi di bawah heading.
+
+        Paragraf sisa milik template dihapus. Bila items kosong, seluruh isi
+        blok dihapus juga — membiarkannya berarti narasi prodi lain tetap
+        tercetak untuk prodi yang datanya belum lengkap.
+        """
+        values = [v for v in ([title] + list(items) if title else list(items)) if str(v).strip()]
+        head_idx = _find_heading(head_flag)
+        if head_idx < 0:
+            raise DocxAnchorError(f"heading '{head_flag}' tidak ditemukan di template")
+        bodies = _body_paragraphs(head_idx)
+        if not bodies:
+            raise DocxAnchorError(f"paragraf isi untuk '{head_flag}' tidak ditemukan")
+        for k, pp in enumerate(bodies):
+            if k < len(values):
+                _set_para_text(pp, str(values[k]).strip(), size=10, bold=False)
+            else:
+                remove_paragraph(pp._p)
+        if len(values) > len(bodies):
+            anchor = bodies[-1]
+            for extra in values[len(bodies):]:
+                anchor = _ParaRef(_clone_para_after(anchor, str(extra).strip()))
+
     try:
-        for p in doc.paragraphs:
-            txt = (p.text or "").strip()
-            norm = _normalise_ws(txt)
-            txt_up = norm.upper()
-            # Cover & sampul body: both variants (P20 dash, P25 DAN double-space)
-            if txt_up.startswith("PROGRAM STUDI") and "KEPERAWATAN" in txt_up:
-                # Either cover variant — replace with actual prodi
-                disp = _prodi_display(str(study_program or "")) or _normalise_ws(txt).upper()
-                _set_para_text(p, disp, size=11, bold=True)
-            elif txt_up.startswith("FAKULTAS") and "KEPERAWATAN" in txt_up:
-                fac_cover = str(faculty or "").strip().upper() or txt_up
-                if not (fac_cover.startswith("FAKULTAS") or fac_cover.startswith("PROGRAM PASCASARJANA")):
-                    fac_cover = f"FAKULTAS {fac_cover}"
-                _set_para_text(p, fac_cover, size=11, bold=True)
-            elif txt.startswith("MATA KULIAH"):
-                mata = str(course_name or "").strip().upper() or "ILMU BIOMEDIK DASAR"
-                new_mata = f"MATA KULIAH \u2013 {mata}"
-                _set_para_text(p, new_mata, size=11, bold=True)
-    except Exception: pass
-    # --- Narasi sampul: Visi / Misi / Profil Lulusan / CPL-PRODI luar tabel (P31–P60) ---
-    # Overwrite dengan payload program jika tersedia; else fallback biarkan template (tapi sudah fak fix di atas)
-    try:
-        prog_vision = draft.get("program_vision") or draft.get("programVision")
-        prog_mission = draft.get("program_mission") or draft.get("programMission") or []
-        prog_profile = draft.get("program_graduate_profile") or draft.get("programGraduateProfile") or []
-        prog_cpl = draft.get("program_cpl") or draft.get("programCpl") or []
-        if isinstance(prog_mission, str):
-            try: prog_mission = json.loads(prog_mission)
-            except: prog_mission = [prog_mission]
-        if isinstance(prog_profile, str):
-            try: prog_profile = json.loads(prog_profile)
-            except: prog_profile = [prog_profile]
-        if isinstance(prog_cpl, str):
-            try: prog_cpl = json.loads(prog_cpl)
-            except: prog_cpl = []
-        # Locate anchor paragraphs by exact flag
-        paras = doc.paragraphs
-        def _find_flag(flag: str):
-            for idx, pp in enumerate(paras):
-                if (pp.text or "").strip() == flag:
-                    return idx
-            return -1
-        # Visi: single paragraph after header "Visi" (P31->P33)
-        if prog_vision and isinstance(prog_vision, str) and prog_vision.strip():
-            visi_idx = _find_flag("Visi")
-            if visi_idx != -1:
-                # Expect P+2 is visi body; but scan forward up to 4 for non-empty non-header
-                for j in range(visi_idx + 1, min(len(paras), visi_idx + 6)):
-                    t = (paras[j].text or "").strip()
-                    if not t: continue
-                    if t in ("Misi", "Profil Lulusan", "Capaian Pembelajaran Lulusan"):
-                        break
-                    # first real body paragraph after Visi header
-                    _set_para_text(paras[j], prog_vision.strip(), size=10, bold=False)
-                    break
-        # Misi: replace up to len(prog_mission) paragraphs after "Misi" header; clear extras or shrink
-        if prog_mission and isinstance(prog_mission, list) and prog_mission:
-            misi_idx = _find_flag("Misi")
-            if misi_idx != -1:
-                # Collect indices of consecutive non-empty non-header paragraphs until next flag
-                body_idxs = []
-                for j in range(misi_idx + 1, len(paras)):
-                    t = (paras[j].text or "").strip()
-                    if not t: continue
-                    if t in ("Profil Lulusan", "Capaian Pembelajaran Lulusan", "Visi"):
-                        break
-                    # header sentinel empty after misi block
-                    if len(body_idxs) >= 12:
-                        break
-                    body_idxs.append(j)
-                    if len(body_idxs) >= len(prog_mission) + 3:  # allow slack
-                        pass
-                # we have up to N misi items; map first N body_idxs
-                clean_misi = [str(x).strip() for x in prog_mission if str(x).strip()]
-                for k, idx in enumerate(body_idxs):
-                    if k < len(clean_misi):
-                        _set_para_text(paras[idx], clean_misi[k], size=10, bold=False)
-                    else:
-                        # clear surplus template misi lines (extra keperawatan)
-                        _set_para_text(paras[idx], "", size=10, bold=False)
-                # If template had fewer paras than misi, append new paras after last body index (before next section)
-                if len(clean_misi) > len(body_idxs):
-                    insert_after = body_idxs[-1] if body_idxs else misi_idx
-                    # Insert new p elements via oxml: create p after insert_after
-                    for extra in clean_misi[len(body_idxs):]:
-                        new_p = OxmlElement('w:p')
-                        # copy pPr? minimal justify
-                        pPr = OxmlElement('w:pPr')
-                        jc = OxmlElement('w:jc'); jc.set(qn('w:val'), 'both')
-                        pPr.append(jc)
-                        new_p.append(pPr)
-                        r_el = OxmlElement('w:r')
-                        rPr = OxmlElement('w:rPr')
-                        _set_sz(rPr, 20)  # 10pt
-                        _ensure_fonts(rPr, FONT)
-                        r_el.append(rPr)
-                        t_el = OxmlElement('w:t'); t_el.text = extra; r_el.append(t_el)
-                        new_p.append(r_el)
-                        paras[insert_after]._p.addnext(new_p)
-                        # shift: re-collect paras reference in next loop not needed; doc.paragraphs rebuilds lazily
-        # Profil Lulusan: header "Profil Lulusan" then 1 title + 5 entries
-        if prog_profile and isinstance(prog_profile, list) and prog_profile:
-            prof_idx = _find_flag("Profil Lulusan")
-            if prof_idx != -1:
-                # Collect body indices until CPL header
-                body2 = []
-                for j in range(prof_idx + 1, len(paras)):
-                    t = (paras[j].text or "").strip()
-                    if not t: continue
-                    if t in ("Capaian Pembelajaran Lulusan", "Analisis Pembelajaran"):
-                        break
-                    body2.append(j)
-                # Expected template: 1 title "Profil lulusan Program Studi ..." + 5 items
-                # Build replacement block: first line is generic title for this prodi
-                clean_prof = [str(x).strip() for x in prog_profile if str(x).strip()]
-                # If clean_prof is a single long string with sentences, split by ". " only for display if needed - but keep as-is for first pass
-                # Title line
-                prodi_label = str(study_program or "Program Studi").strip()
-                title_line = f"Profil lulusan {prodi_label}:"
-                replacement = [title_line] + clean_prof if clean_prof else []
-                # If replacement length < body2, clear surplus; if longer, append
-                for k, idx in enumerate(body2):
-                    if k < len(replacement):
-                        _set_para_text(paras[idx], replacement[k], size=10, bold=False)
-                    else:
-                        _set_para_text(paras[idx], "", size=10, bold=False)
-                if len(replacement) > len(body2):
-                    insert_after = body2[-1] if body2 else prof_idx
-                    for extra in replacement[len(body2):]:
-                        new_p = OxmlElement('w:p')
-                        pPr = OxmlElement('w:pPr')
-                        jc = OxmlElement('w:jc'); jc.set(qn('w:val'), 'both')
-                        pPr.append(jc)
-                        new_p.append(pPr)
-                        r_el = OxmlElement('w:r'); rPr = OxmlElement('w:rPr')
-                        _set_sz(rPr, 20); _ensure_fonts(rPr, FONT); r_el.append(rPr)
-                        t_el = OxmlElement('w:t'); t_el.text = extra; r_el.append(t_el)
-                        new_p.append(r_el)
-                        paras[insert_after]._p.addnext(new_p)
-        # CPL-PRODI narasi (P55 headers): replace items under "Capaian Pembelajaran Lulusan"
-        if prog_cpl and isinstance(prog_cpl, list) and prog_cpl:
-            cpl_idx = _find_flag("Capaian Pembelajaran Lulusan")
-            if cpl_idx != -1:
-                body3 = []
-                for j in range(cpl_idx + 1, len(paras)):
-                    t = (paras[j].text or "").strip()
-                    if not t: continue
-                    if t in ("Analisis Pembelajaran", "Visi", "Misi"):
-                        break
-                    # filter out notes later (Catatan :) but include CPL bodies
-                    if t.startswith("Catatan"):
-                        break
-                    body3.append(j)
-                    if len(body3) >= 6: break
-                clean_cpl = []
-                for item in prog_cpl:
-                    if isinstance(item, dict):
-                        clean_cpl.append(str(item.get("description") or item.get("desc") or "").strip())
-                    else:
-                        clean_cpl.append(str(item).strip())
-                clean_cpl = [x for x in clean_cpl if x]
-                for k, idx in enumerate(body3):
-                    if k < len(clean_cpl):
-                        _set_para_text(paras[idx], clean_cpl[k], size=10, bold=False)
-                    else:
-                        _set_para_text(paras[idx], "", size=10, bold=False)
-                if len(clean_cpl) > len(body3):
-                    insert_after = body3[-1] if body3 else cpl_idx
-                    for extra in clean_cpl[len(body3):]:
-                        new_p = OxmlElement('w:p')
-                        pPr = OxmlElement('w:pPr')
-                        jc = OxmlElement('w:jc'); jc.set(qn('w:val'), 'both')
-                        pPr.append(jc); new_p.append(pPr)
-                        r_el = OxmlElement('w:r'); rPr = OxmlElement('w:rPr')
-                        _set_sz(rPr, 20); _ensure_fonts(rPr, FONT); r_el.append(rPr)
-                        t_el = OxmlElement('w:t'); t_el.text = extra; r_el.append(t_el)
-                        new_p.append(r_el)
-                        paras[insert_after]._p.addnext(new_p)
-    except Exception as _e:
-        # don't fail overall doc on narasi overwrite
-        import traceback as _tb
-        try:
-            print(f"[docx] narasi overwrite failed: {_e} {_tb.format_exc()[:600]}")
-        except: pass
+        _fill_block("Visi", [prog_vision.strip()] if isinstance(prog_vision, str) else [])
+        _fill_block("Misi", [str(x).strip() for x in prog_mission])
+        prodi_label = str(study_program or "Program Studi").strip()
+        profile_items = split_profile_items(prog_profile)
+        _fill_block(
+            "Profil Lulusan",
+            profile_items,
+            title=f"Profil lulusan {prodi_label}:" if profile_items else None,
+        )
+        cpl_lines = []
+        for item in prog_cpl:
+            if isinstance(item, dict):
+                cpl_lines.append(str(item.get("description") or item.get("desc") or "").strip())
+            else:
+                cpl_lines.append(str(item).strip())
+        _fill_block("Capaian Pembelajaran Lulusan", [x for x in cpl_lines if x])
+    except DocxAnchorError as exc:
+        print(f"[docx] anchor narasi gagal: {exc}")
+        raise
 
     # --------------------------------------------------------------
     # TBL0 -- 44x13 main
@@ -532,196 +559,132 @@ async def generate(request: Request):
     # --------------------------------------------------------------
     tbl0 = doc.tables[0]  # 44 rows
 
-    # Kop R00 table header Fakultas+Prodi — update dari faculty/study_program (preserve image cell)
-    # tbl0 R00 has 3 tc (gs 2,9,2): tc1 holds the kop block. Use lxml to avoid python-docx duplicate gridSpan expansion.
-    try:
-        tr00 = tbl0.rows[0]._tr
-        tcs00 = tr00.findall(qn('w:tc'))
-        if len(tcs00) >= 2:
-            fakultas_line = str(faculty or "").strip() or "Fakultas Keperawatan dan Kebidanan"
-            if not (fakultas_line.startswith("Fakultas") or fakultas_line.startswith("Program Pascasarjana")):
-                fakultas_line = f"Fakultas {fakultas_line}"
-            prodi_raw = str(study_program or "").strip() or "Program Studi S1 Ilmu Keperawatan"
-            # normalize prodi display: if already has prefix (Program Studi/Profesi/S1/S2/D3/D4/Magister) keep, else keep raw
-            if prodi_raw.startswith("Program Studi") or prodi_raw.startswith("Profesi") or prodi_raw.startswith("Magister") or prodi_raw.startswith("S1") or prodi_raw.startswith("S2") or prodi_raw.startswith("D3") or prodi_raw.startswith("D4"):
-                prodi_line = prodi_raw
-            else:
-                prodi_line = prodi_raw
-            # ensure Program Studi prefix for display when prodi is S1/S2/D3/D4 without prefix
-            display_prodi = prodi_line
-            if display_prodi.startswith("S1 ") or display_prodi.startswith("S2 ") or display_prodi.startswith("D3 ") or display_prodi.startswith("D4 "):
-                if not display_prodi.startswith("Program Studi"):
-                    display_prodi = f"Program Studi {display_prodi}"
-            new_kop = f"Universitas Megarezky\n{fakultas_line}\n{display_prodi}"
-            set_tc_text(tr00, 1, new_kop)
-    except Exception:
-        pass
-    # R03 row 3: course identity — use lxml tc indices (7 tc: 0 name gs3,1 code gs2,2 cluster gs2,3 T,4 P,5 semester,6 date gs3)
-    try:
-        tr03 = tbl0.rows[3]._tr
-        rumpun = draft.get("course_cluster") or draft.get("courseCluster") or "Keperawatan"
-        set_tc_text(tr03, 0, str(course_name))
-        set_tc_text(tr03, 1, str(course_code))
-        set_tc_text(tr03, 2, str(rumpun))
-        set_tc_text(tr03, 3, f"T={sks_theory}")
-        set_tc_text(tr03, 4, f"P={sks_practice}")
-        set_tc_text(tr03, 5, str(semester))
-        set_tc_text(tr03, 6, _format_date(preparation_date))
-    except Exception: pass
+    # Resolve tbl0 rows by their visible label instead of a frozen index, so a
+    # template edit fails loudly (DocxAnchorError) rather than writing into the
+    # wrong row. Offsets are relative to a labelled anchor row.
+    def _row_by_label(table, label: str, *, tc_idx: int = 0, contains: bool = False):
+        target = _flat(label)
+        for row in table.rows:
+            cell = tr_cell_text(row._tr, tc_idx)
+            flat = _flat(cell)
+            if (target in flat) if contains else (flat == target):
+                return row._tr
+        raise DocxAnchorError(f"baris berlabel '{label}' tidak ditemukan (tbl kolom {tc_idx})")
 
-    # R05 row 5: Otorisasi names — 4 tc [3,2,4,4]: tc1 pengembang, tc2 koordinator, tc3 ketua_prodi — clear stale Keperawatan when role missing
-    try:
-        tr05 = tbl0.rows[5]._tr
-        by_role = _split_by_role(lecturers)
-        koord_name = by_role.get("koordinator_mk") or ""
-        ketua_name = by_role.get("ketua_prodi") or ""
-        # Pengembang: only explicit role 'pengembang'; anggota => blank (hindari isi anggota ke kolom Pengembang)
-        pengembang_name = by_role.get("pengembang") or ""
-        print(f"[docx] R05 lecturers={lecturers} by_role={by_role} peng='{pengembang_name}' koord='{koord_name}' ketua='{ketua_name}'")
-        r1 = set_tc_text(tr05, 1, pengembang_name)
-        r2 = set_tc_text(tr05, 2, koord_name)
-        r3 = set_tc_text(tr05, 3, ketua_name)
-        print(f"[docx] R05 set results r1={r1} r2={r2} r3={r3}")
-        # debug dump after
-        try:
-            from docx.oxml.ns import qn as _qn
-            tcs_dbg = tr05.findall(_qn('w:tc'))
-            for _i,_tc in enumerate(tcs_dbg):
-                _ps=_tc.findall(_qn('w:p'))
-                _txt="".join("".join(_t.text or "" for _t in _p.findall(_qn('w:t'))) for _p in _ps)
-                print(f"[docx] R05 after tc{_i}='{ _txt[:80]}' ps={len(_ps)}")
-        except Exception as _e: print(f"[docx] R05 dbg fail {_e}")
-    except Exception as e:
-        import traceback as _tb
-        print(f"[docx] R05 failed {e} {_tb.format_exc()[:500]}")
-    # Tim Pengajar line outside tables (P07 label + P08 name) — patch stale Ns. Sri... to actual lecturers
-    try:
-        tim_idx = -1
-        for idx, pp in enumerate(doc.paragraphs):
-            if (pp.text or "").strip().startswith("Tim Pengajar"):
-                tim_idx = idx
-                break
-        if tim_idx != -1 and tim_idx + 1 < len(doc.paragraphs):
-            name_para = doc.paragraphs[tim_idx + 1]
-            if lecturers:
-                parts = []
-                forlec = lecturers
-                for l in forlec:
-                    nm = (l.get("name") or "").strip()
-                    if not nm: continue
-                    role = l.get("role") or ""
-                    suffix = ""
-                    if role == "koordinator_mk": suffix = " – (Koordinator)"
-                    elif role == "ketua_prodi": suffix = " – (Ketua Prodi)"
-                    elif role == "pengembang": suffix = " – (Pengembang)"
-                    parts.append(f"{nm}{suffix}")
-                display = ", ".join(parts) if parts else ""
-                if display:
-                    _set_para_text(name_para, display, size=11, bold=False)
-    except Exception: pass
+    def _row_index_by_label(table, label: str, *, tc_idx: int = 0, contains: bool = False) -> int:
+        target = _flat(label)
+        for idx, row in enumerate(table.rows):
+            flat = _flat(tr_cell_text(row._tr, tc_idx))
+            if (target in flat) if contains else (flat == target):
+                return idx
+        raise DocxAnchorError(f"baris berlabel '{label}' tidak ditemukan (tbl kolom {tc_idx})")
 
-    # ---- CP section ----
-    # R07-08 CPL, R10-13 CPMK, R15-21 Sub-CPMK — each has 3 tc [2,1,10] (vMerge header, code, desc)
-    # If payload provides cpl/cpmk/sub_cpmk (even empty), clear surplus rows so Keperawatan template tidak bocor
-    has_cpl = any(k in draft for k in ("cpl",))
-    has_cpmk = any(k in draft for k in ("cpmk",))
-    has_sub = any(k in draft for k in ("sub_cpmk", "subCpmk"))
-    try:
-        for idx in range(2):
-            tr = tbl0.rows[7+idx]._tr
-            if idx < len(cpl):
-                code = cpl[idx].get("code") or f"CPL{idx+1}"
-                desc = cpl[idx].get("description") or cpl[idx].get("desc") or ""
+    def _rows_after(table, label: str, count: int, *, tc_idx: int = 0, contains: bool = False):
+        start = _row_index_by_label(table, label, tc_idx=tc_idx, contains=contains) + 1
+        return [table.rows[start + i]._tr for i in range(count) if start + i < len(table.rows)]
+
+    # Baris kop: "Universitas Megarezky / Fakultas X / Program Studi Y".
+    # Dipakai dua kali — tbl0 (RPS) dan tbl1 (RTM) — supaya keduanya sinkron.
+    fakultas_line = str(faculty or "").strip()
+    if fakultas_line and not (fakultas_line.startswith("Fakultas") or fakultas_line.startswith("Program Pascasarjana")):
+        fakultas_line = f"Fakultas {fakultas_line}"
+    display_prodi = str(study_program or "").strip()
+    if display_prodi[:3] in ("S1 ", "S2 ", "S3 ", "D3 ", "D4 ") and not display_prodi.startswith("Program Studi"):
+        display_prodi = f"Program Studi {display_prodi}"
+    kop_lines = "\n".join(x for x in ("Universitas Megarezky", fakultas_line, display_prodi) if x)
+
+    tr00 = _row_by_label(tbl0, "Kode Dokumen", tc_idx=2)
+    set_tc_text(tr00, 1, kop_lines)
+
+    # Baris identitas MK: 7 tc (0 nama gs3, 1 kode gs2, 2 rumpun gs2, 3 T, 4 P, 5 semester, 6 tgl gs3)
+    # Anchor = baris header "MATA KULIAH (MK)" tepat di atasnya.
+    tr03 = _rows_after(tbl0, "MATA KULIAH (MK)", 1)[0]
+    rumpun = draft.get("course_cluster") or draft.get("courseCluster") or str(study_program or "").strip()
+    set_tc_text(tr03, 0, str(course_name))
+    set_tc_text(tr03, 1, str(course_code))
+    set_tc_text(tr03, 2, str(rumpun))
+    set_tc_text(tr03, 3, f"T={sks_theory}")
+    set_tc_text(tr03, 4, f"P={sks_practice}")
+    set_tc_text(tr03, 5, str(semester))
+    set_tc_text(tr03, 6, _format_date(preparation_date))
+
+    # Baris nama penandatangan Otorisasi: 4 tc — tc1 pengembang, tc2 koordinator, tc3 ketua prodi.
+    # Nama yang tidak dipasok dikosongkan supaya nama dosen template tidak tertinggal.
+    tr05 = _rows_after(tbl0, "OTORISASI", 1)[0]
+    by_role = _split_by_role(lecturers)
+    set_tc_text(tr05, 1, by_role.get("pengembang") or "")
+    set_tc_text(tr05, 2, by_role.get("koordinator_mk") or "")
+    set_tc_text(tr05, 3, by_role.get("ketua_prodi") or "")
+    # Baris "Tim Pengajar" di sampul: nama dosen menyusul satu paragraf di bawahnya.
+    tim_idx = next(
+        (i for i, pp in enumerate(doc.paragraphs) if (pp.text or "").strip().startswith("Tim Pengajar")),
+        -1,
+    )
+    if tim_idx == -1:
+        raise DocxAnchorError("paragraf 'Tim Pengajar' tidak ditemukan di template")
+    if lecturers and tim_idx + 1 < len(doc.paragraphs):
+        ROLE_SUFFIX = {
+            "koordinator_mk": " – (Koordinator)",
+            "ketua_prodi": " – (Ketua Prodi)",
+            "pengembang": " – (Pengembang)",
+        }
+        parts = [
+            f"{(l.get('name') or '').strip()}{ROLE_SUFFIX.get(l.get('role') or '', '')}"
+            for l in lecturers if (l.get("name") or "").strip()
+        ]
+        if parts:
+            _set_para_text(doc.paragraphs[tim_idx + 1], ", ".join(parts), size=11, bold=False)
+
+    # ---- CP section (CPL / CPMK / Sub-CPMK) ----
+    # Tiap baris punya 3 tc [2,1,10]: header vMerge, kode, deskripsi.
+    # Baris dianchor dari header di kolom tengah, bukan indeks tetap.
+    # Bila payload memuat key-nya (walau kosong), baris sisa dikosongkan agar
+    # isi template (prodi lain) tidak ikut terbawa.
+    def _fill_cp_rows(anchor_label: str, count: int, items: list, key_present: bool, default_code) -> None:
+        rows = _rows_after(tbl0, anchor_label, count, tc_idx=1, contains=True)
+        for idx, tr in enumerate(rows):
+            if idx < len(items):
+                item = items[idx] if isinstance(items[idx], dict) else {}
+                code = item.get("code") or default_code(idx)
+                desc = item.get("description") or item.get("desc") or ""
                 set_tc_text(tr, 1, str(code))
                 set_tc_text(tr, 2, str(desc))
-            elif has_cpl:
+            elif key_present:
                 set_tc_text(tr, 1, "")
                 set_tc_text(tr, 2, "")
-    except Exception: pass
-    try:
-        for idx in range(4):
-            tr = tbl0.rows[10+idx]._tr
-            if idx < len(cpmk):
-                code = cpmk[idx].get("code") or f"CPMK {idx+1}"
-                desc = cpmk[idx].get("description") or cpmk[idx].get("desc") or ""
-                set_tc_text(tr, 1, str(code))
-                set_tc_text(tr, 2, str(desc))
-            elif has_cpmk:
-                set_tc_text(tr, 1, "")
-                set_tc_text(tr, 2, "")
-    except Exception: pass
-    try:
-        for idx in range(7):
-            tr = tbl0.rows[15+idx]._tr
-            if idx < len(sub_cpmk):
-                code = sub_cpmk[idx].get("code") or f"Sub-CPMK-{idx+1}"
-                desc = sub_cpmk[idx].get("description") or sub_cpmk[idx].get("desc") or ""
-                set_tc_text(tr, 1, str(code))
-                set_tc_text(tr, 2, str(desc))
-            elif has_sub:
-                set_tc_text(tr, 1, "")
-                set_tc_text(tr, 2, "")
-    except Exception: pass
 
-    # R23 deskripsi singkat (tc 0 header "Deskripsi Singkat MK", tc1 desc span 11), R24 bahan kajian similar
-    # If payload explicitly provides description/bahan (even empty), overwrite template — jangan biarkan Keperawatan bocor ke prodi lain
-    try:
-        desc_has = any(k in draft for k in ("description", "deskripsi", "short_description"))
-        desc = draft.get("description") if "description" in draft else (draft.get("deskripsi") if "deskripsi" in draft else draft.get("short_description") if "short_description" in draft else "")
-        if desc_has or desc:
-            set_tc_text(tbl0.rows[23]._tr, 1, str(desc or "").strip())
-    except Exception: pass
-    try:
-        bahan_has = any(k in draft for k in ("bahan_kajian", "bahanKajian"))
-        bahan = draft.get("bahan_kajian") if "bahan_kajian" in draft else draft.get("bahanKajian") if "bahanKajian" in draft else []
-        if isinstance(bahan, str):
-            try: bahan = json.loads(bahan)
-            except: bahan = [bahan]
-        if bahan_has:
-            if isinstance(bahan, list) and bahan:
-                txt = "\n".join(str(x) for x in bahan if str(x).strip())
-                set_tc_text(tbl0.rows[24]._tr, 1, txt)
-            else:
-                set_tc_text(tbl0.rows[24]._tr, 1, "")
-    except Exception: pass
+    _fill_cp_rows("CPL-PRODI", 2, cpl, "cpl" in draft, lambda i: f"CPL{i+1}")
+    _fill_cp_rows("Capaian Pembelajaran Mata Kuliah", 4, cpmk, "cpmk" in draft, lambda i: f"CPMK {i+1}")
+    _fill_cp_rows("Sub-CPMK", 7, sub_cpmk, ("sub_cpmk" in draft or "subCpmk" in draft), lambda i: f"Sub-CPMK-{i+1}")
 
-    # R25-28 Pustaka — R25 header [2,11] "Pustaka Utama", R26 content [2,11], R27 header "Pendukung", R28 content
-    try:
-        pu_has = any(k in draft for k in ("pustaka_utama", "pustakaUtama", "references_main"))
-        pp_has = any(k in draft for k in ("pustaka_pendukung", "pustakaPendukung", "references_support"))
-        pustaka_utama = draft.get("pustaka_utama") if "pustaka_utama" in draft else draft.get("pustakaUtama") if "pustakaUtama" in draft else draft.get("references_main") if "references_main" in draft else []
-        pustaka_pend = draft.get("pustaka_pendukung") if "pustaka_pendukung" in draft else draft.get("pustakaPendukung") if "pustakaPendukung" in draft else draft.get("references_support") if "references_support" in draft else []
-        def _to_lines(arr):
-            if isinstance(arr, str):
-                try: arr=json.loads(arr)
-                except: return str(arr)
-            if not isinstance(arr, list): return str(arr)
-            return "\n".join(str(x) for x in arr if str(x).strip())
-        if pu_has:
-            if isinstance(pustaka_utama, list) and pustaka_utama and any(str(x).strip() for x in pustaka_utama):
-                set_tc_text(tbl0.rows[26]._tr, 1, _to_lines(pustaka_utama))
-            elif isinstance(pustaka_utama, str) and pustaka_utama.strip():
-                set_tc_text(tbl0.rows[26]._tr, 1, pustaka_utama)
-            else:
-                set_tc_text(tbl0.rows[26]._tr, 1, "")
-        if len(tbl0.rows) > 28 and pp_has:
-            if isinstance(pustaka_pend, list) and pustaka_pend and any(str(x).strip() for x in pustaka_pend):
-                set_tc_text(tbl0.rows[28]._tr, 1, _to_lines(pustaka_pend))
-            elif isinstance(pustaka_pend, str) and str(pustaka_pend).strip():
-                set_tc_text(tbl0.rows[28]._tr, 1, str(pustaka_pend))
-            else:
-                set_tc_text(tbl0.rows[28]._tr, 1, "")
-    except Exception: pass
+    # Deskripsi Singkat MK & Bahan Kajian — label ada di tc0, isi di tc1.
+    desc_present = any(k in draft for k in ("description", "deskripsi", "short_description"))
+    desc_value = ""
+    for key in ("description", "deskripsi", "short_description"):
+        if key in draft:
+            desc_value = draft.get(key) or ""
+            break
+    if desc_present or desc_value:
+        set_tc_text(_row_by_label(tbl0, "Deskripsi Singkat MK"), 1, str(desc_value).strip())
+
+    bahan_present = any(k in draft for k in ("bahan_kajian", "bahanKajian"))
+    if bahan_present:
+        bahan = _as_list(draft.get("bahan_kajian") if "bahan_kajian" in draft else draft.get("bahanKajian"))
+        bahan_txt = "\n".join(str(x) for x in bahan if str(x).strip())
+        set_tc_text(_row_by_label(tbl0, "Bahan Kajian", contains=True), 1, bahan_txt)
+
+    # Pustaka — baris isi berada persis di bawah label "Utama :" / "Pendukung :" (tc1).
+    if any(k in draft for k in ("pustaka_utama", "pustakaUtama", "references_main")):
+        source = draft.get("pustaka_utama", draft.get("pustakaUtama", draft.get("references_main")))
+        set_tc_text(_rows_after(tbl0, "Utama :", 1, tc_idx=1, contains=True)[0], 1, _lines(source))
+    if any(k in draft for k in ("pustaka_pendukung", "pustakaPendukung", "references_support")):
+        source = draft.get("pustaka_pendukung", draft.get("pustakaPendukung", draft.get("references_support")))
+        set_tc_text(_rows_after(tbl0, "Pendukung :", 1, tc_idx=1, contains=True)[0], 1, _lines(source))
 
     # R29 Dosen Pengampu: tc 0 header, tc1 names span 11
-    try:
-        all_names = _join_all_names(lecturers)
-        if all_names:
-            set_tc_text(tbl0.rows[29]._tr, 1, all_names)
-    except Exception: pass
-
-    # R31 empty spacer – skip
-    # R32-34 header weekly – keep static shading/borders
+    all_names = _join_all_names(lecturers)
+    if all_names:
+        set_tc_text(_row_by_label(tbl0, "Dosen Pengampu"), 1, all_names)
 
     # --------------------------------------------------------------
     # Weekly rows R35-R43 (9 variable rows representing 16 minggu)
@@ -729,106 +692,169 @@ async def generate(request: Request):
     # 4:Daring gs1, 5:Luring gs3, 6:Materi gs3, 7:Bobot gs1 — merged rows: 2 tc [1,12]
     # Fields: week, material, method, experience, assessment_criteria, weight, is_merged
     # --------------------------------------------------------------
-    WEEKLY_ROW_IDX = [35,36,37,38,39,40,41,42,43]
+    weekly_rows = _rows_after(tbl0, "(1)", len(weekly_plans))
+    if len(weekly_rows) < len(weekly_plans):
+        raise DocxAnchorError(
+            f"template hanya punya {len(weekly_rows)} baris mingguan, butuh {len(weekly_plans)}"
+        )
     for i, wp in enumerate(weekly_plans):
-        try:
-            ridx = WEEKLY_ROW_IDX[i]
-            tr = tbl0.rows[ridx]._tr
-            week = str(wp.get("week","") or CANONICAL_WEEKLY[i]["week"])
-            material = str(wp.get("material","") or wp.get("materi","") or "")
-            method = str(wp.get("method","") or wp.get("luring","") or 'TM 1×(4×50")')
-            experience = str(wp.get("experience","") or "")
-            criteria = str(wp.get("assessment_criteria","") or wp.get("assessmentCriteria","") or wp.get("kriteria","") or "")
-            weight = wp.get("weight", 0)
-            is_merged = bool(wp.get("is_merged", wp.get("isMerged", False)))
-            # Prefer verbatim 8-col fields when present (AI baru / editor baru); else derive without duplication
-            def _verb(k: str):
-                v = wp.get(k)
-                return str(v).strip() if isinstance(v, str) and v.strip() else ""
+        tr = weekly_rows[i]
+        week = str(wp.get("week","") or CANONICAL_WEEKLY[i]["week"])
+        material = str(wp.get("material","") or wp.get("materi","") or "")
+        method = str(wp.get("method","") or wp.get("luring","") or 'TM 1×(4×50")')
+        experience = str(wp.get("experience","") or "")
+        criteria = str(wp.get("assessment_criteria","") or wp.get("assessmentCriteria","") or wp.get("kriteria","") or "")
+        weight = wp.get("weight", 0)
+        is_merged = bool(wp.get("is_merged", wp.get("isMerged", False)))
+        # Prefer verbatim 8-col fields when present (AI baru / editor baru); else derive without duplication
+        def _verb(k: str):
+            v = wp.get(k)
+            return str(v).strip() if isinstance(v, str) and v.strip() else ""
 
-            if is_merged:
-                set_tc_text(tr, 0, week)
-                label = _verb("sub_cpmk") or _verb("materi") or material or ("UJIAN MID SEMESTER" if i==4 else "UJIAN FINAL SEMESTER")
-                label = label.upper() if "UJIAN" in label.upper() else label
-                set_tc_text(tr, 1, label, bold=True)
-            else:
-                # Prefer verbatim 8-col; fallback derived per-column distinct
-                sub_cpmk = _verb("sub_cpmk")
-                if not sub_cpmk:
-                    sub_cpmk = material
-                    if material and "mampu" not in material.lower() and "mahasiswa" not in material.lower():
-                        sub_cpmk = f"Mahasiswa mampu menjelaskan tentang {material}"
-                    if not sub_cpmk: sub_cpmk = "-"
-                indikator = _verb("indikator")
-                if not indikator:
-                    if material:
-                        indikator = f"Ketepatan dalam menjelaskan {material} | Keaktifan dalam diskusi | Kepatuhan terhadap kontrak mata kuliah"
-                    else:
-                        indikator = experience if experience and len(experience) > 8 else "Ketepatan dalam menjelaskan materi"
-                kriteria = _verb("kriteria") or (criteria if criteria else "Rubrik penilaian presentasi kelompok (lampiran 1) | Rubrik partisipasi kelas (lampiran 2) | Absensi")
-                daring = _verb("daring") or "Menyesuaikan perkembangan pandemic COVID-19"
-                luring = _verb("luring")
-                if not luring:
-                    luring = method
-                    if experience and experience not in method:
-                        luring = f"{method} | {experience}"
-                    if "TM" not in luring:
-                        luring = f"{luring} [TM 1x(4x50\u201d)]"
-                    if not luring.strip(): luring = 'TM 1×(4×50")'
-                materi = _verb("materi") or material or "-"
+        if is_merged:
+            set_tc_text(tr, 0, week)
+            label = _verb("sub_cpmk") or _verb("materi") or material or ("UJIAN MID SEMESTER" if i==4 else "UJIAN FINAL SEMESTER")
+            label = label.upper() if "UJIAN" in label.upper() else label
+            set_tc_text(tr, 1, label, bold=True)
+        else:
+            # Prefer verbatim 8-col; fallback derived per-column distinct
+            sub_cpmk = _verb("sub_cpmk")
+            if not sub_cpmk:
+                sub_cpmk = material
+                if material and "mampu" not in material.lower() and "mahasiswa" not in material.lower():
+                    sub_cpmk = f"Mahasiswa mampu menjelaskan tentang {material}"
+                if not sub_cpmk: sub_cpmk = "-"
+            indikator = _verb("indikator")
+            if not indikator:
+                if material:
+                    indikator = f"Ketepatan dalam menjelaskan {material} | Keaktifan dalam diskusi | Kepatuhan terhadap kontrak mata kuliah"
+                else:
+                    indikator = experience if experience and len(experience) > 8 else "Ketepatan dalam menjelaskan materi"
+            kriteria = _verb("kriteria") or (criteria if criteria else "Rubrik penilaian presentasi kelompok (lampiran 1) | Rubrik partisipasi kelas (lampiran 2) | Absensi")
+            daring = _verb("daring") or "Menyesuaikan perkembangan pandemic COVID-19"
+            luring = _verb("luring")
+            if not luring:
+                luring = method
+                if experience and experience not in method:
+                    luring = f"{method} | {experience}"
+                if "TM" not in luring:
+                    luring = f"{luring} [TM 1x(4x50\u201d)]"
+                if not luring.strip(): luring = 'TM 1×(4×50")'
+            materi = _verb("materi") or material or "-"
 
-                set_tc_text(tr, 0, week)
-                set_tc_text(tr, 1, sub_cpmk)
-                set_tc_text(tr, 2, indikator)
-                set_tc_text(tr, 3, kriteria)
-                set_tc_text(tr, 4, daring)
-                set_tc_text(tr, 5, luring)
-                set_tc_text(tr, 6, materi)
-                set_tc_text(tr, 7, str(weight))
-        except Exception:
-            continue
+            set_tc_text(tr, 0, week)
+            set_tc_text(tr, 1, sub_cpmk)
+            set_tc_text(tr, 2, indikator)
+            set_tc_text(tr, 3, kriteria)
+            set_tc_text(tr, 4, daring)
+            set_tc_text(tr, 5, luring)
+            set_tc_text(tr, 6, materi)
+            set_tc_text(tr, 7, str(weight))
 
-    # --------------------------------------------------------------
-    # Cover code "( IW25ASK105431 )" at p idx 3  – FIX to canonical IW21ASK1541
-    # Scan body paragraphs before first tbl for that code pattern
-    # --------------------------------------------------------------
-    try:
+    # Kode MK pada sampul, mis. "( IW21ASK1541 )". Dicocokkan dengan pola kode
+    # dalam tanda kurung, bukan daftar kode milik template.
+    code_pattern = re.compile(r"^\(\s*[A-Z0-9]{6,}\s*\)$")
+    if course_code:
         for p in doc.paragraphs:
-            txt = p.text or ""
-            if "IW25ASK105431" in txt or "IWSN321312" in txt or "17505R0203" in txt:
-                # Replace in-place runs
-                raw = p.text
-                # direct replacement preserving runs: simpler call clear+add
-                # capture original run size? Use set via clearing
-                for r in list(p.runs):
-                    r._r.getparent().remove(r._r)
-                run = p.add_run(raw.replace("IW25ASK105431", course_code).replace("IWSN321312", course_code).replace("17505R0203", course_code))
-                run.font.size = Pt(11)
-                run.font.name = FONT
-                run.bold = True
+            if code_pattern.match(_normalise_ws(p.text or "")):
+                _set_para_text(p, f"( {course_code} )", size=11, bold=True)
                 break
-        # Specific cover p at index 3: "( IW21ASK1541 )"
-        # Use manual: find p text containing parentheses code and enforce
-        for p in doc.paragraphs[:15]:
-            if p.text and "(" in p.text and ")" in p.text and any(c.isdigit() for c in p.text):
-                if any(x in p.text for x in ["IW","R0203","IWSN","ASK"]):
-                    for r in list(p.runs):
-                        r._r.getparent().remove(r._r)
-                    run = p.add_run(f"( {course_code} )")
-                    run.font.size = Pt(11); run.font.name = FONT; run.bold = True
-                    break
-    except Exception:
-        pass
 
-    # Also fix RTM table kode (tbl1 R03 kode 17505R0203 -> same canonical)
+    # --------------------------------------------------------------
+    # TBL1 — Rencana Tugas Mahasiswa (RTM)
+    # Halaman lampiran ini punya kop + identitas MK sendiri. Kalau dibiarkan,
+    # seluruh isinya (prodi, dosen, tugas mind map anatomi, daftar rujukan)
+    # tetap milik template dan bertentangan dengan halaman RPS di depannya.
+    # Identitas disinkronkan; isi tugas hanya ditulis bila dipasok, sisanya
+    # dikosongkan supaya tidak ada penugasan prodi lain yang tertinggal.
+    # --------------------------------------------------------------
+    tbl1 = doc.tables[1]
+    assignment = draft.get("assignment") or draft.get("rencana_tugas") or {}
+    if not isinstance(assignment, dict):
+        assignment = {}
+
+    def _assign(*keys) -> str:
+        for k in keys:
+            v = assignment.get(k)
+            if isinstance(v, (str, int, float)) and str(v).strip():
+                return str(v).strip()
+            if isinstance(v, list):
+                joined = "\n".join(str(x).strip() for x in v if str(x).strip())
+                if joined:
+                    return joined
+        return ""
+
+    set_tc_text(_row_by_label(tbl1, "Universitas Megarezky", tc_idx=1, contains=True), 1, kop_lines)
+    set_tc_text(_row_by_label(tbl1, "MATA KULIAH"), 1, str(course_name))
+
+    tr_kode = _row_by_label(tbl1, "KODE")
+    set_tc_text(tr_kode, 1, str(course_code))
+    set_tc_text(tr_kode, 3, str(sks_total))
+    set_tc_text(tr_kode, 5, str(semester))
+    set_tc_text(_row_by_label(tbl1, "DOSEN PENGAMPU"), 1, all_names)
+
+    # Baris isi RTM: label di baris atas, isi di baris berikutnya (1 tc).
+    rtm_fields = (
+        ("BENTUK TUGAS", 0, _assign("bentuk", "bentuk_tugas", "form")),
+        ("BENTUK TUGAS", 1, _assign("waktu", "waktu_pengerjaan", "duration")),
+        ("JUDUL TUGAS", 0, _assign("judul", "title")),
+        ("SUB CAPAIAN PEMBELAJARAN MATA KULIAH", 0, _assign("sub_cpmk", "subCpmk")),
+        ("DISKRIPSI TUGAS", 0, _assign("deskripsi", "description")),
+        ("METODE PENGERJAAN TUGAS", 0, _assign("metode", "method")),
+        ("BENTUK DAN FORMAT LUARAN", 0, _assign("luaran", "output", "format")),
+        ("INDIKATOR, KRITERIA DAN BOBOT PENILAIAN", 0, _assign("penilaian", "indikator", "assessment")),
+        ("JADWAL PELAKSANAAN", 0, _assign("jadwal", "schedule") or "Sesuai jadwal perkuliahan"),
+        ("LAIN-LAIN", 0, _assign("lain_lain", "notes")),
+        ("DAFTAR RUJUKAN", 0, _assign("rujukan", "references") or _lines(
+            draft.get("pustaka_utama", draft.get("pustakaUtama", [])))),
+    )
+    for label, tc_idx, value in rtm_fields:
+        if label == "BENTUK TUGAS":
+            # Baris "Mind Map | 4x50'" berisi dua kolom sekaligus.
+            target = _rows_after(tbl1, label, 1)[0]
+        else:
+            target = _rows_after(tbl1, label, 1)[0]
+        set_tc_text(target, tc_idx, value)
+
+    # --------------------------------------------------------------
+    # TBL3 — rubrik penilaian. Aspeknya klinis/pengukuran (asuhan pasien),
+    # tidak berlaku lintas prodi. Ganti dengan rubrik yang dipasok; bila tidak
+    # ada, pakai rubrik generik agar tidak menyesatkan.
+    # --------------------------------------------------------------
+    rubric = _as_list(draft.get("rubric") or draft.get("rubrik"))
+    if not rubric:
+        rubric = [
+            {"aspect": "Ketepatan pemahaman konsep dan ruang lingkup tugas", "weight": 15},
+            {"aspect": "Ketepatan penerapan metode/prosedur penyelesaian", "weight": 25},
+            {"aspect": "Kedalaman analisis dan argumentasi", "weight": 25},
+            {"aspect": "Kualitas dan kelengkapan luaran", "weight": 20},
+            {"aspect": "Kerapian penyajian serta ketepatan waktu pengumpulan", "weight": 15},
+        ]
     try:
-        tbl1 = doc.tables[1]
-        # R03 idx 3
-        if len(tbl1.rows) > 3:
-            # cells pattern gs 1,2,1,1,1,1 -> col1 is code value
-            if len(tbl1.rows[3].cells) >= 2:
-                set_cell_text(tbl1.rows[3].cells[1], str(course_code))
-    except Exception: pass
+        tbl3 = doc.tables[3]
+        total_row_idx = _row_index_by_label(tbl3, "NILAI TOTAL")
+        body_rows = [tbl3.rows[i]._tr for i in range(1, total_row_idx)]
+        total_weight = 0
+        for idx, tr in enumerate(body_rows):
+            if idx < len(rubric):
+                entry = rubric[idx] if isinstance(rubric[idx], dict) else {"aspect": str(rubric[idx])}
+                aspect = str(entry.get("aspect") or entry.get("aspek") or "").strip()
+                weight = entry.get("weight", entry.get("bobot", 0))
+                set_tc_text(tr, 0, str(idx + 1))
+                set_tc_text(tr, 1, aspect)
+                set_tc_text(tr, 2, str(weight))
+                set_tc_text(tr, 3, "")
+                try:
+                    total_weight += int(float(weight))
+                except (TypeError, ValueError):
+                    pass
+            else:
+                for ci in range(4):
+                    set_tc_text(tr, ci, "")
+        set_tc_text(tbl3.rows[total_row_idx]._tr, 1, str(total_weight or 100))
+    except DocxAnchorError as exc:
+        print(f"[docx] rubrik tbl3 gagal: {exc}")
+        raise
 
     # Enforce docDefaults fonts already Times; but ensure sections unchanged
     # No page size/orientation mutation – template preserves 6 sectPr exactly

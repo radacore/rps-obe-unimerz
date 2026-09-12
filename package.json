@@ -18,7 +18,8 @@
     "docx:install": "pip install -r docx_service/requirements.txt",
     "docx:dev": "uvicorn docx_service.app:app --host 0.0.0.0 --port 8001 --reload",
     "dev:all": "bun run server.ts & python3 -m uvicorn docx_service.app:app --host 127.0.0.1 --port 8001 --reload & vite --port 3000",
-    "preview:api": "bun run server.ts"
+    "preview:api": "bun run server.ts",
+    "docx:test": "python3 -m pytest docx_service/test_generate.py -q"
   },
   "dependencies": {
     "@astryxdesign/core": "^0.5.4",
