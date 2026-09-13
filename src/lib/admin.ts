@@ -230,6 +230,10 @@ export type AuditEntry = {
 };
 
 export const AUDIT_ACTION_LABEL: Record<string, string> = {
+  create_course: "Tambah mata kuliah",
+  update_course: "Ubah mata kuliah",
+  delete_course: "Hapus mata kuliah",
+  update_course_cpmk: "Ubah CPMK mata kuliah",
   update_faculty_profile: "Ubah profil fakultas",
   update_program_profile: "Ubah profil prodi",
   update_program_cpl: "Ubah CPL prodi",
@@ -243,3 +247,134 @@ export const AUDIT_ACTION_LABEL: Record<string, string> = {
 export function fetchAudit(limit = 50) {
   return api<ApiOk<AuditEntry[]>>(`/api/admin/audit?limit=${limit}`);
 }
+
+// ---------------------------------------------------------------------------
+// Bank kurikulum
+// ---------------------------------------------------------------------------
+
+export type SubCpmkItem = {
+  code: string;
+  description: string;
+  taxonomy?: string | null;
+};
+
+export type CpmkItem = {
+  code: string;
+  description: string;
+  taxonomy?: string | null;
+  cpl_code?: string | null;
+  sub_cpmk: SubCpmkItem[];
+};
+
+export type Course = {
+  id: number;
+  code: string;
+  name: string;
+  cluster: string | null;
+  semester: number;
+  sks_theory: number;
+  sks_practice: number;
+  sks_total: number;
+  is_elective: boolean;
+  description: string | null;
+  bahan_kajian: string[];
+  pustaka_utama: string[];
+  pustaka_pendukung: string[];
+  study_program_slug: string | null;
+  study_program_label: string | null;
+  faculty_label: string | null;
+  cpmk: CpmkItem[];
+  cpmk_count: number;
+  sub_cpmk_count: number;
+  updated_at: string;
+};
+
+export type NewCourseInput = {
+  study_program_slug: string;
+  code: string;
+  name: string;
+  semester: number;
+  sks_theory: number;
+  sks_practice: number;
+  cluster?: string | null;
+  description?: string | null;
+  bahan_kajian?: string[];
+  pustaka_utama?: string[];
+  pustaka_pendukung?: string[];
+};
+
+export type CoursePatch = Partial<Omit<NewCourseInput, "study_program_slug">> & { is_elective?: boolean };
+
+export function fetchCourses(studyProgramSlug?: string) {
+  const qs = studyProgramSlug ? `?study_program_slug=${encodeURIComponent(studyProgramSlug)}` : "";
+  return api<ApiOk<Course[]>>(`/api/admin/courses${qs}`);
+}
+
+export function createCourse(input: NewCourseInput) {
+  return api<ApiOk<Course>>("/api/admin/courses", { method: "POST", body: JSON.stringify(input) });
+}
+
+export function updateCourse(id: number, patch: CoursePatch) {
+  return api<ApiOk<Course>>(`/api/admin/courses/${id}`, { method: "PUT", body: JSON.stringify(patch) });
+}
+
+export function deleteCourse(id: number) {
+  return api<ApiOk<{ deleted: boolean }>>(`/api/admin/courses/${id}`, { method: "DELETE" });
+}
+
+export function updateCourseCpmk(id: number, cpmk: CpmkItem[]) {
+  return api<ApiOk<Course>>(`/api/admin/courses/${id}/cpmk`, {
+    method: "PUT",
+    body: JSON.stringify({ cpmk }),
+  });
+}
+
+export type MatrixSupport = {
+  course_id: number;
+  course_code: string;
+  course_name: string;
+  semester: number;
+  cpmk_code: string;
+  cpmk_description: string;
+  taxonomy: string | null;
+  sub_cpmk_count: number;
+};
+
+export type ProgramMatrix = {
+  study_program: { slug: string; label: string; faculty_label: string };
+  graduate_profile: string[];
+  cpl: {
+    code: string;
+    description: string;
+    category: string | null;
+    supporting: MatrixSupport[];
+    is_covered: boolean;
+  }[];
+  uncovered_cpl: string[];
+  orphan_cpmk: { course_code: string; course_name: string; cpmk_code: string; cpl_code: string | null }[];
+  course_count: number;
+  cpmk_count: number;
+};
+
+export function fetchProgramMatrix(slug: string) {
+  return api<ApiOk<ProgramMatrix>>(`/api/admin/programs/${encodeURIComponent(slug)}/matrix`);
+}
+
+/** Bank kurikulum publik — dipakai halaman RPS untuk mengisi dari kurikulum. */
+export function fetchPublicCourses(studyProgramValue: string) {
+  return api<ApiOk<Course[]>>(`/api/courses?study_program=${encodeURIComponent(studyProgramValue)}`);
+}
+
+export function applyCourseToDraft(draftId: number, courseId: number) {
+  return api<ApiOk<{ course_code: string; course_name: string; applied: { cpl: number; cpmk: number; sub_cpmk: number } }>>(
+    `/api/rps/${draftId}/apply-course`,
+    { method: "POST", body: JSON.stringify({ course_id: courseId }) },
+  );
+}
+
+export const TAXONOMY_OPTIONS = [
+  { value: "", label: "—" },
+  ...["C1", "C2", "C3", "C4", "C5", "C6"].map((v) => ({ value: v, label: `${v} (kognitif)` })),
+  ...["A1", "A2", "A3", "A4", "A5"].map((v) => ({ value: v, label: `${v} (afektif)` })),
+  ...["P1", "P2", "P3", "P4", "P5"].map((v) => ({ value: v, label: `${v} (psikomotor)` })),
+];

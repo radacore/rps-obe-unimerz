@@ -207,6 +207,42 @@ def test_long_narrative_keeps_layout_and_prints_every_item():
     assert len(block("Capaian Pembelajaran Lulusan", "Analisis Pembelajaran")) == 20
 
 
+def test_cpl_beyond_template_capacity_is_not_silently_dropped():
+    """Template hanya menyediakan 2 baris CPL, 4 CPMK, dan 7 Sub-CPMK.
+
+    Kurikulum nyata bisa melebihi itu. Baris harus ditambah, bukan isinya
+    dipotong — CPL yang hilang dari dokumen tanpa peringatan adalah kehilangan
+    data yang tidak terlihat sampai dokumen dibaca manual.
+    """
+    payload = {"rps_draft": dict(PAYLOAD["rps_draft"])}
+    payload["rps_draft"].update({
+        "cpl": [{"code": f"CPL{i}", "description": f"Capaian lulusan nomor {i}"} for i in range(1, 6)],
+        "cpmk": [{"code": f"CPMK {i}", "description": f"Capaian mata kuliah nomor {i}"} for i in range(1, 7)],
+        "sub_cpmk": [{"code": f"Sub-CPMK-{i}", "description": f"Sub capaian nomor {i}"} for i in range(1, 10)],
+    })
+    doc = generate(payload)
+
+    codes = []
+    for row in doc.tables[0].rows:
+        cells = row._tr.findall(qn('w:tc'))
+        if len(cells) < 3:
+            continue
+        code = cell_text(cells[1]).strip()
+        if re.match(r"^(CPL\d|CPMK \d|Sub-CPMK-\d)$", code):
+            codes.append(code)
+
+    for i in range(1, 6):
+        assert f"CPL{i}" in codes, f"CPL{i} hilang dari dokumen"
+    for i in range(1, 7):
+        assert f"CPMK {i}" in codes, f"CPMK {i} hilang dari dokumen"
+    for i in range(1, 10):
+        assert f"Sub-CPMK-{i}" in codes, f"Sub-CPMK-{i} hilang dari dokumen"
+
+    # Struktur halaman tetap utuh meski baris ditambah.
+    assert len(doc.sections) == template_section_count()
+    assert len(doc.tables) == 4
+
+
 def test_cpl_category_does_not_reach_the_document():
     """`category` hanya metadata klasifikasi; hanya deskripsi yang tercetak."""
     payload = {"rps_draft": dict(PAYLOAD["rps_draft"])}

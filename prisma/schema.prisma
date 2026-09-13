@@ -155,6 +155,7 @@ model StudyProgram {
 
   faculty Faculty?    @relation(fields: [facultyId], references: [id], onDelete: SetNull)
   admins  AdminUser[]
+  courses Course[]
 
   @@index([facultySlug])
   @@index([facultyLabel])
@@ -197,4 +198,86 @@ model RpsDraft {
   @@index([courseCode])
   @@index([updatedAt])
   @@map("rps_draft")
+}
+
+/// Mata kuliah dalam kurikulum program studi (bank kurikulum).
+///
+/// Ini tempat yang benar untuk CPMK: secara OBE, CPL dimiliki program studi,
+/// sedangkan CPMK adalah capaian sebuah mata kuliah yang memetakan ke CPL.
+/// Tanpa entitas ini, CPMK hanya hidup di dalam masing-masing RpsDraft dan
+/// tidak pernah bisa dipakai ulang atau diperiksa konsistensinya.
+model Course {
+  id               Int     @id @default(autoincrement())
+  studyProgramId   Int     @map("study_program_id")
+  code             String // IK24IK1201
+  name             String
+  /// Rumpun/kelompok MK (mis. "Ilmu Komputer", "MKWU").
+  cluster          String?
+  semester         Int     @default(1)
+  sksTheory        Int     @default(2) @map("sks_theory")
+  sksPractice      Int     @default(0) @map("sks_practice")
+  /// Wajib atau pilihan.
+  isElective       Boolean @default(false) @map("is_elective")
+  description      String?
+  /// Bahan kajian & pustaka sebagai JSON, mengikuti pola kolom lain di skema
+  /// ini agar bentuk payload ke generator DOCX tetap sama.
+  bahanKajian      String  @default("[]") @map("bahan_kajian")
+  pustakaUtama     String  @default("[]") @map("pustaka_utama")
+  pustakaPendukung String  @default("[]") @map("pustaka_pendukung")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  studyProgram StudyProgram @relation(fields: [studyProgramId], references: [id], onDelete: Cascade)
+  cpmks        Cpmk[]
+
+  // Kode MK unik di dalam satu prodi, bukan global: prodi berbeda boleh
+  // memakai kode yang sama untuk mata kuliah universitas.
+  @@unique([studyProgramId, code])
+  @@index([studyProgramId])
+  @@map("course")
+}
+
+/// Capaian Pembelajaran Mata Kuliah — turunan CPL prodi.
+model Cpmk {
+  id          Int     @id @default(autoincrement())
+  courseId    Int     @map("course_id")
+  code        String // CPMK 1
+  description String
+  /// Ranah taksonomi (C2/C4/A2/P3) seperti dipakai di dokumen RPS.
+  taxonomy    String?
+  /// Kode CPL prodi yang ditopang, mis. "CPL2". Disimpan sebagai kode teks
+  /// karena CPL prodi sendiri masih berupa JSON di StudyProgram.cpl; validasi
+  /// keberadaannya dilakukan di endpoint.
+  cplCode     String? @map("cpl_code")
+  ordering    Int     @default(0)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  course   Course    @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  subCpmks SubCpmk[]
+
+  @@unique([courseId, code])
+  @@index([courseId])
+  @@map("cpmk")
+}
+
+/// Sub-CPMK: tahapan kemampuan per pertemuan, turunan sebuah CPMK.
+model SubCpmk {
+  id          Int     @id @default(autoincrement())
+  cpmkId      Int     @map("cpmk_id")
+  code        String // Sub-CPMK-1
+  description String
+  taxonomy    String?
+  ordering    Int     @default(0)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  cpmk Cpmk @relation(fields: [cpmkId], references: [id], onDelete: Cascade)
+
+  @@unique([cpmkId, code])
+  @@index([cpmkId])
+  @@map("sub_cpmk")
 }

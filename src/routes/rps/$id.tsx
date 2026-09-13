@@ -6,6 +6,7 @@ import { WeeklyTable, type WeeklyRow } from "@/components/WeeklyTable";
 import { AiGeneratePanel } from "@/components/AiGeneratePanel";
 import { DocxPreview } from "@/components/DocxPreview";
 import { TemplateEditor } from "@/components/TemplateEditor";
+import { ApplyCoursePanel } from "@/components/ApplyCoursePanel";
 import { CONTOH_BAHAN_KAJIAN, CONTOH_CPL, CONTOH_CPMK, CONTOH_DESCRIPTION, CONTOH_PUSTAKA_PENDUKUNG, CONTOH_PUSTAKA_UTAMA, CONTOH_SUB_CPMK } from "@/lib/contoh";
 import { useFaculties } from "@/lib/useFaculties";
 import { Card } from "@/components/ui/Card";
@@ -247,6 +248,18 @@ function RpsDetail() {
               <Button label="Isi CONTOH 100%" variant="secondary" size="sm" onClick={fillContoh} />
             </div>
           </Card>
+
+          <ApplyCoursePanel
+            draftId={Number(id)}
+            studyProgram={identProdi}
+            onApplied={() => {
+              // Buang override lokal supaya nilai dari kurikulum yang tampil,
+              // bukan editan sebelumnya.
+              setDescLive(null); setBahanKajianLive(null); setPustakaUtamaLive(null); setPustakaPendLive(null);
+              setCplLive(null); setCpmkLive(null); setSubCpmkLive(null);
+              setMsg("Draft terisi dari kurikulum prodi.");
+            }}
+          />
 
           <TemplateEditor
             description={effectiveDescription}

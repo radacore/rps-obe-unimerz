@@ -17,6 +17,8 @@ import { CplEditor } from "./CplEditor";
 import { FacultyProfilePanel } from "./FacultyProfilePanel";
 import { AccountManagerPanel } from "./AccountManagerPanel";
 import { AuditLogPanel } from "./AuditLogPanel";
+import { CurriculumPanel } from "./CurriculumPanel";
+import { MatrixPanel } from "./MatrixPanel";
 
 function errorMessage(e: unknown): string {
   if (e instanceof ApiError) {
@@ -55,10 +57,12 @@ export function AdminPanel() {
       qc.removeQueries({ queryKey: ["admin-faculties"] });
       qc.removeQueries({ queryKey: ["admin-accounts"] });
       qc.removeQueries({ queryKey: ["admin-audit"] });
+      qc.removeQueries({ queryKey: ["admin-courses"] });
+      qc.removeQueries({ queryKey: ["admin-matrix"] });
     },
   });
 
-  const [tab, setTab] = useState<"fakultas" | "prodi" | "cpl" | "akun" | "riwayat">("prodi");
+  const [tab, setTab] = useState<"fakultas" | "prodi" | "cpl" | "kurikulum" | "matriks" | "akun" | "riwayat">("prodi");
 
   if (session.isLoading) return <Text type="supporting">Memuat sesi…</Text>;
   if (!identity) return <AdminLoginForm />;
@@ -71,6 +75,8 @@ export function AdminPanel() {
     ...(identity.role === "kaprodi" ? [] : [{ id: "fakultas" as const, label: "Profil Fakultas" }]),
     { id: "prodi", label: "Profil Prodi" },
     { id: "cpl", label: "CPL Prodi" },
+    { id: "kurikulum", label: "Kurikulum & CPMK" },
+    { id: "matriks", label: "Matriks CPL" },
     ...(identity.role === "super_admin" ? [{ id: "akun" as const, label: "Akun Pengelola" }] : []),
     { id: "riwayat", label: "Riwayat" },
   ];
@@ -115,7 +121,7 @@ export function AdminPanel() {
       {tab === "akun" && <AccountManagerPanel />}
       {tab === "riwayat" && <AuditLogPanel enabled={!identity.mustChangePassword} />}
 
-      {(tab === "prodi" || tab === "cpl") && (
+      {(tab === "prodi" || tab === "cpl" || tab === "kurikulum" || tab === "matriks") && (
         <>
           {programs.isLoading && <Text type="supporting">Memuat daftar program studi…</Text>}
           {programs.isError && <Banner status="error">{errorMessage(programs.error)}</Banner>}
@@ -154,6 +160,8 @@ export function AdminPanel() {
           {selected && tab === "cpl" && (
             <CplEditor key={`cpl-${selected.slug}`} slug={selected.slug} label={selected.label} initialCpl={selected.cpl} />
           )}
+          {selected && tab === "kurikulum" && <CurriculumPanel key={`kur-${selected.slug}`} program={selected} />}
+          {selected && tab === "matriks" && <MatrixPanel key={`mtx-${selected.slug}`} program={selected} />}
         </>
       )}
     </div>

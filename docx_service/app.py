@@ -664,8 +664,25 @@ async def generate(request: Request):
     # Baris dianchor dari header di kolom tengah, bukan indeks tetap.
     # Bila payload memuat key-nya (walau kosong), baris sisa dikosongkan agar
     # isi template (prodi lain) tidak ikut terbawa.
+    def _clone_row_after(tr_element):
+        """Duplikat baris tabel beserta properti sel (gridSpan/vMerge/shd)."""
+        new_tr = copy.deepcopy(tr_element)
+        # Kosongkan teks; strukturnya yang dipertahankan, bukan isinya.
+        for tc in new_tr.findall(qn('w:tc')):
+            for p in tc.findall(qn('w:p')):
+                for child in list(p):
+                    if child.tag != qn('w:pPr'):
+                        p.remove(child)
+        tr_element.addnext(new_tr)
+        return new_tr
+
     def _fill_cp_rows(anchor_label: str, count: int, items: list, key_present: bool, default_code) -> None:
         rows = _rows_after(tbl0, anchor_label, count, tc_idx=1, contains=True)
+        # Template menyediakan jumlah baris tetap (2 CPL, 4 CPMK, 7 Sub-CPMK).
+        # Kurikulum nyata bisa melebihinya, dan membiarkan sisanya terpotong
+        # berarti CPL/CPMK hilang dari dokumen tanpa peringatan apa pun.
+        while len(rows) < len(items):
+            rows.append(_clone_row_after(rows[-1]))
         for idx, tr in enumerate(rows):
             if idx < len(items):
                 item = items[idx] if isinstance(items[idx], dict) else {}

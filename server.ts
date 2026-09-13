@@ -5,7 +5,7 @@ import { getCookie, setCookie, deleteCookie } from "hono/cookie";
 import { Buffer } from "node:buffer";
 import { prisma } from "./src/lib/db";
 import { encrypt, decrypt, keyHint } from "./src/lib/crypto";
-import { rpsCreateSchema, adminLoginSchema, adminChangePasswordSchema, studyProgramUpdateSchema, studyProgramCplSchema, facultyUpdateSchema, accountCreateSchema, accountUpdateSchema } from "./src/lib/zod";
+import { rpsCreateSchema, adminLoginSchema, adminChangePasswordSchema, studyProgramUpdateSchema, studyProgramCplSchema, facultyUpdateSchema, accountCreateSchema, accountUpdateSchema, courseCreateSchema, courseUpdateSchema, courseCpmkSchema } from "./src/lib/zod";
 import { auditDraft } from "./src/lib/audit";
 import {
   SESSION_COOKIE, SESSION_TTL_HOURS, LOCKOUT_MINUTES,
@@ -702,6 +702,431 @@ app.post("/api/admin/accounts/:nidn/reset-password", requireAdmin, requireSuperA
 });
 
 // ---------------------------------------------------------------------------
+// Bank kurikulum: mata kuliah + CPMK + Sub-CPMK
+//
+// CPL dimiliki program studi; CPMK adalah capaian sebuah mata kuliah yang
+// memetakan ke CPL. Memisahkannya ke sini membuat CPMK bisa dipakai ulang oleh
+// setiap RPS dan bisa diperiksa konsistensinya terhadap CPL prodi.
+// ---------------------------------------------------------------------------
+
+const parseJsonArray = (raw: string | null | undefined): unknown[] => {
+  try { return raw ? JSON.parse(raw) as unknown[] : []; } catch { return []; }
+};
+
+type CpmkRow = {
+  id: number; code: string; description: string; taxonomy: string | null; cplCode: string | null; ordering: number;
+  subCpmks: { id: number; code: string; description: string; taxonomy: string | null; ordering: number }[];
+};
+
+function cpmkView(rows: CpmkRow[]) {
+  return rows.map((cpmk) => ({
+    code: cpmk.code,
+    description: cpmk.description,
+    taxonomy: cpmk.taxonomy,
+    cpl_code: cpmk.cplCode,
+    sub_cpmk: cpmk.subCpmks.map((sub) => ({
+      code: sub.code, description: sub.description, taxonomy: sub.taxonomy,
+    })),
+  }));
+}
+
+const COURSE_INCLUDE = {
+  cpmks: { orderBy: { ordering: "asc" }, include: { subCpmks: { orderBy: { ordering: "asc" } } } },
+  studyProgram: { select: { slug: true, label: true, facultyLabel: true } },
+} as const;
+
+function courseView(row: {
+  id: number; code: string; name: string; cluster: string | null; semester: number;
+  sksTheory: number; sksPractice: number; isElective: boolean; description: string | null;
+  bahanKajian: string; pustakaUtama: string; pustakaPendukung: string; updatedAt: Date;
+  cpmks: CpmkRow[];
+  studyProgram?: { slug: string; label: string; facultyLabel: string } | null;
+}) {
+  return {
+    id: row.id,
+    code: row.code,
+    name: row.name,
+    cluster: row.cluster,
+    semester: row.semester,
+    sks_theory: row.sksTheory,
+    sks_practice: row.sksPractice,
+    sks_total: row.sksTheory + row.sksPractice,
+    is_elective: row.isElective,
+    description: row.description,
+    bahan_kajian: parseJsonArray(row.bahanKajian),
+    pustaka_utama: parseJsonArray(row.pustakaUtama),
+    pustaka_pendukung: parseJsonArray(row.pustakaPendukung),
+    study_program_slug: row.studyProgram?.slug ?? null,
+    study_program_label: row.studyProgram?.label ?? null,
+    faculty_label: row.studyProgram?.facultyLabel ?? null,
+    cpmk: cpmkView(row.cpmks),
+    cpmk_count: row.cpmks.length,
+    sub_cpmk_count: row.cpmks.reduce((n, c) => n + c.subCpmks.length, 0),
+    updated_at: row.updatedAt,
+  };
+}
+
+/** Prodi yang boleh disentuh admin ini, sebagai klausa `where` Prisma. */
+function programScope(admin: AdminIdentity) {
+  if (admin.role === "super_admin") return {};
+  if (admin.role === "kaprodi") return { id: admin.studyProgramId ?? -1 };
+  return { facultyId: admin.facultyId ?? -1 };
+}
+
+/** Ambil prodi sekaligus periksa wewenang; mengembalikan respons error bila ditolak. */
+async function resolveProgramForAdmin(c: Context<AppEnv>, slug: string | undefined) {
+  const admin = c.get("admin");
+  if (!slug) {
+    return { error: c.json({ success: false, message: "Program studi wajib disebut" }, 422) };
+  }
+  const program = await prisma.studyProgram.findUnique({ where: { slug } });
+  if (!program) {
+    return { error: c.json({ success: false, message: "Program studi tidak ditemukan" }, 404) };
+  }
+  if (!canManageProgram(admin, program)) {
+    return { error: c.json({ success: false, error: "forbidden", message: scopeMessage(admin) }, 403) };
+  }
+  return { program };
+}
+
+app.get("/api/admin/courses", requireAdmin, async (c) => {
+  const admin = c.get("admin");
+  const slug = c.req.query("study_program_slug");
+  const rows = await prisma.course.findMany({
+    where: {
+      studyProgram: slug ? { slug, ...programScope(admin) } : programScope(admin),
+    },
+    orderBy: [{ semester: "asc" }, { code: "asc" }],
+    include: COURSE_INCLUDE,
+  });
+  return c.json({ success: true, data: rows.map(courseView) });
+});
+
+app.post("/api/admin/courses", requireAdmin, async (c) => {
+  const blocked = blockIfMustChangePassword(c);
+  if (blocked) return blocked;
+
+  const admin = c.get("admin");
+  const body = await c.req.json().catch(() => ({}));
+  const parsed = courseCreateSchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json({ success: false, error: "validation_error", message: "Validation failed", errors: parsed.error.flatten().fieldErrors }, 422);
+  }
+
+  const resolved = await resolveProgramForAdmin(c, parsed.data.study_program_slug);
+  if ("error" in resolved) return resolved.error;
+  const program = resolved.program;
+
+  const duplicate = await prisma.course.findFirst({
+    where: { studyProgramId: program.id, code: parsed.data.code },
+  });
+  if (duplicate) {
+    return c.json({
+      success: false, error: "duplicate_code",
+      message: `Kode ${parsed.data.code} sudah dipakai di ${program.label}.`,
+      errors: { code: ["Kode sudah dipakai di prodi ini"] },
+    }, 409);
+  }
+
+  const created = await prisma.course.create({
+    data: {
+      studyProgramId: program.id,
+      code: parsed.data.code,
+      name: parsed.data.name,
+      cluster: parsed.data.cluster ?? program.label,
+      semester: parsed.data.semester,
+      sksTheory: parsed.data.sks_theory,
+      sksPractice: parsed.data.sks_practice,
+      isElective: parsed.data.is_elective ?? false,
+      description: parsed.data.description ?? null,
+      bahanKajian: JSON.stringify(parsed.data.bahan_kajian ?? []),
+      pustakaUtama: JSON.stringify(parsed.data.pustaka_utama ?? []),
+      pustakaPendukung: JSON.stringify(parsed.data.pustaka_pendukung ?? []),
+    },
+    include: COURSE_INCLUDE,
+  });
+
+  await recordAudit({
+    actor: admin, action: "create_course", entity: "course",
+    entityRef: `${program.slug}/${created.code}`, entityLabel: created.name, ip: clientIp(c),
+    changes: { code: { before: null, after: created.code }, name: { before: null, after: created.name } },
+  });
+
+  return c.json({ success: true, data: courseView(created), message: `Mata kuliah ${created.code} ditambahkan.` }, 201);
+});
+
+/** Muat course sekaligus periksa wewenang lewat prodi induknya. */
+async function resolveCourseForAdmin(c: Context<AppEnv>, id: number) {
+  const admin = c.get("admin");
+  const course = await prisma.course.findUnique({
+    where: { id },
+    include: { ...COURSE_INCLUDE, studyProgram: true },
+  });
+  if (!course) {
+    return { error: c.json({ success: false, message: "Mata kuliah tidak ditemukan" }, 404) };
+  }
+  if (!canManageProgram(admin, course.studyProgram)) {
+    return { error: c.json({ success: false, error: "forbidden", message: scopeMessage(admin) }, 403) };
+  }
+  return { course };
+}
+
+app.put("/api/admin/courses/:id", requireAdmin, async (c) => {
+  const blocked = blockIfMustChangePassword(c);
+  if (blocked) return blocked;
+
+  const admin = c.get("admin");
+  const id = Number(c.req.param("id"));
+  if (!Number.isInteger(id)) return c.json({ success: false, message: "Id tidak valid" }, 422);
+
+  const resolved = await resolveCourseForAdmin(c, id);
+  if ("error" in resolved) return resolved.error;
+  const course = resolved.course;
+
+  const body = await c.req.json().catch(() => ({}));
+  const parsed = courseUpdateSchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json({ success: false, error: "validation_error", message: "Validation failed", errors: parsed.error.flatten().fieldErrors }, 422);
+  }
+
+  if (parsed.data.code && parsed.data.code !== course.code) {
+    const clash = await prisma.course.findFirst({
+      where: { studyProgramId: course.studyProgramId, code: parsed.data.code, id: { not: course.id } },
+    });
+    if (clash) {
+      return c.json({ success: false, error: "duplicate_code", message: `Kode ${parsed.data.code} sudah dipakai di prodi ini.`, errors: { code: ["Kode sudah dipakai"] } }, 409);
+    }
+  }
+
+  const theory = parsed.data.sks_theory ?? course.sksTheory;
+  const practice = parsed.data.sks_practice ?? course.sksPractice;
+  if (theory + practice <= 0) {
+    return c.json({ success: false, error: "validation_error", message: "Total SKS harus lebih dari 0", errors: { sks_theory: ["Total SKS harus > 0"] } }, 422);
+  }
+
+  const patch: Record<string, unknown> = {};
+  if (parsed.data.code) patch.code = parsed.data.code;
+  if (parsed.data.name) patch.name = parsed.data.name;
+  if ("cluster" in parsed.data) patch.cluster = parsed.data.cluster ?? null;
+  if (parsed.data.semester) patch.semester = parsed.data.semester;
+  if (parsed.data.sks_theory !== undefined) patch.sksTheory = parsed.data.sks_theory;
+  if (parsed.data.sks_practice !== undefined) patch.sksPractice = parsed.data.sks_practice;
+  if (parsed.data.is_elective !== undefined) patch.isElective = parsed.data.is_elective;
+  if ("description" in parsed.data) patch.description = parsed.data.description ?? null;
+  if (parsed.data.bahan_kajian) patch.bahanKajian = JSON.stringify(parsed.data.bahan_kajian);
+  if (parsed.data.pustaka_utama) patch.pustakaUtama = JSON.stringify(parsed.data.pustaka_utama);
+  if (parsed.data.pustaka_pendukung) patch.pustakaPendukung = JSON.stringify(parsed.data.pustaka_pendukung);
+
+  const updated = await prisma.course.update({ where: { id }, data: patch, include: COURSE_INCLUDE });
+
+  await recordAudit({
+    actor: admin, action: "update_course", entity: "course",
+    entityRef: `${course.studyProgram.slug}/${updated.code}`, entityLabel: updated.name, ip: clientIp(c),
+    changes: diffFields(
+      { code: course.code, name: course.name, semester: course.semester, sks_theory: course.sksTheory, sks_practice: course.sksPractice, description: course.description },
+      { code: updated.code, name: updated.name, semester: updated.semester, sks_theory: updated.sksTheory, sks_practice: updated.sksPractice, description: updated.description },
+    ),
+  });
+
+  return c.json({ success: true, data: courseView(updated), message: `Mata kuliah ${updated.code} tersimpan.` });
+});
+
+app.delete("/api/admin/courses/:id", requireAdmin, async (c) => {
+  const blocked = blockIfMustChangePassword(c);
+  if (blocked) return blocked;
+
+  const admin = c.get("admin");
+  const id = Number(c.req.param("id"));
+  if (!Number.isInteger(id)) return c.json({ success: false, message: "Id tidak valid" }, 422);
+
+  const resolved = await resolveCourseForAdmin(c, id);
+  if ("error" in resolved) return resolved.error;
+  const course = resolved.course;
+
+  // CPMK dan Sub-CPMK ikut terhapus lewat cascade di skema.
+  await prisma.course.delete({ where: { id } });
+
+  await recordAudit({
+    actor: admin, action: "delete_course", entity: "course",
+    entityRef: `${course.studyProgram.slug}/${course.code}`, entityLabel: course.name, ip: clientIp(c),
+    changes: { code: { before: course.code, after: null } },
+  });
+
+  return c.json({ success: true, data: { deleted: true }, message: `Mata kuliah ${course.code} dihapus.` });
+});
+
+/**
+ * Ganti seluruh daftar CPMK (beserta Sub-CPMK) sebuah mata kuliah.
+ *
+ * Diganti utuh, bukan ditambal per baris: urutan CPMK bermakna di dokumen RPS,
+ * dan penggantian menyeluruh membuat urutan yang dikirim panel selalu menjadi
+ * urutan yang tersimpan.
+ */
+app.put("/api/admin/courses/:id/cpmk", requireAdmin, async (c) => {
+  const blocked = blockIfMustChangePassword(c);
+  if (blocked) return blocked;
+
+  const admin = c.get("admin");
+  const id = Number(c.req.param("id"));
+  if (!Number.isInteger(id)) return c.json({ success: false, message: "Id tidak valid" }, 422);
+
+  const resolved = await resolveCourseForAdmin(c, id);
+  if ("error" in resolved) return resolved.error;
+  const course = resolved.course;
+
+  const body = await c.req.json().catch(() => ({}));
+  const parsed = courseCpmkSchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json({ success: false, error: "validation_error", message: "Validation failed", errors: parsed.error.flatten().fieldErrors }, 422);
+  }
+
+  // CPMK yang menunjuk CPL tidak ada membuat matriks pemetaan menyesatkan,
+  // jadi kode CPL diperiksa terhadap CPL prodi yang tersimpan.
+  const programCpl = parseJsonArray(course.studyProgram.cpl) as { code?: string }[];
+  const validCplCodes = new Set(programCpl.map((x) => String(x.code ?? "").toUpperCase()).filter(Boolean));
+  const unknownCpl = parsed.data.cpmk
+    .map((x) => x.cpl_code?.trim())
+    .filter((code): code is string => !!code)
+    .filter((code) => !validCplCodes.has(code.toUpperCase()));
+  if (unknownCpl.length) {
+    return c.json({
+      success: false, error: "unknown_cpl",
+      message: `CPL ${[...new Set(unknownCpl)].join(", ")} tidak ada di ${course.studyProgram.label}. Tambahkan dulu di tab CPL Prodi.`,
+      errors: { cpmk: [`CPL tidak dikenal: ${[...new Set(unknownCpl)].join(", ")}`] },
+    }, 422);
+  }
+
+  const before = cpmkView(course.cpmks);
+
+  await prisma.$transaction(async (tx) => {
+    await tx.cpmk.deleteMany({ where: { courseId: id } });
+    for (const [index, cpmk] of parsed.data.cpmk.entries()) {
+      await tx.cpmk.create({
+        data: {
+          courseId: id,
+          code: cpmk.code,
+          description: cpmk.description,
+          taxonomy: cpmk.taxonomy ?? null,
+          cplCode: cpmk.cpl_code?.trim() || null,
+          ordering: index,
+          subCpmks: {
+            create: (cpmk.sub_cpmk ?? []).map((sub, subIndex) => ({
+              code: sub.code,
+              description: sub.description,
+              taxonomy: sub.taxonomy ?? null,
+              ordering: subIndex,
+            })),
+          },
+        },
+      });
+    }
+  });
+
+  const after = await prisma.course.findUniqueOrThrow({ where: { id }, include: COURSE_INCLUDE });
+
+  await recordAudit({
+    actor: admin, action: "update_course_cpmk", entity: "course",
+    entityRef: `${course.studyProgram.slug}/${course.code}`, entityLabel: course.name, ip: clientIp(c),
+    changes: diffFields({ cpmk: before }, { cpmk: cpmkView(after.cpmks) }),
+  });
+
+  return c.json({
+    success: true,
+    data: courseView(after),
+    message: `CPMK ${course.code} tersimpan (${after.cpmks.length} CPMK).`,
+  });
+});
+
+/**
+ * Matriks pemetaan CPL x Profil Lulusan x CPMK.
+ *
+ * Tabel inilah yang biasa diminta asesor akreditasi: memperlihatkan CPL mana
+ * yang belum ditopang mata kuliah apa pun, dan CPMK mana yang menggantung tanpa
+ * CPL.
+ */
+app.get("/api/admin/programs/:slug/matrix", requireAdmin, async (c) => {
+  const resolved = await resolveProgramForAdmin(c, c.req.param("slug"));
+  if ("error" in resolved) return resolved.error;
+  const program = resolved.program;
+
+  const courses = await prisma.course.findMany({
+    where: { studyProgramId: program.id },
+    orderBy: [{ semester: "asc" }, { code: "asc" }],
+    include: { cpmks: { orderBy: { ordering: "asc" }, include: { subCpmks: true } } },
+  });
+
+  const cplList = (parseJsonArray(program.cpl) as { code?: string; description?: string; category?: string | null }[])
+    .map((x) => ({
+      code: String(x.code ?? ""),
+      description: String(x.description ?? ""),
+      category: x.category ?? null,
+    }))
+    .filter((x) => x.code);
+
+  const rows = cplList.map((cpl) => {
+    const supporting = courses.flatMap((course) =>
+      course.cpmks
+        .filter((cpmk) => (cpmk.cplCode ?? "").toUpperCase() === cpl.code.toUpperCase())
+        .map((cpmk) => ({
+          course_id: course.id,
+          course_code: course.code,
+          course_name: course.name,
+          semester: course.semester,
+          cpmk_code: cpmk.code,
+          cpmk_description: cpmk.description,
+          taxonomy: cpmk.taxonomy,
+          sub_cpmk_count: cpmk.subCpmks.length,
+        })),
+    );
+    return { ...cpl, supporting, is_covered: supporting.length > 0 };
+  });
+
+  const orphanCpmk = courses.flatMap((course) =>
+    course.cpmks
+      .filter((cpmk) => !cpmk.cplCode
+        || !cplList.some((cpl) => cpl.code.toUpperCase() === cpmk.cplCode!.toUpperCase()))
+      .map((cpmk) => ({
+        course_code: course.code, course_name: course.name,
+        cpmk_code: cpmk.code, cpl_code: cpmk.cplCode,
+      })),
+  );
+
+  return c.json({
+    success: true,
+    data: {
+      study_program: { slug: program.slug, label: program.label, faculty_label: program.facultyLabel },
+      graduate_profile: parseJsonArray(program.graduateProfile),
+      cpl: rows,
+      uncovered_cpl: rows.filter((r) => !r.is_covered).map((r) => r.code),
+      orphan_cpmk: orphanCpmk,
+      course_count: courses.length,
+      cpmk_count: courses.reduce((n, x) => n + x.cpmks.length, 0),
+    },
+  });
+});
+
+/**
+ * Bank kurikulum untuk pengisian RPS (publik, read-only).
+ *
+ * Alur pembuatan RPS belum berada di balik login, jadi endpoint ini dibuat
+ * terbuka seperti `GET /api/programs`. Isinya memang bukan data sensitif —
+ * kurikulum adalah informasi publik prodi.
+ */
+app.get("/api/courses", async (c) => {
+  const slug = c.req.query("study_program_slug");
+  const value = c.req.query("study_program");
+  if (!slug && !value) {
+    return c.json({ success: false, message: "Sertakan study_program_slug atau study_program" }, 422);
+  }
+  const rows = await prisma.course.findMany({
+    where: { studyProgram: slug ? { slug } : { value } },
+    orderBy: [{ semester: "asc" }, { code: "asc" }],
+    include: COURSE_INCLUDE,
+  });
+  return c.json({ success: true, data: rows.map(courseView) });
+});
+
+// ---------------------------------------------------------------------------
 // Riwayat perubahan (audit)
 // ---------------------------------------------------------------------------
 app.get("/api/admin/audit", requireAdmin, async (c) => {
@@ -870,6 +1295,89 @@ app.put("/api/rps/:id", async (c) => {
   const plans = (()=>{ try{ return JSON.parse(updated.weeklyPlans as string);}catch{ return []; }})();
   const weight_total = (plans as {weight:number}[]).reduce((s,p)=>s+(p.weight??0),0);
   return c.json({ success: true, data: { id: updated.id, updated_at: updated.updatedAt, weekly_plans: plans, weight_total }, message: "Draft updated" });
+});
+
+/**
+ * Isi draft RPS dari bank kurikulum.
+ *
+ * Sumbernya mata kuliah yang sudah disahkan prodi, sehingga CPL/CPMK/Sub-CPMK
+ * di dokumen konsisten dengan kurikulum — bukan hasil karangan AI atau contoh
+ * dari prodi lain. Hanya field yang tersedia di bank yang ditimpa; rencana
+ * mingguan tidak disentuh karena itu wewenang dosen pengampu.
+ */
+app.post("/api/rps/:id/apply-course", async (c) => {
+  const id = Number(c.req.param("id"));
+  const draft = await prisma.rpsDraft.findUnique({ where: { id } });
+  if (!draft) return c.json({ success: false, message: "Not found" }, 404);
+
+  const body = await c.req.json().catch(() => ({})) as { course_id?: number };
+  if (!Number.isInteger(body.course_id)) {
+    return c.json({ success: false, error: "validation_error", message: "course_id wajib diisi" }, 422);
+  }
+
+  const course = await prisma.course.findUnique({
+    where: { id: body.course_id! },
+    include: {
+      cpmks: { orderBy: { ordering: "asc" }, include: { subCpmks: { orderBy: { ordering: "asc" } } } },
+      studyProgram: true,
+    },
+  });
+  if (!course) return c.json({ success: false, message: "Mata kuliah tidak ditemukan di bank kurikulum" }, 404);
+
+  const programCpl = parseJsonArray(course.studyProgram.cpl) as { code?: string; description?: string }[];
+  // CPL yang dibebankan pada MK ini saja — bukan seluruh CPL prodi.
+  const chargedCodes = new Set(
+    course.cpmks.map((x) => (x.cplCode ?? "").toUpperCase()).filter(Boolean),
+  );
+  const cpl = programCpl
+    .filter((x) => chargedCodes.has(String(x.code ?? "").toUpperCase()))
+    .map((x) => ({ code: String(x.code), description: String(x.description ?? "") }));
+
+  const cpmk = course.cpmks.map((x) => ({
+    code: x.code,
+    description: x.description,
+    ...(x.taxonomy ? { taxonomy: x.taxonomy } : {}),
+    ...(x.cplCode ? { cpl_code: x.cplCode } : {}),
+  }));
+  const subCpmk = course.cpmks.flatMap((parent) => parent.subCpmks.map((sub) => ({
+    code: sub.code,
+    description: sub.description,
+    ...(sub.taxonomy ? { taxonomy: sub.taxonomy } : {}),
+    cpmk_code: parent.code,
+  })));
+
+  const updated = await prisma.rpsDraft.update({
+    where: { id },
+    data: {
+      courseName: course.name,
+      courseCode: course.code,
+      courseCluster: course.cluster ?? course.studyProgram.label,
+      faculty: course.studyProgram.facultyLabel,
+      studyProgram: course.studyProgram.value,
+      sksTheory: course.sksTheory,
+      sksPractice: course.sksPractice,
+      sksTotal: course.sksTheory + course.sksPractice,
+      semester: String(course.semester),
+      ...(course.description ? { description: course.description } : {}),
+      bahanKajian: course.bahanKajian,
+      pustakaUtama: course.pustakaUtama,
+      pustakaPendukung: course.pustakaPendukung,
+      cpl: JSON.stringify(cpl),
+      cpmk: JSON.stringify(cpmk),
+      subCpmk: JSON.stringify(subCpmk),
+    },
+  });
+
+  return c.json({
+    success: true,
+    data: {
+      id: updated.id,
+      course_code: updated.courseCode,
+      course_name: updated.courseName,
+      applied: { cpl: cpl.length, cpmk: cpmk.length, sub_cpmk: subCpmk.length },
+    },
+    message: `Terisi dari kurikulum ${course.studyProgram.label}: ${cpmk.length} CPMK, ${subCpmk.length} Sub-CPMK.`,
+  });
 });
 
 app.delete("/api/rps/:id", async (c) => {

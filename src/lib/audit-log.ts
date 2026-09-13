@@ -17,9 +17,13 @@ export type AuditAction =
   | "update_account"
   | "reset_password"
   | "deactivate_account"
-  | "activate_account";
+  | "activate_account"
+  | "create_course"
+  | "update_course"
+  | "delete_course"
+  | "update_course_cpmk";
 
-export type AuditEntity = "faculty" | "study_program" | "admin_user";
+export type AuditEntity = "faculty" | "study_program" | "admin_user" | "course";
 
 /** Nilai sebelum/sesudah per field, sudah dinormalkan untuk perbandingan. */
 export type FieldChanges = Record<string, { before: unknown; after: unknown }>;

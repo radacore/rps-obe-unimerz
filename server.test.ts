@@ -800,6 +800,341 @@ describe("riwayat audit", () => {
   });
 });
 
+describe("bank kurikulum", () => {
+  let courseId = 0;
+
+  async function createCourse(cookie: string, overrides: Record<string, unknown> = {}) {
+    return req("/api/admin/courses", {
+      method: "POST", cookie,
+      body: JSON.stringify({
+        study_program_slug: fikomSlug,
+        code: "UJ24TEST01", name: "Mata Kuliah Uji Kurikulum",
+        semester: 3, sks_theory: 2, sks_practice: 1,
+        ...overrides,
+      }),
+    });
+  }
+
+  beforeEach(async () => {
+    await prisma.course.deleteMany({ where: { code: { startsWith: "UJ24TEST" } } });
+  });
+
+  afterAll(async () => {
+    await prisma.course.deleteMany({ where: { code: { startsWith: "UJ24TEST" } } });
+  });
+
+  test("mata kuliah bisa dibuat dan SKS dihitung", async () => {
+    const cookie = sessionCookie(await loginAs(SUPER_NIDN))!;
+    const res = await createCourse(cookie);
+    expect(res.status).toBe(201);
+    const body = await res.json();
+    expect(body.data.sks_total).toBe(3);
+    expect(body.data.study_program_slug).toBe(fikomSlug);
+    courseId = body.data.id;
+  });
+
+  test("kode wajib unik dalam satu prodi, tapi boleh sama di prodi lain", async () => {
+    const cookie = sessionCookie(await loginAs(SUPER_NIDN))!;
+    expect((await createCourse(cookie)).status).toBe(201);
+    expect((await createCourse(cookie)).status).toBe(409);
+
+    // Mata kuliah universitas memang dipakai lintas prodi dengan kode sama,
+    // jadi keunikannya per prodi — bukan global.
+    const other = await createCourse(cookie, { study_program_slug: farmasiSlug });
+    expect(other.status).toBe(201);
+  });
+
+  test("total SKS nol ditolak", async () => {
+    const cookie = sessionCookie(await loginAs(SUPER_NIDN))!;
+    const res = await createCourse(cookie, { sks_theory: 0, sks_practice: 0 });
+    expect(res.status).toBe(422);
+  });
+
+  test("CPMK yang menunjuk CPL tidak ada ditolak", async () => {
+    const cookie = sessionCookie(await loginAs(SUPER_NIDN))!;
+    const created = await (await createCourse(cookie)).json();
+
+    const res = await req(`/api/admin/courses/${created.data.id}/cpmk`, {
+      method: "PUT", cookie,
+      body: JSON.stringify({ cpmk: [{ code: "CPMK 1", description: "Deskripsi yang memadai sekali", cpl_code: "CPL99" }] }),
+    });
+    expect(res.status).toBe(422);
+    expect((await res.json()).error).toBe("unknown_cpl");
+    // Tidak boleh tersimpan sebagian.
+    expect(await prisma.cpmk.count({ where: { courseId: created.data.id } })).toBe(0);
+  });
+
+  test("taksonomi di luar pola C/A/P + tingkat ditolak", async () => {
+    const cookie = sessionCookie(await loginAs(SUPER_NIDN))!;
+    const created = await (await createCourse(cookie)).json();
+    const res = await req(`/api/admin/courses/${created.data.id}/cpmk`, {
+      method: "PUT", cookie,
+      body: JSON.stringify({ cpmk: [{ code: "CPMK 1", description: "Deskripsi yang memadai sekali", taxonomy: "Z9" }] }),
+    });
+    expect(res.status).toBe(422);
+  });
+
+  test("kode CPMK duplikat ditolak", async () => {
+    const cookie = sessionCookie(await loginAs(SUPER_NIDN))!;
+    const created = await (await createCourse(cookie)).json();
+    const res = await req(`/api/admin/courses/${created.data.id}/cpmk`, {
+      method: "PUT", cookie,
+      body: JSON.stringify({ cpmk: [
+        { code: "CPMK 1", description: "Deskripsi pertama yang memadai" },
+        { code: "cpmk 1", description: "Deskripsi kedua yang memadai" },
+      ] }),
+    });
+    expect(res.status).toBe(422);
+  });
+
+  test("CPMK dan Sub-CPMK tersimpan berurutan dan menggantikan daftar lama", async () => {
+    const cookie = sessionCookie(await loginAs(SUPER_NIDN))!;
+    const created = await (await createCourse(cookie)).json();
+    const id = created.data.id;
+
+    const first = await req(`/api/admin/courses/${id}/cpmk`, {
+      method: "PUT", cookie,
+      body: JSON.stringify({ cpmk: [
+        {
+          code: "CPMK 1", description: "Mampu menganalisis kompleksitas algoritma",
+          taxonomy: "C4", cpl_code: "CPL2",
+          sub_cpmk: [
+            { code: "Sub-CPMK-1", description: "Mahasiswa mampu menjelaskan notasi asimtotik", taxonomy: "C2" },
+            { code: "Sub-CPMK-2", description: "Mahasiswa mampu menghitung kompleksitas waktu", taxonomy: "C3" },
+          ],
+        },
+        { code: "CPMK 2", description: "Mampu mengimplementasikan struktur data linier", taxonomy: "P3" },
+      ] }),
+    });
+    expect(first.status).toBe(200);
+    const firstBody = await first.json();
+    expect(firstBody.data.cpmk_count).toBe(2);
+    expect(firstBody.data.sub_cpmk_count).toBe(2);
+    expect(firstBody.data.cpmk[0].code).toBe("CPMK 1");
+    expect(firstBody.data.cpmk[0].sub_cpmk[1].code).toBe("Sub-CPMK-2");
+
+    // Penggantian menyeluruh: daftar lama tidak boleh tertinggal.
+    const second = await req(`/api/admin/courses/${id}/cpmk`, {
+      method: "PUT", cookie,
+      body: JSON.stringify({ cpmk: [{ code: "CPMK A", description: "Rumusan pengganti yang memadai" }] }),
+    });
+    expect(second.status).toBe(200);
+    const secondBody = await second.json();
+    expect(secondBody.data.cpmk.map((x: { code: string }) => x.code)).toEqual(["CPMK A"]);
+    expect(await prisma.subCpmk.count({ where: { cpmk: { courseId: id } } })).toBe(0);
+  });
+
+  test("menghapus mata kuliah ikut menghapus CPMK dan Sub-CPMK", async () => {
+    const cookie = sessionCookie(await loginAs(SUPER_NIDN))!;
+    const created = await (await createCourse(cookie)).json();
+    const id = created.data.id;
+    await req(`/api/admin/courses/${id}/cpmk`, {
+      method: "PUT", cookie,
+      body: JSON.stringify({ cpmk: [{
+        code: "CPMK 1", description: "Rumusan yang memadai sekali",
+        sub_cpmk: [{ code: "Sub-CPMK-1", description: "Sub rumusan yang memadai" }],
+      }] }),
+    });
+    expect(await prisma.cpmk.count({ where: { courseId: id } })).toBe(1);
+
+    expect((await req(`/api/admin/courses/${id}`, { method: "DELETE", cookie })).status).toBe(200);
+    expect(await prisma.cpmk.count({ where: { courseId: id } })).toBe(0);
+    expect(await prisma.subCpmk.count({ where: { cpmk: { courseId: id } } })).toBe(0);
+  });
+
+  test("kaprodi hanya bisa mengelola kurikulum prodinya", async () => {
+    const superCookie = sessionCookie(await loginAs(SUPER_NIDN))!;
+    const ownCourse = await (await createCourse(superCookie)).json();
+    const otherCourse = await (await createCourse(superCookie, {
+      study_program_slug: farmasiSlug, code: "UJ24TEST99",
+    })).json();
+
+    const kaprodiNidn = "9000000010";
+    await prisma.adminUser.deleteMany({ where: { nidn: kaprodiNidn } });
+    const program = await prisma.studyProgram.findUniqueOrThrow({ where: { slug: fikomSlug } });
+    await prisma.adminUser.create({
+      data: {
+        nidn: kaprodiNidn, name: "Kaprodi Kurikulum", role: "kaprodi",
+        facultyId: program.facultyId, studyProgramId: program.id,
+        passwordHash: await hashPassword(PASSWORD), mustChangePassword: false,
+      },
+    });
+    const cookie = sessionCookie(await loginAs(kaprodiNidn))!;
+
+    // Daftar hanya memuat prodinya.
+    const list = await (await req("/api/admin/courses", { cookie })).json();
+    expect(list.data.every((c: { study_program_slug: string }) => c.study_program_slug === fikomSlug)).toBe(true);
+
+    // Boleh mengubah miliknya.
+    expect((await req(`/api/admin/courses/${ownCourse.data.id}`, {
+      method: "PUT", cookie, body: JSON.stringify({ name: "Diubah kaprodi" }),
+    })).status).toBe(200);
+
+    // Ditolak untuk prodi lain, termasuk endpoint CPMK dan hapus.
+    expect((await req(`/api/admin/courses/${otherCourse.data.id}`, {
+      method: "PUT", cookie, body: JSON.stringify({ name: "Sabotase" }),
+    })).status).toBe(403);
+    expect((await req(`/api/admin/courses/${otherCourse.data.id}/cpmk`, {
+      method: "PUT", cookie, body: JSON.stringify({ cpmk: [] }),
+    })).status).toBe(403);
+    expect((await req(`/api/admin/courses/${otherCourse.data.id}`, { method: "DELETE", cookie })).status).toBe(403);
+
+    const untouched = await prisma.course.findUnique({ where: { id: otherCourse.data.id } });
+    expect(untouched!.name).toBe("Mata Kuliah Uji Kurikulum");
+
+    await prisma.adminUser.deleteMany({ where: { nidn: kaprodiNidn } });
+  });
+
+  test("endpoint kurikulum menolak request tanpa sesi", async () => {
+    expect((await req("/api/admin/courses")).status).toBe(401);
+    expect((await req("/api/admin/courses", {
+      method: "POST", body: JSON.stringify({ study_program_slug: fikomSlug, code: "X", name: "Y", semester: 1, sks_theory: 2, sks_practice: 0 }),
+    })).status).toBe(401);
+  });
+});
+
+describe("matriks CPL", () => {
+  test("menandai CPL yang belum ditopang dan CPMK yang menggantung", async () => {
+    const cookie = sessionCookie(await loginAs(SUPER_NIDN))!;
+    await prisma.course.deleteMany({ where: { code: { startsWith: "UJ24MTX" } } });
+
+    // Matriks membaca seluruh kurikulum prodi, jadi kondisi awalnya dicatat
+    // lebih dulu — menuntut "ada CPL belum ditopang" akan rapuh terhadap data
+    // kurikulum lain yang sudah ada di prodi ini.
+    const program = await prisma.studyProgram.findUniqueOrThrow({ where: { slug: fikomSlug } });
+    const cplCodes = (JSON.parse(program.cpl) as { code: string }[]).map((x) => x.code);
+    expect(cplCodes.length).toBeGreaterThan(0);
+    const target = cplCodes[0];
+
+    const before = (await (await req(`/api/admin/programs/${fikomSlug}/matrix`, { cookie })).json()).data;
+    const supportersBefore = before.cpl.find((r: { code: string }) => r.code === target).supporting.length;
+
+    const created = await (await req("/api/admin/courses", {
+      method: "POST", cookie,
+      body: JSON.stringify({
+        study_program_slug: fikomSlug, code: "UJ24MTX01", name: "MK Matriks",
+        semester: 1, sks_theory: 2, sks_practice: 0,
+      }),
+    })).json();
+
+    await req(`/api/admin/courses/${created.data.id}/cpmk`, {
+      method: "PUT", cookie,
+      body: JSON.stringify({ cpmk: [
+        { code: "CPMK 1", description: "Menopang CPL pertama dengan memadai", cpl_code: target },
+        { code: "CPMK 2", description: "Belum dipetakan ke CPL mana pun" },
+      ] }),
+    });
+
+    const after = (await (await req(`/api/admin/programs/${fikomSlug}/matrix`, { cookie })).json()).data;
+    const row = after.cpl.find((r: { code: string }) => r.code === target);
+    expect(row.is_covered).toBe(true);
+    expect(row.supporting.length).toBe(supportersBefore + 1);
+    expect(row.supporting.some((s: { course_code: string }) => s.course_code === "UJ24MTX01")).toBe(true);
+
+    // CPMK tanpa cpl_code harus dilaporkan sebagai menggantung.
+    expect(after.orphan_cpmk.some((o: { cpmk_code: string; course_code: string }) =>
+      o.course_code === "UJ24MTX01" && o.cpmk_code === "CPMK 2")).toBe(true);
+
+    await prisma.course.deleteMany({ where: { code: { startsWith: "UJ24MTX" } } });
+  });
+
+  test("CPL tanpa penopang dilaporkan di uncovered_cpl", async () => {
+    const cookie = sessionCookie(await loginAs(SUPER_NIDN))!;
+    // Prodi yang kurikulumnya masih kosong: seluruh CPL-nya pasti belum ditopang.
+    const bare = await prisma.studyProgram.findFirstOrThrow({
+      where: { courses: { none: {} }, cpl: { not: "[]" } },
+    });
+    const matrix = (await (await req(`/api/admin/programs/${bare.slug}/matrix`, { cookie })).json()).data;
+    expect(matrix.course_count).toBe(0);
+    expect(matrix.cpl.length).toBeGreaterThan(0);
+    expect(matrix.uncovered_cpl.length).toBe(matrix.cpl.length);
+    expect(matrix.cpl.every((r: { is_covered: boolean }) => !r.is_covered)).toBe(true);
+  });
+
+  test("matriks prodi lain ditolak untuk admin fakultas", async () => {
+    const cookie = sessionCookie(await loginAs(FIKOM_NIDN))!;
+    expect((await req(`/api/admin/programs/${farmasiSlug}/matrix`, { cookie })).status).toBe(403);
+    expect((await req(`/api/admin/programs/${fikomSlug}/matrix`, { cookie })).status).toBe(200);
+  });
+});
+
+describe("mengisi RPS dari bank kurikulum", () => {
+  test("identitas, deskripsi, dan CP diambil dari kurikulum", async () => {
+    const cookie = sessionCookie(await loginAs(SUPER_NIDN))!;
+    await prisma.course.deleteMany({ where: { code: { startsWith: "UJ24APP" } } });
+
+    const course = await (await req("/api/admin/courses", {
+      method: "POST", cookie,
+      body: JSON.stringify({
+        study_program_slug: fikomSlug, code: "UJ24APP01", name: "MK Autofill",
+        semester: 5, sks_theory: 2, sks_practice: 1,
+        description: "Deskripsi resmi dari kurikulum program studi.",
+        bahan_kajian: ["Topik A", "Topik B"],
+        pustaka_utama: ["Pustaka utama kurikulum"],
+      }),
+    })).json();
+
+    await req(`/api/admin/courses/${course.data.id}/cpmk`, {
+      method: "PUT", cookie,
+      body: JSON.stringify({ cpmk: [{
+        code: "CPMK 1", description: "Rumusan CPMK dari kurikulum", taxonomy: "C4", cpl_code: "CPL2",
+        sub_cpmk: [{ code: "Sub-CPMK-1", description: "Rumusan Sub-CPMK dari kurikulum", taxonomy: "C3" }],
+      }] }),
+    });
+
+    const draft = await prisma.rpsDraft.create({
+      data: {
+        courseName: "Draft Kosong", courseCode: "TMPX", sksTotal: 2, sksTheory: 2, sksPractice: 0,
+        semester: "I", preparationDate: new Date("2026-03-15"),
+        lecturers: JSON.stringify([{ name: "Dr. Uji", nidn: "0011223344", role: "koordinator_mk" }]),
+      },
+    });
+
+    const res = await req(`/api/rps/${draft.id}/apply-course`, {
+      method: "POST", body: JSON.stringify({ course_id: course.data.id }),
+    });
+    expect(res.status).toBe(200);
+    const applied = (await res.json()).data.applied;
+    expect(applied.cpmk).toBe(1);
+    expect(applied.sub_cpmk).toBe(1);
+    // Hanya CPL yang benar-benar dibebankan pada MK ini, bukan seluruh CPL prodi.
+    expect(applied.cpl).toBe(1);
+
+    const after = await prisma.rpsDraft.findUniqueOrThrow({ where: { id: draft.id } });
+    expect(after.courseCode).toBe("UJ24APP01");
+    expect(after.semester).toBe("5");
+    expect(after.sksTotal).toBe(3);
+    expect(after.studyProgram).toBe((await prisma.studyProgram.findUniqueOrThrow({ where: { slug: fikomSlug } })).value);
+    expect(JSON.parse(after.cpl)[0].code).toBe("CPL2");
+    expect(JSON.parse(after.subCpmk)[0].cpmk_code).toBe("CPMK 1");
+
+    await prisma.rpsDraft.delete({ where: { id: draft.id } });
+    await prisma.course.deleteMany({ where: { code: { startsWith: "UJ24APP" } } });
+  });
+
+  test("course_id tidak dikenal menghasilkan 404", async () => {
+    const draft = await prisma.rpsDraft.create({
+      data: {
+        courseName: "Draft", courseCode: "TMPY", sksTotal: 2, sksTheory: 2, sksPractice: 0,
+        semester: "I", preparationDate: new Date("2026-03-15"), lecturers: "[]",
+      },
+    });
+    const res = await req(`/api/rps/${draft.id}/apply-course`, {
+      method: "POST", body: JSON.stringify({ course_id: 999999 }),
+    });
+    expect(res.status).toBe(404);
+    await prisma.rpsDraft.delete({ where: { id: draft.id } });
+  });
+
+  test("bank kurikulum publik memerlukan penyebutan prodi", async () => {
+    expect((await req("/api/courses")).status).toBe(422);
+    const program = await prisma.studyProgram.findUniqueOrThrow({ where: { slug: fikomSlug } });
+    const ok = await req(`/api/courses?study_program=${encodeURIComponent(program.value)}`);
+    expect(ok.status).toBe(200);
+    expect(Array.isArray((await ok.json()).data)).toBe(true);
+  });
+});
+
 describe("endpoint fakultas publik", () => {
   test("mengembalikan fakultas beserta prodinya tanpa perlu login", async () => {
     const res = await req("/api/faculties");

@@ -178,5 +178,87 @@ export const accountUpdateSchema = z.object({
   { message: "Tidak ada perubahan yang dikirim" },
 );
 
+// ---------------------------------------------------------------------------
+// Bank kurikulum: mata kuliah, CPMK, Sub-CPMK
+// ---------------------------------------------------------------------------
+
+/** Ranah taksonomi Bloom seperti dipakai dokumen RPS: C/A/P + tingkat 1-6. */
+export const taxonomySchema = z.string().trim().regex(/^[CAP][1-6]$/, "Taksonomi harus seperti C2, A3, atau P4");
+
+export const subCpmkInputSchema = z.object({
+  code: z.string().trim().min(2, "Kode Sub-CPMK wajib diisi").max(30),
+  description: z.string().trim().min(10, "Deskripsi Sub-CPMK minimal 10 karakter").max(1000),
+  taxonomy: taxonomySchema.nullable().optional(),
+});
+
+export const cpmkInputSchema = z.object({
+  code: z.string().trim().min(2, "Kode CPMK wajib diisi").max(30),
+  description: z.string().trim().min(10, "Deskripsi CPMK minimal 10 karakter").max(1000),
+  taxonomy: taxonomySchema.nullable().optional(),
+  /**
+   * CPL prodi yang ditopang. Boleh kosong saat penyusunan masih berjalan, tapi
+   * bila diisi, endpoint memastikan kodenya benar-benar ada di CPL prodi —
+   * CPMK yang menunjuk CPL tidak ada membuat matriks pemetaan bohong.
+   */
+  cpl_code: z.string().trim().max(20).nullable().optional(),
+  sub_cpmk: z.array(subCpmkInputSchema).max(20, "Maksimal 20 Sub-CPMK per CPMK").optional(),
+});
+
+const courseFields = {
+  code: z.string().trim().min(3, "Kode MK minimal 3 karakter").max(30),
+  name: z.string().trim().min(3, "Nama MK minimal 3 karakter").max(200),
+  cluster: z.string().trim().max(100).nullable().optional(),
+  semester: z.number().int().min(1).max(14),
+  sks_theory: z.number().int().min(0).max(12),
+  sks_practice: z.number().int().min(0).max(12),
+  is_elective: z.boolean().optional(),
+  description: z.string().trim().max(3000).nullable().optional(),
+  bahan_kajian: z.array(z.string().trim().min(1).max(600)).max(40).optional(),
+  pustaka_utama: z.array(z.string().trim().min(1).max(600)).max(20).optional(),
+  pustaka_pendukung: z.array(z.string().trim().min(1).max(600)).max(20).optional(),
+};
+
+export const courseCreateSchema = z.object({
+  study_program_slug: z.string().trim().min(1, "Program studi wajib dipilih"),
+  ...courseFields,
+}).strict().refine((d) => d.sks_theory + d.sks_practice > 0, {
+  message: "Total SKS harus lebih dari 0",
+  path: ["sks_theory"],
+});
+
+export const courseUpdateSchema = z.object({
+  code: courseFields.code.optional(),
+  name: courseFields.name.optional(),
+  cluster: courseFields.cluster,
+  semester: courseFields.semester.optional(),
+  sks_theory: courseFields.sks_theory.optional(),
+  sks_practice: courseFields.sks_practice.optional(),
+  is_elective: courseFields.is_elective,
+  description: courseFields.description,
+  bahan_kajian: courseFields.bahan_kajian,
+  pustaka_utama: courseFields.pustaka_utama,
+  pustaka_pendukung: courseFields.pustaka_pendukung,
+}).strict().refine(
+  (d) => Object.keys(d).length > 0,
+  { message: "Tidak ada perubahan yang dikirim" },
+);
+
+/** Ganti seluruh daftar CPMK sebuah mata kuliah sekaligus. */
+export const courseCpmkSchema = z.object({
+  cpmk: z.array(cpmkInputSchema).max(20, "Maksimal 20 CPMK per mata kuliah"),
+}).strict()
+  .refine(
+    (d) => new Set(d.cpmk.map((x) => x.code.toUpperCase())).size === d.cpmk.length,
+    { message: "Kode CPMK tidak boleh duplikat", path: ["cpmk"] },
+  )
+  .refine(
+    (d) => d.cpmk.every((c) => {
+      const codes = (c.sub_cpmk ?? []).map((s) => s.code.toUpperCase());
+      return new Set(codes).size === codes.length;
+    }),
+    { message: "Kode Sub-CPMK tidak boleh duplikat dalam satu CPMK", path: ["cpmk"] },
+  );
+
+
 
 
