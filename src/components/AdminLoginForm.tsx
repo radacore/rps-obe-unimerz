@@ -5,7 +5,7 @@ import { Button } from "@astryxdesign/core/Button";
 import { Text } from "@astryxdesign/core/Text";
 import { TextInput } from "@astryxdesign/core/TextInput";
 import { ApiError } from "@/lib/api";
-import { adminChangePassword, adminLogin, fetchAdminMe } from "@/lib/admin";
+import { ADMIN_SESSION_KEY, adminChangePassword, adminLogin, fetchAdminSession } from "@/lib/admin";
 import { Banner } from "./ui/Banner";
 import { Card } from "./ui/Card";
 
@@ -31,13 +31,11 @@ export function AdminLoginForm() {
   const nav = useNavigate();
 
   const session = useQuery({
-    queryKey: ["admin-me"],
-    queryFn: fetchAdminMe,
+    queryKey: ADMIN_SESSION_KEY,
+    queryFn: fetchAdminSession,
     retry: false,
-    // 401 adalah jawaban yang sah di sini ("belum login"), bukan kegagalan.
-    throwOnError: false,
   });
-  const identity = session.data?.data ?? null;
+  const identity = session.data ?? null;
 
   const [nidn, setNidn] = useState("");
   const [password, setPassword] = useState("");
@@ -52,7 +50,7 @@ export function AdminLoginForm() {
     onSuccess: (res) => {
       setError(null);
       setPassword("");
-      qc.setQueryData(["admin-me"], res);
+      qc.setQueryData(ADMIN_SESSION_KEY, res.data);
       qc.invalidateQueries({ queryKey: ["admin-programs"] });
       nav({ to: "/admin" });
     },
@@ -153,7 +151,7 @@ export function ForcedPasswordChange({ name }: { name: string }) {
       setDone(true);
       // Server mencabut semua sesi termasuk yang sedang dipakai, jadi cache
       // sesi lokal harus ikut dibuang.
-      qc.setQueryData(["admin-me"], undefined);
+      qc.setQueryData(ADMIN_SESSION_KEY, null);
       qc.removeQueries({ queryKey: ["admin-programs"] });
     },
     onError: (e: unknown) => setError(e),

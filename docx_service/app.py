@@ -239,8 +239,24 @@ def _flat(s: str) -> str:
 
 
 def remove_paragraph(p) -> None:
-    """Detach a w:p from its parent. Needed because clearing text alone leaves
-    numPr behind, which renders as a dangling empty bullet/number in Word."""
+    """Lepas w:p dari induknya.
+
+    Diperlukan karena mengosongkan teks saja meninggalkan numPr, yang tetap
+    tercetak sebagai bullet/nomor menggantung di Word.
+
+    Paragraf yang membawa w:sectPr tidak dihapus, hanya dikosongkan: elemen itu
+    mendefinisikan ukuran/orientasi/margin section, dan membuangnya membuat
+    halaman berikutnya mewarisi tata letak yang salah.
+    """
+    pPr = p.find(qn('w:pPr'))
+    if pPr is not None and pPr.find(qn('w:sectPr')) is not None:
+        for child in list(p):
+            if child.tag != qn('w:pPr'):
+                p.remove(child)
+        numPr = pPr.find(qn('w:numPr'))
+        if numPr is not None:
+            pPr.remove(numPr)
+        return
     parent = p.getparent()
     if parent is not None:
         parent.remove(p)
@@ -495,6 +511,14 @@ async def generate(request: Request):
         for child in list(new_p):
             if child.tag != qn('w:pPr'):
                 new_p.remove(child)
+        # Paragraf terakhir sebuah section menyimpan w:sectPr di dalam pPr-nya.
+        # Menyalinnya akan menambah section baru dan memecah tata letak halaman
+        # (ukuran/orientasi/margin) dokumen hasil.
+        pPr = new_p.find(qn('w:pPr'))
+        if pPr is not None:
+            sect = pPr.find(qn('w:sectPr'))
+            if sect is not None:
+                pPr.remove(sect)
         r_el = OxmlElement('w:r')
         rPr = OxmlElement('w:rPr')
         _set_sz(rPr, 20)

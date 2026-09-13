@@ -15,6 +15,7 @@ from docx import Document
 from docx.oxml.ns import qn
 from fastapi.testclient import TestClient
 
+import docx_service.app as app_module
 from docx_service.app import app, split_profile_items
 
 client = TestClient(app)
@@ -154,6 +155,72 @@ def test_structure_preserved():
         if r.find(qn('w:rPr')) is not None and r.find(qn('w:rPr')).find(qn('w:sz')) is not None
     }
     assert sizes, "no explicit run sizes survived"
+
+
+def template_section_count() -> int:
+    return len(Document(str(app_module.TEMPLATE_PATH)).sections)
+
+
+def test_section_count_never_changes():
+    """Section defines page size/orientation/margins.
+
+    Growing a narrative block clones a paragraph, and the last paragraph of a
+    section carries w:sectPr inside its pPr. Copying it silently adds a section
+    and splits the page layout, so the count is asserted explicitly.
+    """
+    doc = generate(PAYLOAD)
+    assert len(doc.sections) == template_section_count()
+
+
+def test_long_narrative_keeps_layout_and_prints_every_item():
+    """Long lists force repeated paragraph cloning — the path that broke layout."""
+    payload = {"rps_draft": dict(PAYLOAD["rps_draft"])}
+    payload["rps_draft"].update({
+        "program_mission": [f"Misi nomor {i} yang dirumuskan cukup panjang" for i in range(1, 21)],
+        "program_graduate_profile": [f"Profil Lulusan {i}" for i in range(1, 26)],
+        "program_cpl": [
+            {"code": f"CPL{i}", "description": f"Capaian pembelajaran lulusan nomor {i} yang memadai"}
+            for i in range(1, 21)
+        ],
+    })
+    doc = generate(payload)
+
+    assert len(doc.sections) == template_section_count()
+    assert [len(t.rows) for t in doc.tables] == [44, 25, 11, 8]
+
+    def block(heading: str, stop: str) -> list[str]:
+        out, seen = [], False
+        for para in doc.paragraphs:
+            text = (para.text or "").strip()
+            if text == heading:
+                seen = True
+                continue
+            if seen and text:
+                if text == stop:
+                    break
+                out.append(text)
+        return out
+
+    assert len(block("Misi", "Profil Lulusan")) == 20
+    # Satu baris judul "Profil lulusan <prodi>:" mendahului 25 butir.
+    assert len(block("Profil Lulusan", "Capaian Pembelajaran Lulusan")) == 26
+    assert len(block("Capaian Pembelajaran Lulusan", "Analisis Pembelajaran")) == 20
+
+
+def test_cpl_category_does_not_reach_the_document():
+    """`category` hanya metadata klasifikasi; hanya deskripsi yang tercetak."""
+    payload = {"rps_draft": dict(PAYLOAD["rps_draft"])}
+    payload["rps_draft"]["program_cpl"] = [
+        {"code": "CPL1", "description": "Beretika informatika dalam praktik keilmuan", "category": "sikap"},
+        {"code": "CPL2", "description": "Menguasai konsep teoretis algoritma", "category": "pengetahuan"},
+    ]
+    doc = generate(payload)
+    texts = [(p.text or "").strip() for p in doc.paragraphs]
+    assert "Beretika informatika dalam praktik keilmuan" in texts
+    for where, text in all_text_nodes(doc):
+        assert "keterampilan_umum" not in text
+        assert "sikap" not in text.lower().split(), f"kategori ikut tercetak di {where}"
+
 
 
 def test_empty_payload_clears_template_prose():

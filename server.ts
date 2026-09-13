@@ -5,7 +5,7 @@ import { getCookie, setCookie, deleteCookie } from "hono/cookie";
 import { Buffer } from "node:buffer";
 import { prisma } from "./src/lib/db";
 import { encrypt, decrypt, keyHint } from "./src/lib/crypto";
-import { rpsCreateSchema, adminLoginSchema, adminChangePasswordSchema, studyProgramUpdateSchema } from "./src/lib/zod";
+import { rpsCreateSchema, adminLoginSchema, adminChangePasswordSchema, studyProgramUpdateSchema, studyProgramCplSchema, facultyUpdateSchema } from "./src/lib/zod";
 import { auditDraft } from "./src/lib/audit";
 import {
   SESSION_COOKIE, SESSION_TTL_HOURS, LOCKOUT_MINUTES,
@@ -279,6 +279,116 @@ app.put("/api/admin/programs/:slug", requireAdmin, async (c) => {
   });
 });
 
+/**
+ * CPL prodi dikelola terpisah dari profil karena bentuknya berbeda: daftar
+ * objek berkode, bukan baris teks. Memisahkan endpoint juga membuat panel
+ * profil tidak berisiko menimpa CPL (dan sebaliknya) saat menyimpan sebagian.
+ */
+app.put("/api/admin/programs/:slug/cpl", requireAdmin, async (c) => {
+  const blocked = blockIfMustChangePassword(c);
+  if (blocked) return blocked;
+
+  const admin = c.get("admin");
+  const slug = c.req.param("slug");
+  const program = await prisma.studyProgram.findUnique({ where: { slug } });
+  if (!program) return c.json({ success: false, message: "Program studi tidak ditemukan" }, 404);
+  if (!canManageFaculty(admin, program.facultyId)) {
+    return c.json({
+      success: false, error: "forbidden",
+      message: `Anda hanya berwenang atas ${admin.facultyLabel ?? "fakultas Anda"}.`,
+    }, 403);
+  }
+
+  const body = await c.req.json().catch(() => ({}));
+  const parsed = studyProgramCplSchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json({ success: false, error: "validation_error", message: "Validation failed", errors: parsed.error.flatten().fieldErrors }, 422);
+  }
+
+  // `category` disimpan sebagai null bila tidak diisi, bukan dihilangkan,
+  // supaya bentuk tiap item konsisten saat dibaca kembali.
+  const normalised = parsed.data.cpl.map((item) => ({
+    code: item.code,
+    description: item.description,
+    category: item.category ?? null,
+  }));
+
+  const updated = await prisma.studyProgram.update({
+    where: { slug },
+    data: { cpl: JSON.stringify(normalised) },
+  });
+  return c.json({
+    success: true,
+    data: { slug: updated.slug, label: updated.label, cpl: normalised, updated_at: updated.updatedAt },
+    message: `CPL ${updated.label} tersimpan (${normalised.length} butir).`,
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Admin: profil fakultas
+// ---------------------------------------------------------------------------
+app.get("/api/admin/faculties", requireAdmin, async (c) => {
+  const admin = c.get("admin");
+  const rows = await prisma.faculty.findMany({
+    where: admin.role === "super_admin" ? {} : { id: admin.facultyId ?? -1 },
+    orderBy: { id: "asc" },
+    include: { _count: { select: { programs: true } } },
+  });
+  const parse = (s: string) => { try { return JSON.parse(s) as unknown[]; } catch { return []; } };
+  return c.json({
+    success: true,
+    data: rows.map((f) => ({
+      slug: f.slug, label: f.label, href: f.href,
+      vision: f.vision,
+      mission: parse(f.mission),
+      objective: parse(f.objective),
+      program_count: f._count.programs,
+      updated_at: f.updatedAt,
+    })),
+  });
+});
+
+app.put("/api/admin/faculties/:slug", requireAdmin, async (c) => {
+  const blocked = blockIfMustChangePassword(c);
+  if (blocked) return blocked;
+
+  const admin = c.get("admin");
+  const slug = c.req.param("slug");
+  const faculty = await prisma.faculty.findUnique({ where: { slug } });
+  if (!faculty) return c.json({ success: false, message: "Fakultas tidak ditemukan" }, 404);
+  if (!canManageFaculty(admin, faculty.id)) {
+    return c.json({
+      success: false, error: "forbidden",
+      message: `Anda hanya berwenang atas ${admin.facultyLabel ?? "fakultas Anda"}.`,
+    }, 403);
+  }
+
+  const body = await c.req.json().catch(() => ({}));
+  const parsed = facultyUpdateSchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json({ success: false, error: "validation_error", message: "Validation failed", errors: parsed.error.flatten().fieldErrors }, 422);
+  }
+
+  const patch: Record<string, unknown> = {};
+  if ("vision" in parsed.data) patch.vision = parsed.data.vision ?? null;
+  if (parsed.data.mission) patch.mission = JSON.stringify(parsed.data.mission);
+  if (parsed.data.objective) patch.objective = JSON.stringify(parsed.data.objective);
+
+  const updated = await prisma.faculty.update({ where: { slug }, data: patch });
+  const parse = (s: string) => { try { return JSON.parse(s) as unknown[]; } catch { return []; } };
+  return c.json({
+    success: true,
+    data: {
+      slug: updated.slug, label: updated.label,
+      vision: updated.vision,
+      mission: parse(updated.mission),
+      objective: parse(updated.objective),
+      updated_at: updated.updatedAt,
+    },
+    message: `Profil ${updated.label} tersimpan.`,
+  });
+});
+
 // ---------------------------------------------------------------------------
 // Fakultas (publik, read-only) — dipakai dropdown form RPS supaya daftarnya
 // mengikuti DB, bukan konstanta yang bisa menyimpang.
@@ -288,10 +398,14 @@ app.get("/api/faculties", async (c) => {
     orderBy: { id: "asc" },
     include: { programs: { orderBy: { label: "asc" }, select: { label: true, value: true, slug: true, akreditasi: true } } },
   });
+  const parse = (s: string) => { try { return JSON.parse(s) as unknown[]; } catch { return []; } };
   return c.json({
     success: true,
     data: rows.map((f) => ({
       slug: f.slug, label: f.label, href: f.href,
+      vision: f.vision,
+      mission: parse(f.mission),
+      objective: parse(f.objective),
       programs: f.programs.map((p) => ({ slug: p.slug, label: p.label, value: p.value, akreditasi: p.akreditasi })),
     })),
   });

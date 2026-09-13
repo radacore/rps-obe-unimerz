@@ -5,38 +5,16 @@ import { Selector } from "@astryxdesign/core/Selector";
 import { Text } from "@astryxdesign/core/Text";
 import { ApiError } from "@/lib/api";
 import {
-  adminLogout, fetchAdminMe, fetchAdminPrograms, updateProgramProfile,
+  ADMIN_SESSION_KEY, adminLogout, fetchAdminSession, fetchAdminPrograms, updateProgramProfile,
   ROLE_LABEL, type AdminProgram,
 } from "@/lib/admin";
 import { Badge } from "./ui/Badge";
 import { Banner } from "./ui/Banner";
 import { Card } from "./ui/Card";
+import { LinesEditor } from "./ui/LinesEditor";
 import { AdminLoginForm, ForcedPasswordChange } from "./AdminLoginForm";
-
-/** Textarea satu-baris-satu-entri; sama seperti pola di TemplateEditor. */
-function LinesEditor({
-  label, hint, value, onChange,
-}: { label: string; hint?: string; value: string[]; onChange: (v: string[]) => void }) {
-  const joined = value.join("\n");
-  // `key` pada pemanggil membuat komponen ini remount saat prodi berganti,
-  // jadi teks awal cukup diambil dari nilai awal tanpa useEffect penyelaras.
-  const [text, setText] = useState(joined);
-  return (
-    <div className="grid gap-1">
-      <Text weight="semibold">{label}</Text>
-      {hint && <Text type="supporting">{hint}</Text>}
-      <textarea
-        className="min-h-[112px] w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm leading-relaxed text-primary placeholder:text-secondary focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
-        rows={Math.min(14, Math.max(4, value.length + 2))}
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        onBlur={() => onChange(text.split("\n").map((s) => s.trim()).filter(Boolean))}
-        placeholder="Satu entri per baris"
-      />
-      <Text type="supporting">{value.length} entri</Text>
-    </div>
-  );
-}
+import { CplEditor } from "./CplEditor";
+import { FacultyProfilePanel } from "./FacultyProfilePanel";
 
 function errorMessage(e: unknown): string {
   if (e instanceof ApiError) {
@@ -49,8 +27,8 @@ function errorMessage(e: unknown): string {
 export function AdminPanel() {
   const qc = useQueryClient();
 
-  const session = useQuery({ queryKey: ["admin-me"], queryFn: fetchAdminMe, retry: false, throwOnError: false });
-  const identity = session.data?.data ?? null;
+  const session = useQuery({ queryKey: ADMIN_SESSION_KEY, queryFn: fetchAdminSession, retry: false });
+  const identity = session.data ?? null;
 
   const programs = useQuery({
     queryKey: ["admin-programs"],
@@ -70,14 +48,23 @@ export function AdminPanel() {
   const logout = useMutation({
     mutationFn: adminLogout,
     onSuccess: () => {
-      qc.setQueryData(["admin-me"], undefined);
+      qc.setQueryData(ADMIN_SESSION_KEY, null);
       qc.removeQueries({ queryKey: ["admin-programs"] });
+      qc.removeQueries({ queryKey: ["admin-faculties"] });
     },
   });
+
+  const [tab, setTab] = useState<"fakultas" | "prodi" | "cpl">("prodi");
 
   if (session.isLoading) return <Text type="supporting">Memuat sesi…</Text>;
   if (!identity) return <AdminLoginForm />;
   if (identity.mustChangePassword) return <ForcedPasswordChange name={identity.name} />;
+
+  const TABS: { id: typeof tab; label: string }[] = [
+    { id: "fakultas", label: "Profil Fakultas" },
+    { id: "prodi", label: "Profil Prodi" },
+    { id: "cpl", label: "CPL Prodi" },
+  ];
 
   return (
     <div className="grid gap-4">
@@ -103,36 +90,57 @@ export function AdminPanel() {
         </div>
       </Card>
 
-      {programs.isLoading && <Text type="supporting">Memuat daftar program studi…</Text>}
-      {programs.isError && <Banner status="error">{errorMessage(programs.error)}</Banner>}
+      <div className="flex flex-wrap gap-2" role="tablist" aria-label="Bagian master data">
+        {TABS.map((t) => (
+          <Button
+            key={t.id}
+            label={t.label}
+            variant={tab === t.id ? "primary" : "secondary"}
+            size="sm"
+            onClick={() => setTab(t.id)}
+          />
+        ))}
+      </div>
 
-      {rows.length > 0 && (
-        <Card>
-          <Text weight="semibold">Program studi dalam wewenang Anda</Text>
-          <Text type="supporting">
-            {rows.length} program studi
-            {identity.role === "faculty_admin" ? ` di ${identity.facultyLabel}` : " di seluruh universitas"}
-          </Text>
-          <div className="mt-3 max-w-xl">
-            <Selector
-              label="Pilih program studi"
-              value={selectedSlug}
-              onChange={(v) => setPickedSlug(v)}
-              options={rows.map((r) => ({ value: r.slug, label: `${r.label} — ${r.faculty_label}` }))}
-            />
-          </div>
-        </Card>
+      {tab === "fakultas" && <FacultyProfilePanel enabled={!identity.mustChangePassword} />}
+
+      {tab !== "fakultas" && (
+        <>
+          {programs.isLoading && <Text type="supporting">Memuat daftar program studi…</Text>}
+          {programs.isError && <Banner status="error">{errorMessage(programs.error)}</Banner>}
+
+          {rows.length > 0 && (
+            <Card>
+              <Text weight="semibold">Program studi dalam wewenang Anda</Text>
+              <Text type="supporting">
+                {rows.length} program studi
+                {identity.role === "faculty_admin" ? ` di ${identity.facultyLabel}` : " di seluruh universitas"}
+              </Text>
+              <div className="mt-3 max-w-xl">
+                <Selector
+                  label="Pilih program studi"
+                  value={selectedSlug}
+                  onChange={(v) => setPickedSlug(v)}
+                  options={rows.map((r) => ({ value: r.slug, label: `${r.label} — ${r.faculty_label}` }))}
+                />
+              </div>
+            </Card>
+          )}
+
+          {rows.length === 0 && !programs.isLoading && !programs.isError && (
+            <Card>
+              <Text type="supporting">
+                Belum ada program studi yang bisa Anda kelola. Hubungi pengelola sistem bila ini tidak sesuai.
+              </Text>
+            </Card>
+          )}
+
+          {selected && tab === "prodi" && <ProgramProfileForm key={selected.slug} program={selected} />}
+          {selected && tab === "cpl" && (
+            <CplEditor key={`cpl-${selected.slug}`} slug={selected.slug} label={selected.label} initialCpl={selected.cpl} />
+          )}
+        </>
       )}
-
-      {rows.length === 0 && !programs.isLoading && !programs.isError && (
-        <Card>
-          <Text type="supporting">
-            Belum ada program studi yang bisa Anda kelola. Hubungi pengelola sistem bila ini tidak sesuai.
-          </Text>
-        </Card>
-      )}
-
-      {selected && <ProgramProfileForm key={selected.slug} program={selected} />}
     </div>
   );
 }

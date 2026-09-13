@@ -95,3 +95,40 @@ export const studyProgramUpdateSchema = z.object({
   { message: "Tidak ada perubahan yang dikirim" },
 );
 
+/** Profil fakultas. Bentuknya sama dengan prodi, tanpa profil lulusan. */
+export const facultyUpdateSchema = z.object({
+  vision: z.string().trim().max(2000).nullable().optional(),
+  mission: textLines.optional(),
+  objective: textLines.optional(),
+}).strict().refine(
+  (d) => Object.keys(d).length > 0,
+  { message: "Tidak ada perubahan yang dikirim" },
+);
+
+/**
+ * Kategori CPL menurut SN-Dikti. `null` diizinkan karena 37 prodi hasil
+ * scraping belum punya klasifikasi ini — memaksakannya akan menolak seluruh
+ * data yang sudah ada.
+ */
+export const CPL_CATEGORIES = [
+  "sikap",
+  "pengetahuan",
+  "keterampilan_umum",
+  "keterampilan_khusus",
+] as const;
+
+export const cplItemSchema = z.object({
+  code: z.string().trim().min(2, "Kode CPL wajib diisi").max(20),
+  description: z.string().trim().min(10, "Deskripsi CPL minimal 10 karakter").max(1000),
+  category: z.enum(CPL_CATEGORIES).nullable().optional(),
+});
+
+export const studyProgramCplSchema = z.object({
+  cpl: z.array(cplItemSchema).max(20, "Maksimal 20 CPL"),
+}).strict().refine(
+  (d) => new Set(d.cpl.map((x) => x.code.toUpperCase())).size === d.cpl.length,
+  // Kode ganda membuat pemetaan CPMK ke CPL menjadi ambigu di dokumen RPS.
+  { message: "Kode CPL tidak boleh duplikat", path: ["cpl"] },
+);
+
+

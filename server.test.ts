@@ -357,6 +357,179 @@ describe("rate limit login", () => {
   });
 });
 
+describe("profil fakultas", () => {
+  test("admin fakultas hanya melihat fakultasnya, super admin melihat semua", async () => {
+    const fikomCookie = sessionCookie(await loginAs(FIKOM_NIDN))!;
+    const fikomBody = await (await req("/api/admin/faculties", { cookie: fikomCookie })).json();
+    expect(fikomBody.data.length).toBe(1);
+    expect(fikomBody.data[0].slug).toBe("fikom");
+    expect(fikomBody.data[0].program_count).toBeGreaterThan(0);
+
+    const superCookie = sessionCookie(await loginAs(SUPER_NIDN))!;
+    const superBody = await (await req("/api/admin/faculties", { cookie: superCookie })).json();
+    expect(superBody.data.length).toBe(await prisma.faculty.count());
+  });
+
+  test("admin fakultas bisa menyimpan visi/misi/tujuan fakultasnya", async () => {
+    const cookie = sessionCookie(await loginAs(FIKOM_NIDN))!;
+    const before = await prisma.faculty.findUnique({ where: { slug: "fikom" } });
+
+    const res = await req("/api/admin/faculties/fikom", {
+      method: "PUT", cookie,
+      body: JSON.stringify({
+        vision: "Menjadi fakultas unggul dalam sistem cerdas",
+        mission: ["Pendidikan bermutu", "Penelitian aplikatif"],
+        objective: ["Lulusan siap industri"],
+      }),
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.data.vision).toBe("Menjadi fakultas unggul dalam sistem cerdas");
+    expect(body.data.mission).toHaveLength(2);
+    expect(body.data.objective).toHaveLength(1);
+
+    await prisma.faculty.update({
+      where: { slug: "fikom" },
+      data: { vision: before!.vision, mission: before!.mission, objective: before!.objective },
+    });
+  });
+
+  test("admin fakultas TIDAK bisa mengubah fakultas lain", async () => {
+    const cookie = sessionCookie(await loginAs(FIKOM_NIDN))!;
+    const before = await prisma.faculty.findUnique({ where: { slug: "farmasi" } });
+
+    const res = await req("/api/admin/faculties/farmasi", {
+      method: "PUT", cookie, body: JSON.stringify({ vision: "Sabotase" }),
+    });
+    expect(res.status).toBe(403);
+
+    const after = await prisma.faculty.findUnique({ where: { slug: "farmasi" } });
+    expect(after!.vision).toBe(before!.vision);
+    expect(after!.updatedAt.getTime()).toBe(before!.updatedAt.getTime());
+  });
+
+  test("field asing pada profil fakultas ditolak", async () => {
+    const cookie = sessionCookie(await loginAs(SUPER_NIDN))!;
+    const before = await prisma.faculty.findUnique({ where: { slug: "fikom" } });
+    // `slug` dan `label` bukan milik admin; kalau lolos, admin bisa mengganti
+    // identitas fakultas dan memutus relasi dengan prodi di bawahnya.
+    const res = await req("/api/admin/faculties/fikom", {
+      method: "PUT", cookie, body: JSON.stringify({ vision: "x", slug: "bajakan", label: "Palsu" }),
+    });
+    expect(res.status).toBe(422);
+    const after = await prisma.faculty.findUnique({ where: { slug: "fikom" } });
+    expect(after!.label).toBe(before!.label);
+  });
+
+  test("fakultas tak dikenal menghasilkan 404", async () => {
+    const cookie = sessionCookie(await loginAs(SUPER_NIDN))!;
+    const res = await req("/api/admin/faculties/tidak-ada", {
+      method: "PUT", cookie, body: JSON.stringify({ vision: "x" }),
+    });
+    expect(res.status).toBe(404);
+  });
+});
+
+describe("CPL program studi", () => {
+  const validCpl = [
+    { code: "CPL1", description: "Bertakwa dan beretika dalam praktik keilmuan", category: "sikap" },
+    { code: "CPL2", description: "Menguasai konsep teoretis bidang keilmuan terkait", category: "pengetahuan" },
+  ];
+
+  test("menyimpan CPL beserta kategori SN-Dikti", async () => {
+    const cookie = sessionCookie(await loginAs(FIKOM_NIDN))!;
+    const before = await prisma.studyProgram.findUnique({ where: { slug: fikomSlug } });
+
+    const res = await req(`/api/admin/programs/${fikomSlug}/cpl`, {
+      method: "PUT", cookie, body: JSON.stringify({ cpl: validCpl }),
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.data.cpl).toHaveLength(2);
+    expect(body.data.cpl[0].category).toBe("sikap");
+
+    await prisma.studyProgram.update({ where: { slug: fikomSlug }, data: { cpl: before!.cpl } });
+  });
+
+  test("kategori kosong diterima dan dinormalkan jadi null", async () => {
+    const cookie = sessionCookie(await loginAs(SUPER_NIDN))!;
+    const before = await prisma.studyProgram.findUnique({ where: { slug: fikomSlug } });
+
+    // 37 prodi hasil scraping belum punya klasifikasi SN-Dikti; memaksanya
+    // akan menolak seluruh data yang sudah ada.
+    const res = await req(`/api/admin/programs/${fikomSlug}/cpl`, {
+      method: "PUT", cookie,
+      body: JSON.stringify({ cpl: [{ code: "CPL1", description: "Deskripsi tanpa kategori sama sekali" }] }),
+    });
+    expect(res.status).toBe(200);
+    expect((await res.json()).data.cpl[0].category).toBeNull();
+
+    await prisma.studyProgram.update({ where: { slug: fikomSlug }, data: { cpl: before!.cpl } });
+  });
+
+  test("kode duplikat ditolak, termasuk yang beda kapitalisasi", async () => {
+    const cookie = sessionCookie(await loginAs(SUPER_NIDN))!;
+    const before = await prisma.studyProgram.findUnique({ where: { slug: fikomSlug } });
+    const res = await req(`/api/admin/programs/${fikomSlug}/cpl`, {
+      method: "PUT", cookie,
+      body: JSON.stringify({ cpl: [
+        { code: "CPL1", description: "Deskripsi pertama yang memadai" },
+        { code: "cpl1", description: "Deskripsi kedua yang memadai" },
+      ] }),
+    });
+    expect(res.status).toBe(422);
+    expect((await res.json()).errors.cpl[0]).toContain("duplikat");
+    const after = await prisma.studyProgram.findUnique({ where: { slug: fikomSlug } });
+    expect(after!.cpl).toBe(before!.cpl);
+  });
+
+  test("kategori di luar SN-Dikti ditolak", async () => {
+    const cookie = sessionCookie(await loginAs(SUPER_NIDN))!;
+    const res = await req(`/api/admin/programs/${fikomSlug}/cpl`, {
+      method: "PUT", cookie,
+      body: JSON.stringify({ cpl: [{ code: "CPL1", description: "Deskripsi memadai sekali", category: "ngawur" }] }),
+    });
+    expect(res.status).toBe(422);
+  });
+
+  test("deskripsi terlalu pendek ditolak", async () => {
+    const cookie = sessionCookie(await loginAs(SUPER_NIDN))!;
+    const res = await req(`/api/admin/programs/${fikomSlug}/cpl`, {
+      method: "PUT", cookie, body: JSON.stringify({ cpl: [{ code: "CPL1", description: "pendek" }] }),
+    });
+    expect(res.status).toBe(422);
+  });
+
+  test("daftar kosong diterima — prodi boleh mengosongkan CPL", async () => {
+    const cookie = sessionCookie(await loginAs(SUPER_NIDN))!;
+    const before = await prisma.studyProgram.findUnique({ where: { slug: fikomSlug } });
+    const res = await req(`/api/admin/programs/${fikomSlug}/cpl`, {
+      method: "PUT", cookie, body: JSON.stringify({ cpl: [] }),
+    });
+    expect(res.status).toBe(200);
+    expect((await res.json()).data.cpl).toEqual([]);
+    await prisma.studyProgram.update({ where: { slug: fikomSlug }, data: { cpl: before!.cpl } });
+  });
+
+  test("admin fakultas TIDAK bisa mengubah CPL prodi fakultas lain", async () => {
+    const cookie = sessionCookie(await loginAs(FIKOM_NIDN))!;
+    const before = await prisma.studyProgram.findUnique({ where: { slug: farmasiSlug } });
+    const res = await req(`/api/admin/programs/${farmasiSlug}/cpl`, {
+      method: "PUT", cookie, body: JSON.stringify({ cpl: validCpl }),
+    });
+    expect(res.status).toBe(403);
+    const after = await prisma.studyProgram.findUnique({ where: { slug: farmasiSlug } });
+    expect(after!.cpl).toBe(before!.cpl);
+  });
+
+  test("endpoint CPL menolak request tanpa sesi", async () => {
+    const res = await req(`/api/admin/programs/${fikomSlug}/cpl`, {
+      method: "PUT", body: JSON.stringify({ cpl: validCpl }),
+    });
+    expect(res.status).toBe(401);
+  });
+});
+
 describe("endpoint fakultas publik", () => {
   test("mengembalikan fakultas beserta prodinya tanpa perlu login", async () => {
     const res = await req("/api/faculties");

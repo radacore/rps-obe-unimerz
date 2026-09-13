@@ -5,7 +5,7 @@ import { TopNav } from "@astryxdesign/core/TopNav";
 import { TopNavItem } from "@astryxdesign/core/TopNav";
 import { TopNavHeading } from "@astryxdesign/core/TopNav";
 import { Text } from "@astryxdesign/core/Text";
-import { fetchAdminMe } from "@/lib/admin";
+import { ADMIN_SESSION_KEY, fetchAdminSession } from "@/lib/admin";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
@@ -14,13 +14,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   // Sesi dipakai hanya untuk memilih tujuan tautan Admin. 401 adalah jawaban
   // yang sah ("belum login"), jadi jangan diperlakukan sebagai kegagalan.
   const session = useQuery({
-    queryKey: ["admin-me"],
-    queryFn: fetchAdminMe,
+    queryKey: ADMIN_SESSION_KEY,
+    queryFn: fetchAdminSession,
     retry: false,
-    throwOnError: false,
     staleTime: 60_000,
   });
-  const isLoggedIn = !!session.data?.data;
+  const isLoggedIn = !!session.data;
   const adminHref = isLoggedIn ? "/admin" : "/admin/login";
 
   return (
