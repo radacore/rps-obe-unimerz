@@ -1,8 +1,11 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
+import { ADMIN_SESSION_KEY, fetchAdminSession } from "@/lib/admin";
 import { api, type ApiOk } from "@/lib/api";
 import { useState } from "react";
 import { Card } from "./ui/Card";
 import { Badge } from "./ui/Badge";
+import { Banner } from "./ui/Banner";
 import { Button } from "@astryxdesign/core/Button";
 import { TextInput } from "@astryxdesign/core/TextInput";
 import { Text } from "@astryxdesign/core/Text";
@@ -17,9 +20,13 @@ function maskHint(hint: string | null) {
 
 export function SettingsPanel() {
   const qc = useQueryClient();
+  const session = useQuery({ queryKey: ADMIN_SESSION_KEY, queryFn: fetchAdminSession, retry: false });
+  const identity = session.data ?? null;
   const q = useQuery({
     queryKey: ["api-keys"],
     queryFn: () => api<ApiOk<KeysRow[]>>("/api/settings/api-keys"),
+    // Kunci milik akun, jadi tidak ada yang bisa dimuat sebelum login.
+    enabled: !!identity,
   });
 
   const [openaiKey, setOpenaiKey] = useState("");
@@ -85,6 +92,7 @@ export function SettingsPanel() {
   const hint = (p: string) => rows.find((r) => r.provider === p)?.keyHint ?? "—";
   const hasOpenai = hint("openai") !== "—";
   const hasGemini = hint("gemini") !== "—";
+  const hasAnyKey = hasOpenai || hasGemini;
   const isSavingOpenai = save.isPending && (save.variables as { provider?: string } | undefined)?.provider === "openai";
   const isSavingGemini = save.isPending && (save.variables as { provider?: string } | undefined)?.provider === "gemini";
 
@@ -104,11 +112,39 @@ export function SettingsPanel() {
     return undefined;
   })();
 
+  if (session.isLoading) return <Text type="supporting">Memuat sesi…</Text>;
+
+  if (!identity) {
+    return (
+      <Card>
+        <Text weight="semibold">Masuk untuk mengatur API key</Text>
+        <Text type="supporting">
+          API key melekat pada akun Anda sendiri, jadi pengaturannya memerlukan login.
+        </Text>
+        <div className="mt-3">
+          <Link to="/admin/login" className="text-sm text-accent">Ke halaman masuk →</Link>
+        </div>
+      </Card>
+    );
+  }
+
   return (
     <div className="grid gap-4">
       <Card>
-        <Text weight="semibold">BYOK — API Keys (AES-256-GCM)</Text>
-        <Text type="supporting">Key terenkripsi server (APP_ENCRYPTION_KEY 64 hex, AES-256-GCM). GET hanya mask ****abcd — plaintext tidak pernah dikembalikan. Test Key decrypt ephemeral. Refresh tetap tampil sebagai mask di placeholder. Kunci berlaku untuk seluruh institusi, bukan per akun.</Text>
+        <Text weight="semibold">API Key Anda — {identity.name}</Text>
+        <Text type="supporting">
+          Kunci ini milik akun Anda sendiri: biaya dan kuota AI melekat pada pemakainya, dan pengguna
+          lain tidak bisa melihat maupun memakainya. Disimpan terenkripsi AES-256-GCM; yang
+          ditampilkan hanya 4 karakter terakhir — plaintext tidak pernah dikembalikan server.
+        </Text>
+        {!hasAnyKey && (
+          <div className="mt-3">
+            <Banner status="warning" title="Belum ada API key">
+              Simpan minimal satu kunci sebelum membuat RPS. Institusi tidak menyediakan kunci
+              bersama, sehingga setiap penulis memakai kuncinya sendiri.
+            </Banner>
+          </div>
+        )}
         {q.isFetching && !q.data && <div className="mt-2"><Text type="supporting">Memuat keys…</Text></div>}
 
         <Grid columns={{ minWidth: 320 }} gap={4} className="mt-4">
@@ -122,7 +158,7 @@ export function SettingsPanel() {
             <div className="mt-3">
               <TextInput
                 label="API Key"
-                description={hasOpenai ? `Tersimpan ${maskHint(hint("openai"))} — refresh tetap tampil (masked) di placeholder. Ketik ulang untuk ganti.` : "Belum tersimpan — Generate AI butuh minimal 1 provider"}
+                description={hasOpenai ? `Tersimpan ${maskHint(hint("openai"))} — refresh tetap tampil (masked) di placeholder. Ketik ulang untuk ganti.` : "Belum tersimpan — kunci Anda sendiri, wajib ada sebelum membuat RPS"}
                 type={showOpenai ? "text" : "password"}
                 value={openaiKey}
                 onChange={setOpenaiKey}

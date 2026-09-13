@@ -114,6 +114,23 @@ export function CreateRpsForm() {
     );
   }
 
+  // Kebijakan institusi: penulis menyediakan kunci AI-nya sendiri. Dinyatakan
+  // di sini supaya tidak ada formulir panjang yang diisi lalu ditolak server.
+  if (identity.has_api_key === false) {
+    return (
+      <Card>
+        <Text weight="semibold">Simpan API key Anda dulu</Text>
+        <Text type="supporting">
+          Setiap penulis RPS memakai kunci AI miliknya sendiri, sehingga biaya dan kuota melekat
+          pada pemakainya. Institusi tidak menyediakan kunci bersama.
+        </Text>
+        <div className="mt-3">
+          <Link to="/settings" className="text-sm text-accent">Buka Settings untuk menyimpan API key →</Link>
+        </div>
+      </Card>
+    );
+  }
+
   return (
     <div className="grid gap-4">
       <Card>

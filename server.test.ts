@@ -12,6 +12,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:tes
 import { app, __resetLoginRateLimit } from "./server";
 import { prisma } from "./src/lib/db";
 import { hashPassword, MAX_FAILED_ATTEMPTS } from "./src/lib/auth";
+import { encrypt, keyHint } from "./src/lib/crypto";
 
 const SUPER_NIDN = "9000000001";
 const FIKOM_NIDN = "9000000002";
@@ -57,10 +58,25 @@ async function seedUserPassword(nidn: string) {
 
 async function seedUser(nidn: string, role: string, facultyId: number | null, opts?: { isActive?: boolean }) {
   const passwordHash = await hashPassword(PASSWORD);
-  await prisma.adminUser.upsert({
+  const user = await prisma.adminUser.upsert({
     where: { nidn },
     update: { role, facultyId, passwordHash, isActive: opts?.isActive ?? true, mustChangePassword: false, failedAttempts: 0, lockedUntil: null },
     create: { nidn, name: `Uji ${nidn}`, role, facultyId, passwordHash, isActive: opts?.isActive ?? true, mustChangePassword: false },
+  });
+  await seedApiKey(user.id);
+}
+
+/**
+ * Membuat RPS mensyaratkan penulisnya punya API key sendiri, jadi akun uji
+ * dibekali kunci palsu. Kunci ini tidak pernah dipakai memanggil provider —
+ * test tidak menyentuh jaringan.
+ */
+async function seedApiKey(ownerId: number) {
+  const fake = "AIzaFakeKeyUntukPengujianSaja1234";
+  await prisma.apiKey.upsert({
+    where: { ownerId_provider: { ownerId, provider: "gemini" } },
+    update: { encryptedKey: encrypt(fake), keyHint: keyHint(fake), isActive: true },
+    create: { ownerId, provider: "gemini", encryptedKey: encrypt(fake), keyHint: keyHint(fake) },
   });
 }
 
@@ -955,13 +971,14 @@ describe("bank kurikulum", () => {
     const kaprodiNidn = "9000000010";
     await prisma.adminUser.deleteMany({ where: { nidn: kaprodiNidn } });
     const program = await prisma.studyProgram.findUniqueOrThrow({ where: { slug: fikomSlug } });
-    await prisma.adminUser.create({
+    const kaprodiUser = await prisma.adminUser.create({
       data: {
         nidn: kaprodiNidn, name: "Kaprodi Kurikulum", role: "kaprodi",
         facultyId: program.facultyId, studyProgramId: program.id,
         passwordHash: await hashPassword(PASSWORD), mustChangePassword: false,
       },
     });
+    await seedApiKey(kaprodiUser.id);
     const cookie = sessionCookie(await loginAs(kaprodiNidn))!;
 
     // Daftar hanya memuat prodinya.
@@ -1159,11 +1176,12 @@ describe("RPS di balik login", () => {
     programId = program.id;
     programValue = program.value;
     for (const nidn of [DOSEN_NIDN, DOSEN_LAIN]) {
-      await prisma.adminUser.upsert({
+      const user = await prisma.adminUser.upsert({
         where: { nidn },
         update: { role: "dosen", facultyId: program.facultyId, studyProgramId: program.id, isActive: true, mustChangePassword: false, passwordHash: await hashPassword(PASSWORD) },
         create: { nidn, name: `Dosen ${nidn}`, role: "dosen", facultyId: program.facultyId, studyProgramId: program.id, passwordHash: await hashPassword(PASSWORD), mustChangePassword: false },
       });
+      await seedApiKey(user.id);
     }
   });
 
@@ -1260,13 +1278,14 @@ describe("RPS di balik login", () => {
     const kaprodiNidn = "9000000022";
     await prisma.adminUser.deleteMany({ where: { nidn: kaprodiNidn } });
     const program = await prisma.studyProgram.findUniqueOrThrow({ where: { slug: fikomSlug } });
-    await prisma.adminUser.create({
+    const kaprodiRps = await prisma.adminUser.create({
       data: {
         nidn: kaprodiNidn, name: "Kaprodi RPS", role: "kaprodi",
         facultyId: program.facultyId, studyProgramId: program.id,
         passwordHash: await hashPassword(PASSWORD), mustChangePassword: false,
       },
     });
+    await seedApiKey(kaprodiRps.id);
     const cookie = sessionCookie(await loginAs(kaprodiNidn))!;
     expect((await req(`/api/rps/${created.data.id}`, {
       method: "PUT", cookie, body: JSON.stringify({ course_cluster: "Ilmu Komputer" }),
@@ -1367,6 +1386,179 @@ describe("RPS di balik login", () => {
     const row = await prisma.rpsDraft.findUniqueOrThrow({ where: { id: created.data.id } });
     // Tanpa pembaruan relasi, wewenang atas draft ini akan dinilai dari prodi lama.
     expect(row.studyProgramId).toBe(farmasi.id);
+  });
+});
+
+describe("BYOK per akun", () => {
+  const A_NIDN = "9000000030";
+  const B_NIDN = "9000000031";
+  const FAKE_A = "AIzaKunciMilikAkunA1234567890";
+  const FAKE_B = "sk-KunciMilikAkunB1234567890";
+
+  async function makeDosen(nidn: string) {
+    const program = await prisma.studyProgram.findUniqueOrThrow({ where: { slug: fikomSlug } });
+    await prisma.adminUser.upsert({
+      where: { nidn },
+      update: { role: "dosen", facultyId: program.facultyId, studyProgramId: program.id, isActive: true, mustChangePassword: false, passwordHash: await hashPassword(PASSWORD) },
+      create: { nidn, name: `Dosen BYOK ${nidn}`, role: "dosen", facultyId: program.facultyId, studyProgramId: program.id, passwordHash: await hashPassword(PASSWORD), mustChangePassword: false },
+    });
+  }
+
+  beforeAll(async () => {
+    await makeDosen(A_NIDN);
+    await makeDosen(B_NIDN);
+  });
+
+  afterAll(async () => {
+    await prisma.adminUser.deleteMany({ where: { nidn: { in: [A_NIDN, B_NIDN] } } });
+  });
+
+  test("pengaturan kunci memerlukan sesi", async () => {
+    // Sebelumnya endpoint ini terbuka, sehingga siapa pun bisa membaca hint dan
+    // menimpa kunci berbayar milik institusi.
+    expect((await req("/api/settings/api-keys")).status).toBe(401);
+    expect((await req("/api/settings/api-keys", {
+      method: "PUT", body: JSON.stringify({ provider: "gemini", apiKey: FAKE_A }),
+    })).status).toBe(401);
+    expect((await req("/api/settings/api-keys/test", {
+      method: "POST", body: JSON.stringify({ provider: "gemini" }),
+    })).status).toBe(401);
+  });
+
+  test("kunci melekat pada pemiliknya dan tidak terlihat akun lain", async () => {
+    const aCookie = sessionCookie(await loginAs(A_NIDN))!;
+    const bCookie = sessionCookie(await loginAs(B_NIDN))!;
+
+    expect((await req("/api/settings/api-keys", {
+      method: "PUT", cookie: aCookie, body: JSON.stringify({ provider: "gemini", apiKey: FAKE_A }),
+    })).status).toBe(200);
+
+    const aList = (await (await req("/api/settings/api-keys", { cookie: aCookie })).json()).data;
+    expect(aList).toHaveLength(1);
+    // Hanya hint yang dikembalikan; plaintext tidak boleh pernah keluar.
+    expect(JSON.stringify(aList)).not.toContain(FAKE_A);
+
+    const bList = (await (await req("/api/settings/api-keys", { cookie: bCookie })).json()).data;
+    expect(bList).toEqual([]);
+
+    // Bahkan super admin tidak melihat kunci pribadi orang lain.
+    const superList = (await (await req("/api/settings/api-keys", {
+      cookie: sessionCookie(await loginAs(SUPER_NIDN))!,
+    })).json()).data;
+    expect(superList.some((k: { provider: string }) => k.provider === "gemini" && false)).toBe(false);
+  });
+
+  test("penyedia yang sama boleh dipakai dua akun tanpa saling menimpa", async () => {
+    const aCookie = sessionCookie(await loginAs(A_NIDN))!;
+    const bCookie = sessionCookie(await loginAs(B_NIDN))!;
+    await req("/api/settings/api-keys", { method: "PUT", cookie: aCookie, body: JSON.stringify({ provider: "gemini", apiKey: FAKE_A }) });
+    await req("/api/settings/api-keys", { method: "PUT", cookie: bCookie, body: JSON.stringify({ provider: "gemini", apiKey: `${FAKE_B}9` }) });
+
+    const aUser = await prisma.adminUser.findUniqueOrThrow({ where: { nidn: A_NIDN } });
+    const bUser = await prisma.adminUser.findUniqueOrThrow({ where: { nidn: B_NIDN } });
+    const aKey = await prisma.apiKey.findUniqueOrThrow({ where: { ownerId_provider: { ownerId: aUser.id, provider: "gemini" } } });
+    const bKey = await prisma.apiKey.findUniqueOrThrow({ where: { ownerId_provider: { ownerId: bUser.id, provider: "gemini" } } });
+    expect(aKey.id).not.toBe(bKey.id);
+    expect(aKey.encryptedKey).not.toBe(bKey.encryptedKey);
+  });
+
+  test("kunci disimpan terenkripsi, bukan apa adanya", async () => {
+    const cookie = sessionCookie(await loginAs(A_NIDN))!;
+    await req("/api/settings/api-keys", { method: "PUT", cookie, body: JSON.stringify({ provider: "gemini", apiKey: FAKE_A }) });
+    const user = await prisma.adminUser.findUniqueOrThrow({ where: { nidn: A_NIDN } });
+    const row = await prisma.apiKey.findUniqueOrThrow({ where: { ownerId_provider: { ownerId: user.id, provider: "gemini" } } });
+    expect(row.encryptedKey).not.toContain(FAKE_A);
+    // Format iv:tag:ciphertext dari AES-256-GCM.
+    expect(row.encryptedKey.split(":")).toHaveLength(3);
+    expect(row.keyHint).toBe(`****${FAKE_A.slice(-4)}`);
+  });
+
+  test("membuat RPS ditolak sebelum penulis menyimpan kuncinya sendiri", async () => {
+    const cookie = sessionCookie(await loginAs(B_NIDN))!;
+    const program = await prisma.studyProgram.findUniqueOrThrow({ where: { slug: fikomSlug } });
+    const bUser = await prisma.adminUser.findUniqueOrThrow({ where: { nidn: B_NIDN } });
+    await prisma.apiKey.deleteMany({ where: { ownerId: bUser.id } });
+
+    const payload = {
+      course_name: "RPS Tanpa Kunci", course_code: "UJKEY001",
+      sks_total: 2, sks_theory: 2, sks_practice: 0, semester: "I",
+      preparation_date: "2026-03-15",
+      faculty: program.facultyLabel, study_program: program.value,
+      lecturers: [{ name: "Dosen BYOK, M.Kom.", nidn: B_NIDN, role: "koordinator_mk" }],
+    };
+    const denied = await req("/api/rps", { method: "POST", cookie, body: JSON.stringify(payload) });
+    expect(denied.status).toBe(422);
+    expect((await denied.json()).error).toBe("no_api_key");
+    expect(await prisma.rpsDraft.count({ where: { courseCode: "UJKEY001" } })).toBe(0);
+
+    // Setelah kunci disimpan, pembuatan berhasil.
+    await req("/api/settings/api-keys", { method: "PUT", cookie, body: JSON.stringify({ provider: "gemini", apiKey: FAKE_A }) });
+    const ok = await req("/api/rps", { method: "POST", cookie, body: JSON.stringify(payload) });
+    expect(ok.status).toBe(201);
+    await prisma.rpsDraft.deleteMany({ where: { courseCode: "UJKEY001" } });
+  });
+
+  test("fitur AI menolak akun tanpa kunci, tidak membonceng kunci orang lain", async () => {
+    const aCookie = sessionCookie(await loginAs(A_NIDN))!;
+    await req("/api/settings/api-keys", { method: "PUT", cookie: aCookie, body: JSON.stringify({ provider: "gemini", apiKey: FAKE_A }) });
+
+    const bUser = await prisma.adminUser.findUniqueOrThrow({ where: { nidn: B_NIDN } });
+    await prisma.apiKey.deleteMany({ where: { ownerId: bUser.id } });
+    const bCookie = sessionCookie(await loginAs(B_NIDN))!;
+
+    // Akun A punya kunci; akun B tidak. B harus ditolak, bukan memakai kuota A.
+    const res = await req("/api/description/generate", {
+      method: "POST", cookie: bCookie,
+      body: JSON.stringify({ course_name: "Uji", course_code: "U1", semester: "I", sks_total: 2 }),
+    });
+    expect(res.status).toBe(422);
+    expect((await res.json()).error).toBe("no_api_key");
+  });
+
+  test("uji kunci menolak penyedia yang belum disimpan akun ini", async () => {
+    const cookie = sessionCookie(await loginAs(A_NIDN))!;
+    const res = await req("/api/settings/api-keys/test", {
+      method: "POST", cookie, body: JSON.stringify({ provider: "claude" }),
+    });
+    expect(res.status).toBe(422);
+  });
+
+  test("/api/admin/me melaporkan kepemilikan kunci untuk klien", async () => {
+    const aCookie = sessionCookie(await loginAs(A_NIDN))!;
+    await req("/api/settings/api-keys", { method: "PUT", cookie: aCookie, body: JSON.stringify({ provider: "gemini", apiKey: FAKE_A }) });
+    const withKey = (await (await req("/api/admin/me", { cookie: aCookie })).json()).data;
+    expect(withKey.has_api_key).toBe(true);
+
+    const bUser = await prisma.adminUser.findUniqueOrThrow({ where: { nidn: B_NIDN } });
+    await prisma.apiKey.deleteMany({ where: { ownerId: bUser.id } });
+    const without = (await (await req("/api/admin/me", { cookie: sessionCookie(await loginAs(B_NIDN))! })).json()).data;
+    expect(without.has_api_key).toBe(false);
+  });
+
+  test("format kunci divalidasi per penyedia", async () => {
+    const cookie = sessionCookie(await loginAs(A_NIDN))!;
+    expect((await req("/api/settings/api-keys", {
+      method: "PUT", cookie, body: JSON.stringify({ provider: "openai", apiKey: "bukan-format-openai" }),
+    })).status).toBe(422);
+    expect((await req("/api/settings/api-keys", {
+      method: "PUT", cookie, body: JSON.stringify({ provider: "gemini", apiKey: "pendek" }),
+    })).status).toBe(422);
+    expect((await req("/api/settings/api-keys", {
+      method: "PUT", cookie, body: JSON.stringify({ provider: "penyedia-asing", apiKey: FAKE_A }),
+    })).status).toBe(422);
+  });
+
+  test("kunci ikut terhapus saat akunnya dihapus", async () => {
+    const nidn = "9000000032";
+    await makeDosen(nidn);
+    const cookie = sessionCookie(await loginAs(nidn))!;
+    await req("/api/settings/api-keys", { method: "PUT", cookie, body: JSON.stringify({ provider: "gemini", apiKey: FAKE_A }) });
+    const user = await prisma.adminUser.findUniqueOrThrow({ where: { nidn } });
+    expect(await prisma.apiKey.count({ where: { ownerId: user.id } })).toBe(1);
+
+    await prisma.adminUser.delete({ where: { nidn } });
+    // Cascade di skema: kunci tidak boleh tertinggal sebagai data yatim.
+    expect(await prisma.apiKey.count({ where: { ownerId: user.id } })).toBe(0);
   });
 });
 

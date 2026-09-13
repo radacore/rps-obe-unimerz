@@ -7,15 +7,27 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+/// Kunci penyedia AI milik masing-masing akun (BYOK per pengguna).
+///
+/// Sebelumnya `provider` unik global sehingga satu kunci institusi dipakai
+/// semua orang: biaya menumpuk di satu tagihan dan kuota saling berebut.
+/// Sekarang kunci melekat pada pemiliknya, dan setiap query wajib menyaring
+/// berdasarkan `ownerId` — plaintext tetap tidak pernah dikembalikan.
 model ApiKey {
   id           Int      @id @default(autoincrement())
-  provider     String   @unique // openai|gemini|claude
+  ownerId      Int      @map("owner_id")
+  provider     String // openai|gemini|claude
   encryptedKey String   @map("encrypted_key")
   keyHint      String?  @map("key_hint")
   isActive     Boolean  @default(true) @map("is_active")
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
+  owner AdminUser @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  // Satu kunci per penyedia per akun.
+  @@unique([ownerId, provider])
+  @@index([ownerId])
   @@map("api_key")
 }
 
@@ -82,6 +94,7 @@ model AdminUser {
   sessions     AdminSession[]
   auditLogs    AuditLog[]
   rpsDrafts    RpsDraft[]
+  apiKeys      ApiKey[]
 
   @@index([facultyId])
   @@index([studyProgramId])

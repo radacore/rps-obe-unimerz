@@ -14,6 +14,9 @@ export type AdminIdentity = {
   studyProgramLabel: string | null;
   studyProgramSlug: string | null;
   mustChangePassword: boolean;
+  /** Disertakan `GET /api/admin/me`: apakah akun ini punya API key aktif. */
+  has_api_key?: boolean;
+  api_key_count?: number;
 };
 
 export type CplCategory = "sikap" | "pengetahuan" | "keterampilan_umum" | "keterampilan_khusus";

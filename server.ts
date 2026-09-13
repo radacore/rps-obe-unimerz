@@ -208,7 +208,10 @@ app.post("/api/admin/logout", async (c) => {
 app.get("/api/admin/me", async (c) => {
   const identity = await resolveSession(getCookie(c, SESSION_COOKIE));
   if (!identity) return c.json({ success: false, error: "unauthorized", message: "Belum login." }, 401);
-  return c.json({ success: true, data: identity });
+  // `has_api_key` dipakai klien untuk menonaktifkan tombol yang pasti ditolak
+  // server, bukan sebagai pengganti pemeriksaan di sisi server.
+  const activeKeys = await prisma.apiKey.count({ where: { ownerId: identity.id, isActive: true } });
+  return c.json({ success: true, data: { ...identity, has_api_key: activeKeys > 0, api_key_count: activeKeys } });
 });
 
 app.post("/api/admin/change-password", requireAdmin, async (c) => {
@@ -1164,12 +1167,75 @@ app.get("/api/faculties", async (c) => {
 });
 
 // Settings
-app.get("/api/settings/api-keys", async (c) => {
-  const rows = await prisma.apiKey.findMany({ orderBy: { provider: "asc" } });
-  return c.json({ success: true, data: rows.map((r) => ({ provider: r.provider, keyHint: r.keyHint, isActive: r.isActive, updatedAt: r.updatedAt })) });
+// ---------------------------------------------------------------------------
+// BYOK per akun
+//
+// Kunci penyedia AI melekat pada akun pemiliknya. Endpoint di bawah wajib sesi
+// dan selalu menyaring berdasarkan pemilik: tanpa itu, satu pengguna bisa
+// membaca hint maupun memakai kuota berbayar milik orang lain.
+// ---------------------------------------------------------------------------
+/**
+ * Ambil kunci AI milik pemanggil dan buka isinya untuk sekali pakai.
+ *
+ * Selalu disaring `ownerId`: fitur AI memakai kuota berbayar, jadi tidak boleh
+ * ada jalur yang membuat satu pengguna memakai kunci milik orang lain. Tidak
+ * ada kunci institusi sebagai cadangan — setiap dosen memakai kuncinya sendiri.
+ */
+async function resolveOwnKey(
+  c: Context<AppEnv>,
+  requested?: string,
+): Promise<{ provider: string; apiKey: string } | { error: Response }> {
+  const admin = c.get("admin");
+  const provider = requested
+    ?? (await prisma.apiKey.findFirst({
+      where: { ownerId: admin.id, isActive: true },
+      orderBy: { provider: "asc" },
+    }))?.provider;
+
+  if (!provider) {
+    return {
+      error: c.json({
+        success: false, error: "no_api_key",
+        message: "Anda belum menyimpan API key. Buka Settings dan simpan kunci OpenAI, Gemini, atau Claude milik Anda.",
+      }, 422),
+    };
+  }
+
+  const row = await prisma.apiKey.findUnique({
+    where: { ownerId_provider: { ownerId: admin.id, provider } },
+  });
+  if (!row || !row.isActive) {
+    return {
+      error: c.json({
+        success: false, error: "no_api_key",
+        message: `Anda belum menyimpan API key ${provider}. Buka Settings untuk menambahkannya.`,
+      }, 422),
+    };
+  }
+
+  try {
+    // Didekripsi sesaat untuk request ini saja; tidak pernah dicatat ke log.
+    return { provider, apiKey: decrypt(row.encryptedKey) };
+  } catch {
+    return { error: c.json({ success: false, message: "Kunci tersimpan gagal didekripsi. Simpan ulang di Settings." }, 500) };
+  }
+}
+
+app.get("/api/settings/api-keys", requireAdmin, async (c) => {
+  const admin = c.get("admin");
+  const rows = await prisma.apiKey.findMany({
+    where: { ownerId: admin.id },
+    orderBy: { provider: "asc" },
+  });
+  return c.json({
+    success: true,
+    // Plaintext tidak pernah dikembalikan — hanya hint 4 karakter terakhir.
+    data: rows.map((r) => ({ provider: r.provider, keyHint: r.keyHint, isActive: r.isActive, updatedAt: r.updatedAt })),
+  });
 });
 
-app.put("/api/settings/api-keys", async (c) => {
+app.put("/api/settings/api-keys", requireAdmin, async (c) => {
+  const admin = c.get("admin");
   const body = await c.req.json().catch(() => ({}));
   const { provider, apiKey } = body as { provider?: string; apiKey?: string };
   if (!provider || !apiKey) return c.json({ success: false, error: "validation_error", message: "provider & apiKey required" }, 422);
@@ -1180,16 +1246,23 @@ app.put("/api/settings/api-keys", async (c) => {
   if (provider === "claude" && !/^sk-ant-/.test(apiKey)) return c.json({ success: false, message: "Format key Claude harus sk-ant-..." }, 422);
   const encrypted = encrypt(apiKey);
   const hint = keyHint(apiKey);
-  const row = await prisma.apiKey.upsert({ where: { provider }, create: { provider, encryptedKey: encrypted, keyHint: hint }, update: { encryptedKey: encrypted, keyHint: hint, isActive: true } });
+  const row = await prisma.apiKey.upsert({
+    where: { ownerId_provider: { ownerId: admin.id, provider } },
+    create: { ownerId: admin.id, provider, encryptedKey: encrypted, keyHint: hint },
+    update: { encryptedKey: encrypted, keyHint: hint, isActive: true },
+  });
   return c.json({ success: true, data: { provider: row.provider, keyHint: row.keyHint, isActive: row.isActive }, message: "API key saved" });
 });
 
-app.post("/api/settings/api-keys/test", async (c) => {
+app.post("/api/settings/api-keys/test", requireAdmin, async (c) => {
+  const admin = c.get("admin");
   const body = await c.req.json().catch(() => ({}));
   const { provider } = body as { provider?: string };
   if (!provider) return c.json({ success: false, message: "provider required" }, 422);
-  const row = await prisma.apiKey.findUnique({ where: { provider } });
-  if (!row) return c.json({ success: false, message: "No key set" }, 422);
+  const row = await prisma.apiKey.findUnique({
+    where: { ownerId_provider: { ownerId: admin.id, provider } },
+  });
+  if (!row) return c.json({ success: false, message: "Anda belum menyimpan API key untuk penyedia ini." }, 422);
   let key: string;
   try { key = decrypt(row.encryptedKey); } catch (e) { return c.json({ success: false, message: "Decrypt failed" }, 500); }
   try {
@@ -1339,6 +1412,17 @@ app.post("/api/rps", requireAdmin, async (c) => {
   if (!parsed.success) return c.json({ success: false, error: "validation_error", message: "Validation failed", errors: parsed.error.flatten().fieldErrors }, 422);
   const d = parsed.data;
   const admin = c.get("admin");
+
+  // Kebijakan institusi: penulis RPS menyediakan kunci AI-nya sendiri, jadi
+  // biaya dan kuota melekat pada pemakainya. Diperiksa saat pembuatan supaya
+  // dosen tidak menyusun dokumen lebih dulu lalu terhenti di tengah jalan.
+  const ownKeys = await prisma.apiKey.count({ where: { ownerId: admin.id, isActive: true } });
+  if (ownKeys === 0) {
+    return c.json({
+      success: false, error: "no_api_key",
+      message: "Simpan API key Anda di Settings sebelum membuat RPS. Kunci milik sendiri dipakai agar biaya dan kuota AI melekat pada pemakainya.",
+    }, 422);
+  }
 
   // Prodi dokumen dijadikan relasi supaya wewenang bisa diperiksa lewat id,
   // bukan pencocokan teks yang rapuh.
@@ -1569,15 +1653,9 @@ app.post("/api/description/generate", requireAdmin, async (c) => {
     `Contoh nada: "Mata kuliah ini membahas ... mencakup ... berbasis ... sebagai landasan ...".`,
     `Output JSON ketat tanpa markdown: {"description":"..."}`,
   ].join(" ");
-  let provider = body.provider as string | undefined;
-  if (!provider) {
-    const anyKey = await prisma.apiKey.findFirst({ where: { isActive: true } });
-    provider = anyKey?.provider;
-  }
-  if (!provider) return c.json({ success: false, message: "No API key set. Buka /settings." }, 422);
-  const keyRow = await prisma.apiKey.findUnique({ where: { provider } });
-  if (!keyRow) return c.json({ success: false, message: `No key for ${provider}` }, 422);
-  let apiKey: string; try { apiKey = decrypt(keyRow.encryptedKey); } catch { return c.json({ success: false, message: "Decrypt failed" }, 500); }
+  const resolved = await resolveOwnKey(c, body.provider as string | undefined);
+  if ("error" in resolved) return resolved.error;
+  const { provider, apiKey } = resolved;
   const GEMINI_FALLBACKS_D = ["gemini-3.6-flash", "gemini-3.5-flash", "gemini-3-flash-preview"];
   let model = body.model ?? (provider === "openai" ? "gpt-4o-mini" : provider === "gemini" ? "gemini-3.6-flash" : "claude-3-haiku");
   if (provider === "gemini" && /gemini-(1\.5|2\.5)-/.test(model)) model = "gemini-3.6-flash";
@@ -1641,15 +1719,9 @@ app.post("/api/rps/:id/description/generate", requireAdmin, async (c) => {
     `Tulis deskripsi 3-5 baris (60-120 kata) — bahan kajian singkat yang jadi fondasi prompt AI untuk generate CPL/CPMK/Sub-CPMK & 9 baris weekly 16 minggu.`,
     `Output JSON ketat tanpa markdown: {"description":"..."}`,
   ].join(" ");
-  let provider = providerBody as string | undefined;
-  if (!provider) {
-    const anyKey = await prisma.apiKey.findFirst({ where: { isActive: true } });
-    provider = anyKey?.provider;
-  }
-  if (!provider) return c.json({ success: false, message: "No API key set. Buka /settings." }, 422);
-  const keyRow = await prisma.apiKey.findUnique({ where: { provider } });
-  if (!keyRow) return c.json({ success: false, message: `No key for ${provider}` }, 422);
-  let apiKey: string; try { apiKey = decrypt(keyRow.encryptedKey); } catch { return c.json({ success: false, message: "Decrypt failed" }, 500); }
+  const resolved = await resolveOwnKey(c, providerBody as string | undefined);
+  if ("error" in resolved) return resolved.error;
+  const { provider, apiKey } = resolved;
   const GEMINI_FALLBACKS_D2 = ["gemini-3.6-flash", "gemini-3.5-flash", "gemini-3-flash-preview"];
   let model = body.model ?? (provider === "openai" ? "gpt-4o-mini" : provider === "gemini" ? "gemini-3.6-flash" : "claude-3-haiku");
   if (provider === "gemini" && /gemini-(1\.5|2\.5)-/.test(model)) model = "gemini-3.6-flash";
@@ -1701,15 +1773,9 @@ app.post("/api/rps/:id/ai/generate", requireAdmin, async (c) => {
   const draft = await prisma.rpsDraft.findUnique({ where: { id } });
   if (!draft) return c.json({ success: false, message: "Not found" }, 404);
   const body = await c.req.json().catch(()=>({})) as { provider?: string; model?: string; promptOverride?: string };
-  let provider = body.provider as string | undefined;
-  if (!provider) {
-    const anyKey = await prisma.apiKey.findFirst({ where: { isActive: true } });
-    provider = anyKey?.provider;
-  }
-  if (!provider) return c.json({ success: false, message: "No API key set. Buka /settings." }, 422);
-  const keyRow = await prisma.apiKey.findUnique({ where: { provider } });
-  if (!keyRow) return c.json({ success: false, message: `No key for ${provider}` }, 422);
-   let apiKey: string; try { apiKey = decrypt(keyRow.encryptedKey); } catch { return c.json({ success: false, message: "Decrypt failed" }, 500); }
+  const resolved = await resolveOwnKey(c, body.provider as string | undefined);
+  if ("error" in resolved) return resolved.error;
+  const { provider, apiKey } = resolved;
   const GEMINI_FALLBACKS = ["gemini-3.6-flash", "gemini-3.5-flash", "gemini-3-flash-preview", "gemini-flash-latest"];
   const rawModel = body.model;
   let model = rawModel ?? (provider === "openai" ? "gpt-4o-mini" : provider === "gemini" ? "gemini-3.6-flash" : "claude-3-haiku");
