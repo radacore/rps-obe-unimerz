@@ -1,6 +1,6 @@
 import { api, ApiError, type ApiOk } from "./api";
 
-export type AdminRole = "super_admin" | "faculty_admin" | "kaprodi";
+export type AdminRole = "super_admin" | "faculty_admin" | "kaprodi" | "dosen";
 
 export type AdminIdentity = {
   id: number;
@@ -151,9 +151,11 @@ export const ROLE_LABEL: Record<AdminRole, string> = {
   super_admin: "Super Admin",
   faculty_admin: "Admin Fakultas",
   kaprodi: "Kaprodi",
+  dosen: "Dosen",
 };
 
 export const ROLE_OPTIONS: { value: AdminRole; label: string }[] = [
+  { value: "dosen", label: "Dosen — menulis RPS pada prodinya" },
   { value: "kaprodi", label: "Kaprodi — satu program studi" },
   { value: "faculty_admin", label: "Admin Fakultas — seluruh prodi di fakultasnya" },
   { value: "super_admin", label: "Super Admin — seluruh universitas + kelola akun" },

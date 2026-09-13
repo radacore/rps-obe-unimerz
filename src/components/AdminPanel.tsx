@@ -68,18 +68,24 @@ export function AdminPanel() {
   if (!identity) return <AdminLoginForm />;
   if (identity.mustChangePassword) return <ForcedPasswordChange name={identity.name} />;
 
-  // Kaprodi tidak berwenang atas profil fakultas, jadi tab itu disembunyikan;
-  // manajemen akun hanya untuk super admin. Penyembunyian ini demi kejelasan —
+  // Tab disesuaikan peran supaya pengguna tidak diarahkan ke aksi yang pasti
+  // ditolak: dosen tidak mengelola master data, kaprodi tidak menyentuh profil
+  // fakultas, akun hanya untuk super admin. Penyembunyian ini demi kejelasan —
   // server tetap yang menegakkan wewenangnya.
-  const TABS: { id: typeof tab; label: string }[] = [
-    ...(identity.role === "kaprodi" ? [] : [{ id: "fakultas" as const, label: "Profil Fakultas" }]),
-    { id: "prodi", label: "Profil Prodi" },
-    { id: "cpl", label: "CPL Prodi" },
-    { id: "kurikulum", label: "Kurikulum & CPMK" },
-    { id: "matriks", label: "Matriks CPL" },
-    ...(identity.role === "super_admin" ? [{ id: "akun" as const, label: "Akun Pengelola" }] : []),
-    { id: "riwayat", label: "Riwayat" },
-  ];
+  const isDosen = identity.role === "dosen";
+  const TABS: { id: typeof tab; label: string }[] = isDosen
+    ? [{ id: "riwayat", label: "Riwayat" }]
+    : [
+      ...(identity.role === "kaprodi" ? [] : [{ id: "fakultas" as const, label: "Profil Fakultas" }]),
+      { id: "prodi", label: "Profil Prodi" },
+      { id: "cpl", label: "CPL Prodi" },
+      { id: "kurikulum", label: "Kurikulum & CPMK" },
+      { id: "matriks", label: "Matriks CPL" },
+      ...(identity.role === "super_admin" ? [{ id: "akun" as const, label: "Akun Pengelola" }] : []),
+      { id: "riwayat", label: "Riwayat" },
+    ];
+  // Tab awal "prodi" tidak berlaku bagi dosen.
+  const activeTab = TABS.some((t) => t.id === tab) ? tab : TABS[0].id;
 
   return (
     <div className="grid gap-4">
@@ -105,23 +111,30 @@ export function AdminPanel() {
         </div>
       </Card>
 
+      {isDosen && (
+        <Banner status="info" title="Peran Dosen">
+          Anda menulis RPS, bukan mengelola master data. Buka daftar RPS di menu Drafts;
+          perubahan visi, CPL, atau kurikulum dilakukan Kaprodi dan Admin Fakultas.
+        </Banner>
+      )}
+
       <div className="flex flex-wrap gap-2" role="tablist" aria-label="Bagian master data">
         {TABS.map((t) => (
           <Button
             key={t.id}
             label={t.label}
-            variant={tab === t.id ? "primary" : "secondary"}
+            variant={activeTab === t.id ? "primary" : "secondary"}
             size="sm"
             onClick={() => setTab(t.id)}
           />
         ))}
       </div>
 
-      {tab === "fakultas" && <FacultyProfilePanel enabled={!identity.mustChangePassword} />}
-      {tab === "akun" && <AccountManagerPanel />}
-      {tab === "riwayat" && <AuditLogPanel enabled={!identity.mustChangePassword} />}
+      {activeTab === "fakultas" && <FacultyProfilePanel enabled={!identity.mustChangePassword} />}
+      {activeTab === "akun" && <AccountManagerPanel />}
+      {activeTab === "riwayat" && <AuditLogPanel enabled={!identity.mustChangePassword} />}
 
-      {(tab === "prodi" || tab === "cpl" || tab === "kurikulum" || tab === "matriks") && (
+      {(activeTab === "prodi" || activeTab === "cpl" || activeTab === "kurikulum" || activeTab === "matriks") && (
         <>
           {programs.isLoading && <Text type="supporting">Memuat daftar program studi…</Text>}
           {programs.isError && <Banner status="error">{errorMessage(programs.error)}</Banner>}
@@ -156,12 +169,12 @@ export function AdminPanel() {
             </Card>
           )}
 
-          {selected && tab === "prodi" && <ProgramProfileForm key={selected.slug} program={selected} />}
-          {selected && tab === "cpl" && (
+          {selected && activeTab === "prodi" && <ProgramProfileForm key={selected.slug} program={selected} />}
+          {selected && activeTab === "cpl" && (
             <CplEditor key={`cpl-${selected.slug}`} slug={selected.slug} label={selected.label} initialCpl={selected.cpl} />
           )}
-          {selected && tab === "kurikulum" && <CurriculumPanel key={`kur-${selected.slug}`} program={selected} />}
-          {selected && tab === "matriks" && <MatrixPanel key={`mtx-${selected.slug}`} program={selected} />}
+          {selected && activeTab === "kurikulum" && <CurriculumPanel key={`kur-${selected.slug}`} program={selected} />}
+          {selected && activeTab === "matriks" && <MatrixPanel key={`mtx-${selected.slug}`} program={selected} />}
         </>
       )}
     </div>

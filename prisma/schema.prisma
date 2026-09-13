@@ -81,6 +81,7 @@ model AdminUser {
   studyProgram StudyProgram?  @relation(fields: [studyProgramId], references: [id], onDelete: SetNull)
   sessions     AdminSession[]
   auditLogs    AuditLog[]
+  rpsDrafts    RpsDraft[]
 
   @@index([facultyId])
   @@index([studyProgramId])
@@ -153,9 +154,10 @@ model StudyProgram {
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 
-  faculty Faculty?    @relation(fields: [facultyId], references: [id], onDelete: SetNull)
-  admins  AdminUser[]
-  courses Course[]
+  faculty   Faculty?    @relation(fields: [facultyId], references: [id], onDelete: SetNull)
+  admins    AdminUser[]
+  courses   Course[]
+  rpsDrafts RpsDraft[]
 
   @@index([facultySlug])
   @@index([facultyLabel])
@@ -164,7 +166,15 @@ model StudyProgram {
 }
 
 model RpsDraft {
-  id               Int      @id @default(autoincrement())
+  id Int @id @default(autoincrement())
+
+  /// Penulis draft. Nullable supaya draft lama tetap terjangkau; endpoint
+  /// menolak perubahan pada draft tanpa pemilik kecuali oleh super admin.
+  ownerId        Int? @map("owner_id")
+  /// Prodi pemilik dokumen sebagai relasi. Kolom `studyProgram` di bawah tetap
+  /// dipertahankan karena dibaca generator DOCX dan payload RPS.
+  studyProgramId Int? @map("study_program_id")
+
   courseName       String   @map("course_name")
   courseCode       String   @map("course_code")
   courseCluster    String?  @map("course_cluster")
@@ -195,8 +205,13 @@ model RpsDraft {
   createdAt        DateTime @default(now()) @map("created_at")
   updatedAt        DateTime @updatedAt @map("updated_at")
 
+  owner           AdminUser?    @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  studyProgramRef StudyProgram? @relation(fields: [studyProgramId], references: [id], onDelete: SetNull)
+
   @@index([courseCode])
   @@index([updatedAt])
+  @@index([ownerId])
+  @@index([studyProgramId])
   @@map("rps_draft")
 }
 

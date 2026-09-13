@@ -108,7 +108,7 @@ export function SettingsPanel() {
     <div className="grid gap-4">
       <Card>
         <Text weight="semibold">BYOK — API Keys (AES-256-GCM)</Text>
-        <Text type="supporting">Key terenkripsi server (APP_ENCRYPTION_KEY 64 hex, AES-256-GCM). GET hanya mask ****abcd — plaintext tidak pernah dikembalikan. Test Key decrypt ephemeral. Refresh tetap tampil sebagai mask di placeholder. Tanpa login — global single-tenant.</Text>
+        <Text type="supporting">Key terenkripsi server (APP_ENCRYPTION_KEY 64 hex, AES-256-GCM). GET hanya mask ****abcd — plaintext tidak pernah dikembalikan. Test Key decrypt ephemeral. Refresh tetap tampil sebagai mask di placeholder. Kunci berlaku untuk seluruh institusi, bukan per akun.</Text>
         {q.isFetching && !q.data && <div className="mt-2"><Text type="supporting">Memuat keys…</Text></div>}
 
         <Grid columns={{ minWidth: 320 }} gap={4} className="mt-4">

@@ -21,9 +21,10 @@ export type AuditAction =
   | "create_course"
   | "update_course"
   | "delete_course"
-  | "update_course_cpmk";
+  | "update_course_cpmk"
+  | "reassign_draft";
 
-export type AuditEntity = "faculty" | "study_program" | "admin_user" | "course";
+export type AuditEntity = "faculty" | "study_program" | "admin_user" | "course" | "rps_draft";
 
 /** Nilai sebelum/sesudah per field, sudah dinormalkan untuk perbandingan. */
 export type FieldChanges = Record<string, { before: unknown; after: unknown }>;

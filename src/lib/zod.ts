@@ -135,7 +135,7 @@ export const studyProgramCplSchema = z.object({
 // Manajemen akun (super admin)
 // ---------------------------------------------------------------------------
 
-export const ADMIN_ROLE_VALUES = ["super_admin", "faculty_admin", "kaprodi"] as const;
+export const ADMIN_ROLE_VALUES = ["super_admin", "faculty_admin", "kaprodi", "dosen"] as const;
 
 /**
  * Pembuatan akun oleh super admin.
@@ -154,8 +154,8 @@ export const accountCreateSchema = z.object({
   // Lingkup wajib sesuai peran: tanpa aturan ini, "kaprodi" tanpa prodi akan
   // tersimpan sebagai akun yang tidak berwenang atas apa pun (atau lebih
   // buruk, jatuh ke pemeriksaan yang salah).
-  .refine((d) => d.role !== "kaprodi" || !!d.study_program_slug, {
-    message: "Kaprodi wajib ditugaskan ke satu program studi",
+  .refine((d) => !["kaprodi", "dosen"].includes(d.role) || !!d.study_program_slug, {
+    message: "Kaprodi dan dosen wajib ditugaskan ke satu program studi",
     path: ["study_program_slug"],
   })
   .refine((d) => d.role !== "faculty_admin" || !!d.faculty_slug, {

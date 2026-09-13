@@ -86,6 +86,9 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  // Draft bantu yang dibuat langsung lewat Prisma tidak punya pemilik; kalau
+  // tertinggal, ia akan tampak sebagai data produksi yang tak bisa diubah.
+  await prisma.rpsDraft.deleteMany({ where: { courseCode: { in: ["TMPX", "TMPY"] } } });
   const nidns = [SUPER_NIDN, FIKOM_NIDN, OTHER_NIDN, INACTIVE_NIDN, "9000000005", "9000000006", "9000000007", "9000000008"];
   // Jejak audit dari akun uji dibuang agar riwayat produksi tidak tercemar.
   await prisma.auditLog.deleteMany({ where: { actorNidn: { in: nidns } } });
@@ -1091,7 +1094,7 @@ describe("mengisi RPS dari bank kurikulum", () => {
     });
 
     const res = await req(`/api/rps/${draft.id}/apply-course`, {
-      method: "POST", body: JSON.stringify({ course_id: course.data.id }),
+      method: "POST", cookie, body: JSON.stringify({ course_id: course.data.id }),
     });
     expect(res.status).toBe(200);
     const applied = (await res.json()).data.applied;
@@ -1113,6 +1116,7 @@ describe("mengisi RPS dari bank kurikulum", () => {
   });
 
   test("course_id tidak dikenal menghasilkan 404", async () => {
+    const cookie = sessionCookie(await loginAs(SUPER_NIDN))!;
     const draft = await prisma.rpsDraft.create({
       data: {
         courseName: "Draft", courseCode: "TMPY", sksTotal: 2, sksTheory: 2, sksPractice: 0,
@@ -1120,7 +1124,7 @@ describe("mengisi RPS dari bank kurikulum", () => {
       },
     });
     const res = await req(`/api/rps/${draft.id}/apply-course`, {
-      method: "POST", body: JSON.stringify({ course_id: 999999 }),
+      method: "POST", cookie, body: JSON.stringify({ course_id: 999999 }),
     });
     expect(res.status).toBe(404);
     await prisma.rpsDraft.delete({ where: { id: draft.id } });
@@ -1132,6 +1136,237 @@ describe("mengisi RPS dari bank kurikulum", () => {
     const ok = await req(`/api/courses?study_program=${encodeURIComponent(program.value)}`);
     expect(ok.status).toBe(200);
     expect(Array.isArray((await ok.json()).data)).toBe(true);
+  });
+});
+
+describe("RPS di balik login", () => {
+  const DOSEN_NIDN = "9000000020";
+  const DOSEN_LAIN = "9000000021";
+  let programId = 0;
+  let programValue = "";
+
+  const draftPayload = (overrides: Record<string, unknown> = {}) => ({
+    course_name: "RPS Uji Login", course_code: "UJLOGIN1",
+    sks_total: 3, sks_theory: 2, sks_practice: 1, semester: "III",
+    preparation_date: "2026-03-15",
+    faculty: "Fakultas Ilmu Komputer", study_program: programValue,
+    lecturers: [{ name: "Dr. Dosen Uji, M.Kom.", nidn: DOSEN_NIDN, role: "koordinator_mk" }],
+    ...overrides,
+  });
+
+  beforeAll(async () => {
+    const program = await prisma.studyProgram.findUniqueOrThrow({ where: { slug: fikomSlug } });
+    programId = program.id;
+    programValue = program.value;
+    for (const nidn of [DOSEN_NIDN, DOSEN_LAIN]) {
+      await prisma.adminUser.upsert({
+        where: { nidn },
+        update: { role: "dosen", facultyId: program.facultyId, studyProgramId: program.id, isActive: true, mustChangePassword: false, passwordHash: await hashPassword(PASSWORD) },
+        create: { nidn, name: `Dosen ${nidn}`, role: "dosen", facultyId: program.facultyId, studyProgramId: program.id, passwordHash: await hashPassword(PASSWORD), mustChangePassword: false },
+      });
+    }
+  });
+
+  afterAll(async () => {
+    await prisma.rpsDraft.deleteMany({ where: { courseCode: { startsWith: "UJLOGIN" } } });
+    await prisma.adminUser.deleteMany({ where: { nidn: { in: [DOSEN_NIDN, DOSEN_LAIN] } } });
+  });
+
+  test("membuat dan mengubah RPS memerlukan sesi", async () => {
+    expect((await req("/api/rps", { method: "POST", body: JSON.stringify(draftPayload()) })).status).toBe(401);
+    expect((await req("/api/rps/1", { method: "PUT", body: JSON.stringify({ description: "x" }) })).status).toBe(401);
+    expect((await req("/api/rps/1", { method: "DELETE" })).status).toBe(401);
+    expect((await req("/api/rps/1/generate", { method: "POST", body: "{}" })).status).toBe(401);
+    expect((await req("/api/rps/1/ai/generate", { method: "POST", body: "{}" })).status).toBe(401);
+    expect((await req("/api/rps/1/apply-course", { method: "POST", body: "{}" })).status).toBe(401);
+    expect((await req("/api/description/generate", { method: "POST", body: JSON.stringify({ course_name: "x" }) })).status).toBe(401);
+  });
+
+  test("pratinjau, unduh, dan detail tetap terbuka tanpa sesi", async () => {
+    // Dokumen RPS adalah informasi publik prodi, dan tautan unduhan memang
+    // dibagikan ke pihak tanpa akun.
+    const draft = await prisma.rpsDraft.findFirstOrThrow({ orderBy: { id: "asc" } });
+    expect((await req(`/api/rps/${draft.id}`)).status).toBe(200);
+    expect((await req(`/api/rps/${draft.id}/preview`, { method: "POST", body: "{}" })).status).toBe(200);
+    expect((await req(`/api/rps/${draft.id}/audit`, { method: "POST", body: "{}" })).status).toBe(200);
+  });
+
+  test("daftar RPS kosong tanpa sesi, dan menandai belum login", async () => {
+    const body = await (await req("/api/rps")).json();
+    expect(body.meta.signed_in).toBe(false);
+    expect(body.pagination.total).toBe(0);
+  });
+
+  test("draft yang dibuat otomatis dimiliki pembuatnya", async () => {
+    const cookie = sessionCookie(await loginAs(DOSEN_NIDN))!;
+    const res = await req("/api/rps", { method: "POST", cookie, body: JSON.stringify(draftPayload()) });
+    expect(res.status).toBe(201);
+    const id = (await res.json()).data.id;
+
+    const row = await prisma.rpsDraft.findUniqueOrThrow({ where: { id } });
+    const owner = await prisma.adminUser.findUniqueOrThrow({ where: { nidn: DOSEN_NIDN } });
+    expect(row.ownerId).toBe(owner.id);
+    // Prodi ikut direlasikan supaya wewenang dinilai lewat id, bukan teks.
+    expect(row.studyProgramId).toBe(programId);
+  });
+
+  test("dosen tidak bisa membuat RPS untuk prodi lain", async () => {
+    const cookie = sessionCookie(await loginAs(DOSEN_NIDN))!;
+    const farmasi = await prisma.studyProgram.findUniqueOrThrow({ where: { slug: farmasiSlug } });
+    const res = await req("/api/rps", {
+      method: "POST", cookie,
+      body: JSON.stringify(draftPayload({ course_code: "UJLOGIN9", study_program: farmasi.value, faculty: farmasi.facultyLabel })),
+    });
+    expect(res.status).toBe(403);
+    expect(await prisma.rpsDraft.count({ where: { courseCode: "UJLOGIN9" } })).toBe(0);
+  });
+
+  test("dosen tidak bisa mengubah atau menghapus draft dosen lain", async () => {
+    const ownerCookie = sessionCookie(await loginAs(DOSEN_NIDN))!;
+    const created = await (await req("/api/rps", {
+      method: "POST", cookie: ownerCookie, body: JSON.stringify(draftPayload({ course_code: "UJLOGIN2" })),
+    })).json();
+    const id = created.data.id;
+
+    const otherCookie = sessionCookie(await loginAs(DOSEN_LAIN))!;
+    const before = await prisma.rpsDraft.findUniqueOrThrow({ where: { id } });
+
+    expect((await req(`/api/rps/${id}`, {
+      method: "PUT", cookie: otherCookie, body: JSON.stringify({ description: "sabotase" }),
+    })).status).toBe(403);
+    expect((await req(`/api/rps/${id}`, { method: "DELETE", cookie: otherCookie })).status).toBe(403);
+
+    const after = await prisma.rpsDraft.findUniqueOrThrow({ where: { id } });
+    expect(after.description).toBe(before.description);
+  });
+
+  test("dosen bisa mengubah draft miliknya sendiri", async () => {
+    const cookie = sessionCookie(await loginAs(DOSEN_NIDN))!;
+    const created = await (await req("/api/rps", {
+      method: "POST", cookie, body: JSON.stringify(draftPayload({ course_code: "UJLOGIN3" })),
+    })).json();
+    const res = await req(`/api/rps/${created.data.id}`, {
+      method: "PUT", cookie, body: JSON.stringify({ description: "Diubah pemiliknya" }),
+    });
+    expect(res.status).toBe(200);
+  });
+
+  test("kaprodi berwenang atas seluruh draft di prodinya, termasuk milik dosen", async () => {
+    const dosenCookie = sessionCookie(await loginAs(DOSEN_NIDN))!;
+    const created = await (await req("/api/rps", {
+      method: "POST", cookie: dosenCookie, body: JSON.stringify(draftPayload({ course_code: "UJLOGIN4" })),
+    })).json();
+
+    const kaprodiNidn = "9000000022";
+    await prisma.adminUser.deleteMany({ where: { nidn: kaprodiNidn } });
+    const program = await prisma.studyProgram.findUniqueOrThrow({ where: { slug: fikomSlug } });
+    await prisma.adminUser.create({
+      data: {
+        nidn: kaprodiNidn, name: "Kaprodi RPS", role: "kaprodi",
+        facultyId: program.facultyId, studyProgramId: program.id,
+        passwordHash: await hashPassword(PASSWORD), mustChangePassword: false,
+      },
+    });
+    const cookie = sessionCookie(await loginAs(kaprodiNidn))!;
+    expect((await req(`/api/rps/${created.data.id}`, {
+      method: "PUT", cookie, body: JSON.stringify({ course_cluster: "Ilmu Komputer" }),
+    })).status).toBe(200);
+
+    await prisma.adminUser.deleteMany({ where: { nidn: kaprodiNidn } });
+  });
+
+  test("dosen tidak berwenang atas master data apa pun", async () => {
+    const cookie = sessionCookie(await loginAs(DOSEN_NIDN))!;
+    expect((await req(`/api/admin/programs/${fikomSlug}`, {
+      method: "PUT", cookie, body: JSON.stringify({ vision: "x" }),
+    })).status).toBe(403);
+    expect((await req(`/api/admin/programs/${fikomSlug}/cpl`, {
+      method: "PUT", cookie, body: JSON.stringify({ cpl: [] }),
+    })).status).toBe(403);
+    expect((await req("/api/admin/faculties/fikom", {
+      method: "PUT", cookie, body: JSON.stringify({ vision: "x" }),
+    })).status).toBe(403);
+    expect((await req("/api/admin/courses", {
+      method: "POST", cookie,
+      body: JSON.stringify({ study_program_slug: fikomSlug, code: "NKL999", name: "Nakal Sekali", semester: 1, sks_theory: 2, sks_practice: 0 }),
+    })).status).toBe(403);
+    expect((await req("/api/admin/accounts", { cookie })).status).toBe(403);
+    expect((await req(`/api/admin/programs/${fikomSlug}/matrix`, { cookie })).status).toBe(403);
+    expect(await prisma.course.count({ where: { code: "NKL999" } })).toBe(0);
+  });
+
+  test("daftar dibatasi wewenang: dosen hanya draftnya sendiri", async () => {
+    const cookie = sessionCookie(await loginAs(DOSEN_NIDN))!;
+    const body = await (await req("/api/rps?per_page=50", { cookie })).json();
+    expect(body.meta.signed_in).toBe(true);
+    expect(body.data.length).toBeGreaterThan(0);
+    expect(body.data.every((r: { is_mine: boolean }) => r.is_mine)).toBe(true);
+
+    const superBody = await (await req("/api/rps?per_page=50", { cookie: sessionCookie(await loginAs(SUPER_NIDN))! })).json();
+    expect(superBody.pagination.total).toBeGreaterThan(body.pagination.total);
+  });
+
+  test("detail memberi tahu klien apakah pembacanya berhak mengubah", async () => {
+    const cookie = sessionCookie(await loginAs(DOSEN_NIDN))!;
+    const created = await (await req("/api/rps", {
+      method: "POST", cookie, body: JSON.stringify(draftPayload({ course_code: "UJLOGIN5" })),
+    })).json();
+    const id = created.data.id;
+
+    expect((await (await req(`/api/rps/${id}`, { cookie })).json()).data.can_edit).toBe(true);
+    expect((await (await req(`/api/rps/${id}`)).json()).data.can_edit).toBe(false);
+    const otherCookie = sessionCookie(await loginAs(DOSEN_LAIN))!;
+    expect((await (await req(`/api/rps/${id}`, { cookie: otherCookie })).json()).data.can_edit).toBe(false);
+  });
+
+  test("hanya super admin yang boleh mengalihkan pemilik draft", async () => {
+    const superCookie = sessionCookie(await loginAs(SUPER_NIDN))!;
+    const created = await (await req("/api/rps", {
+      method: "POST", cookie: sessionCookie(await loginAs(DOSEN_NIDN))!,
+      body: JSON.stringify(draftPayload({ course_code: "UJLOGIN6" })),
+    })).json();
+    const id = created.data.id;
+
+    // Dosen lain tidak boleh mengambil alih draft.
+    expect((await req(`/api/rps/${id}/owner`, {
+      method: "PUT", cookie: sessionCookie(await loginAs(DOSEN_LAIN))!,
+      body: JSON.stringify({ owner_nidn: DOSEN_LAIN }),
+    })).status).toBe(403);
+
+    const res = await req(`/api/rps/${id}/owner`, {
+      method: "PUT", cookie: superCookie, body: JSON.stringify({ owner_nidn: DOSEN_LAIN }),
+    });
+    expect(res.status).toBe(200);
+
+    // Pemilik baru langsung berwenang, pemilik lama tidak lagi.
+    expect((await (await req(`/api/rps/${id}`, { cookie: sessionCookie(await loginAs(DOSEN_LAIN))! })).json()).data.can_edit).toBe(true);
+    expect((await (await req(`/api/rps/${id}`, { cookie: sessionCookie(await loginAs(DOSEN_NIDN))! })).json()).data.can_edit).toBe(false);
+  });
+
+  test("NIDN pemilik yang tidak terdaftar ditolak", async () => {
+    const cookie = sessionCookie(await loginAs(SUPER_NIDN))!;
+    const draft = await prisma.rpsDraft.findFirstOrThrow({ orderBy: { id: "asc" } });
+    expect((await req(`/api/rps/${draft.id}/owner`, {
+      method: "PUT", cookie, body: JSON.stringify({ owner_nidn: "0000000000" }),
+    })).status).toBe(404);
+    expect((await req(`/api/rps/${draft.id}/owner`, {
+      method: "PUT", cookie, body: JSON.stringify({ owner_nidn: "123" }),
+    })).status).toBe(422);
+  });
+
+  test("mengubah prodi draft ikut memperbarui relasinya", async () => {
+    const cookie = sessionCookie(await loginAs(SUPER_NIDN))!;
+    const created = await (await req("/api/rps", {
+      method: "POST", cookie, body: JSON.stringify(draftPayload({ course_code: "UJLOGIN7" })),
+    })).json();
+    const farmasi = await prisma.studyProgram.findUniqueOrThrow({ where: { slug: farmasiSlug } });
+
+    await req(`/api/rps/${created.data.id}`, {
+      method: "PUT", cookie, body: JSON.stringify({ study_program: farmasi.value }),
+    });
+    const row = await prisma.rpsDraft.findUniqueOrThrow({ where: { id: created.data.id } });
+    // Tanpa pembaruan relasi, wewenang atas draft ini akan dinilai dari prodi lama.
+    expect(row.studyProgramId).toBe(farmasi.id);
   });
 });
 

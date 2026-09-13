@@ -43,9 +43,9 @@ const SCRYPT_P = 1;
 const SCRYPT_KEYLEN = 32;
 const SCRYPT_MAXMEM = 256 * 1024 * 1024;
 
-export type AdminRole = "super_admin" | "faculty_admin" | "kaprodi";
+export type AdminRole = "super_admin" | "faculty_admin" | "kaprodi" | "dosen";
 
-export const ADMIN_ROLES: AdminRole[] = ["super_admin", "faculty_admin", "kaprodi"];
+export const ADMIN_ROLES: AdminRole[] = ["super_admin", "faculty_admin", "kaprodi", "dosen"];
 
 export type AdminIdentity = {
   id: number;
@@ -275,28 +275,58 @@ export async function login(
  */
 export function canManageFaculty(identity: AdminIdentity, facultyId: number | null): boolean {
   if (identity.role === "super_admin") return true;
-  // Kaprodi tidak berwenang atas profil fakultas, hanya prodinya sendiri.
-  if (identity.role === "kaprodi") return false;
+  // Kaprodi dan dosen tidak berwenang atas profil fakultas.
+  if (identity.role === "kaprodi" || identity.role === "dosen") return false;
   if (identity.facultyId === null || facultyId === null) return false;
   return identity.facultyId === facultyId;
 }
 
 /**
- * Apakah admin ini berwenang atas satu program studi.
+ * Apakah admin ini berwenang atas satu program studi (master data).
  *
- * Tiga tingkat: super admin semua, admin fakultas seluruh prodi di
- * fakultasnya, kaprodi hanya prodi yang ditugaskan padanya.
+ * Empat peran: super admin semua; admin fakultas seluruh prodi di fakultasnya;
+ * kaprodi hanya prodi yang ditugaskan padanya; dosen tidak berwenang atas
+ * master data sama sekali — perannya menulis RPS.
  */
 export function canManageProgram(
   identity: AdminIdentity,
   program: { id: number; facultyId: number | null },
 ): boolean {
   if (identity.role === "super_admin") return true;
+  if (identity.role === "dosen") return false;
   if (identity.role === "kaprodi") {
     return identity.studyProgramId !== null && identity.studyProgramId === program.id;
   }
   if (identity.facultyId === null || program.facultyId === null) return false;
   return identity.facultyId === program.facultyId;
+}
+
+/**
+ * Apakah admin ini boleh mengubah sebuah draft RPS.
+ *
+ * Dosen hanya draft miliknya sendiri. Kaprodi seluruh draft di prodinya
+ * (termasuk milik dosen lain, karena ia yang bertanggung jawab atas kurikulum
+ * prodi). Admin fakultas seluruh draft di fakultasnya. Super admin semuanya,
+ * termasuk draft tanpa pemilik agar data lama tetap terjangkau.
+ */
+export function canEditDraft(
+  identity: AdminIdentity,
+  draft: { ownerId: number | null; studyProgramId: number | null; facultyId?: number | null },
+): boolean {
+  if (identity.role === "super_admin") return true;
+  // Draft milik sendiri selalu boleh, apa pun perannya.
+  if (draft.ownerId !== null && draft.ownerId === identity.id) return true;
+
+  if (identity.role === "dosen") return false;
+  if (identity.role === "kaprodi") {
+    return identity.studyProgramId !== null && identity.studyProgramId === draft.studyProgramId;
+  }
+  if (identity.role === "faculty_admin") {
+    if (identity.facultyId === null) return false;
+    return draft.facultyId !== null && draft.facultyId !== undefined
+      && identity.facultyId === draft.facultyId;
+  }
+  return false;
 }
 
 /** Hanya super admin yang boleh mengelola akun. */

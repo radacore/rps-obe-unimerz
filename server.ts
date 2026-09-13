@@ -10,7 +10,7 @@ import { auditDraft } from "./src/lib/audit";
 import {
   SESSION_COOKIE, SESSION_TTL_HOURS, LOCKOUT_MINUTES,
   login as adminLogin, resolveSession, destroySession, destroyAllSessions,
-  changePassword, verifyPassword, canManageFaculty, canManageProgram, canManageAccounts,
+  changePassword, verifyPassword, canManageFaculty, canManageProgram, canManageAccounts, canEditDraft,
   hashPassword, generateTemporaryPassword, isValidNidn,
   type AdminIdentity,
 } from "./src/lib/auth";
@@ -115,6 +115,11 @@ function blockIfMustChangePassword(c: Context<AppEnv>) {
 
 /** Batas wewenang dalam bahasa yang bisa dipahami pengguna. */
 function scopeMessage(admin: AdminIdentity): string {
+  if (admin.role === "dosen") {
+    // Dosen memang tidak punya wewenang atas master data; menyebut "hanya
+    // berwenang atas prodi X" akan menyesatkan karena kesannya boleh mengubah.
+    return "Peran Dosen tidak mengelola master data. Hubungi Kaprodi atau Admin Fakultas.";
+  }
   if (admin.role === "kaprodi") {
     return `Anda hanya berwenang atas ${admin.studyProgramLabel ?? "program studi Anda"}.`;
   }
@@ -515,7 +520,7 @@ app.post("/api/admin/accounts", requireAdmin, requireSuperAdmin, async (c) => {
   let studyProgramId: number | null = null;
   let scopeLabel = "seluruh universitas";
 
-  if (role === "kaprodi") {
+  if (role === "kaprodi" || role === "dosen") {
     const program = await prisma.studyProgram.findUnique({
       where: { slug: parsed.data.study_program_slug! },
       include: { faculty: { select: { id: true, label: true } } },
@@ -611,10 +616,10 @@ app.put("/api/admin/accounts/:nidn", requireAdmin, requireSuperAdmin, async (c) 
   if (typeof parsed.data.is_active === "boolean") patch.isActive = parsed.data.is_active;
 
   if ("study_program_slug" in parsed.data || "faculty_slug" in parsed.data || parsed.data.role) {
-    if (nextRole === "kaprodi") {
+    if (nextRole === "kaprodi" || nextRole === "dosen") {
       const slug = parsed.data.study_program_slug ?? target.studyProgram?.slug;
       if (!slug) {
-        return c.json({ success: false, error: "validation_error", message: "Kaprodi wajib punya program studi", errors: { study_program_slug: ["Wajib diisi"] } }, 422);
+        return c.json({ success: false, error: "validation_error", message: "Kaprodi dan dosen wajib punya program studi", errors: { study_program_slug: ["Wajib diisi"] } }, 422);
       }
       const program = await prisma.studyProgram.findUnique({ where: { slug } });
       if (!program) return c.json({ success: false, message: "Program studi tidak ditemukan" }, 422);
@@ -1211,25 +1216,158 @@ app.get("/api/rps", async (c) => {
   const q = c.req.query("q") ?? "";
   const page = Math.max(1, Number(c.req.query("page") ?? "1"));
   const per_page = Math.min(50, Math.max(1, Number(c.req.query("per_page") ?? "15")));
-  const where = q ? { OR: [{ courseName: { contains: q } }, { courseCode: { contains: q } }] } : {};
+  const search = q ? { OR: [{ courseName: { contains: q } }, { courseCode: { contains: q } }] } : {};
+
+  // Daftar dibatasi wewenang pembaca supaya "Drafts" hanya memuat dokumen yang
+  // memang bisa ia buka. Tanpa sesi, daftar kosong — dokumen tetap bisa
+  // diunduh lewat tautan langsung, tapi tidak bisa ditelusuri.
+  const admin = await resolveSession(getCookie(c, SESSION_COOKIE));
+  let scope: Record<string, unknown> = { id: -1 };
+  if (admin) {
+    if (admin.role === "super_admin") scope = {};
+    else if (admin.role === "faculty_admin") {
+      scope = { OR: [{ ownerId: admin.id }, { studyProgramRef: { facultyId: admin.facultyId ?? -1 } }] };
+    } else if (admin.role === "kaprodi") {
+      scope = { OR: [{ ownerId: admin.id }, { studyProgramId: admin.studyProgramId ?? -1 }] };
+    } else {
+      scope = { ownerId: admin.id };
+    }
+  }
+  const where = { AND: [search, scope] };
+
   const [total, rows] = await Promise.all([
     prisma.rpsDraft.count({ where }),
-    prisma.rpsDraft.findMany({ where, orderBy: { updatedAt: "desc" }, skip: (page - 1) * per_page, take: per_page }),
+    prisma.rpsDraft.findMany({
+      where, orderBy: { updatedAt: "desc" }, skip: (page - 1) * per_page, take: per_page,
+      include: { owner: { select: { name: true, nidn: true } } },
+    }),
   ]);
-  const data = rows.map((r) => ({ id: r.id, course_name: r.courseName, course_code: r.courseCode, semester: r.semester, status: r.status, updated_at: r.updatedAt }));
-  return c.json({ success: true, data, pagination: { current_page: page, per_page, total, last_page: Math.ceil(total / per_page), from: (page - 1) * per_page + 1, to: Math.min(page * per_page, total) } });
+  const data = rows.map((r) => ({
+    id: r.id, course_name: r.courseName, course_code: r.courseCode, semester: r.semester,
+    status: r.status, updated_at: r.updatedAt,
+    study_program: r.studyProgram,
+    owner_name: r.owner?.name ?? null,
+    owner_nidn: r.owner?.nidn ?? null,
+    is_mine: !!admin && r.ownerId === admin.id,
+  }));
+  return c.json({
+    success: true, data,
+    meta: { signed_in: !!admin, role: admin?.role ?? null },
+    pagination: { current_page: page, per_page, total, last_page: Math.ceil(total / per_page), from: (page - 1) * per_page + 1, to: Math.min(page * per_page, total) },
+  });
 });
 
-app.post("/api/rps", async (c) => {
+/** Alihkan pemilik draft — dipakai untuk data lama dan pergantian pengampu. */
+app.put("/api/rps/:id/owner", requireAdmin, requireSuperAdmin, async (c) => {
+  const blocked = blockIfMustChangePassword(c);
+  if (blocked) return blocked;
+
+  const admin = c.get("admin");
+  const id = Number(c.req.param("id"));
+  const draft = await prisma.rpsDraft.findUnique({ where: { id } });
+  if (!draft) return c.json({ success: false, message: "Not found" }, 404);
+
+  const body = await c.req.json().catch(() => ({})) as { owner_nidn?: string };
+  const nidn = String(body.owner_nidn ?? "").trim();
+  if (!isValidNidn(nidn)) {
+    return c.json({ success: false, error: "validation_error", message: "NIDN pemilik harus 10 digit", errors: { owner_nidn: ["NIDN harus 10 digit"] } }, 422);
+  }
+  const owner = await prisma.adminUser.findUnique({ where: { nidn } });
+  if (!owner) return c.json({ success: false, message: `Akun ${nidn} tidak ditemukan` }, 404);
+  if (!owner.isActive) return c.json({ success: false, message: `Akun ${nidn} tidak aktif` }, 422);
+
+  const previous = draft.ownerId
+    ? await prisma.adminUser.findUnique({ where: { id: draft.ownerId }, select: { nidn: true } })
+    : null;
+  const updated = await prisma.rpsDraft.update({
+    where: { id }, data: { ownerId: owner.id },
+    include: { owner: { select: { name: true, nidn: true } } },
+  });
+
+  await recordAudit({
+    actor: admin, action: "reassign_draft", entity: "rps_draft",
+    entityRef: String(id), entityLabel: `${updated.courseCode} — ${updated.courseName}`, ip: clientIp(c),
+    changes: { owner: { before: previous?.nidn ?? null, after: owner.nidn } },
+  });
+
+  return c.json({
+    success: true,
+    data: { id, owner_name: updated.owner?.name ?? null, owner_nidn: updated.owner?.nidn ?? null },
+    message: `Pemilik ${updated.courseCode} dialihkan ke ${owner.name}.`,
+  });
+});
+
+// ---------------------------------------------------------------------------
+// RPS: kepemilikan & wewenang
+//
+// Membuat dan mengubah RPS memerlukan sesi. Pratinjau dan unduh dibiarkan
+// terbuka: dokumen RPS adalah informasi publik prodi, dan tautan unduhan
+// memang dibagikan ke pihak yang tidak punya akun.
+// ---------------------------------------------------------------------------
+
+/** Muat draft beserta lingkupnya, lalu periksa apakah pemanggil boleh mengubahnya. */
+async function resolveDraftForEdit(c: Context<AppEnv>, id: number) {
+  const admin = c.get("admin");
+  const draft = await prisma.rpsDraft.findUnique({
+    where: { id },
+    include: { studyProgramRef: { select: { id: true, facultyId: true, label: true, value: true } } },
+  });
+  if (!draft) {
+    return { error: c.json({ success: false, message: "Not found" }, 404) };
+  }
+  const allowed = canEditDraft(admin, {
+    ownerId: draft.ownerId,
+    studyProgramId: draft.studyProgramId,
+    facultyId: draft.studyProgramRef?.facultyId ?? null,
+  });
+  if (!allowed) {
+    return {
+      error: c.json({
+        success: false, error: "forbidden",
+        message: draft.ownerId === null
+          ? "Draft ini belum punya pemilik. Minta Super Admin menetapkannya lebih dulu."
+          : "Anda hanya bisa mengubah RPS milik sendiri atau yang berada dalam wewenang Anda.",
+      }, 403),
+    };
+  }
+  return { draft };
+}
+
+app.post("/api/rps", requireAdmin, async (c) => {
   const body = await c.req.json().catch(() => ({}));
   const parsed = rpsCreateSchema.safeParse(body);
   if (!parsed.success) return c.json({ success: false, error: "validation_error", message: "Validation failed", errors: parsed.error.flatten().fieldErrors }, 422);
   const d = parsed.data;
+  const admin = c.get("admin");
+
+  // Prodi dokumen dijadikan relasi supaya wewenang bisa diperiksa lewat id,
+  // bukan pencocokan teks yang rapuh.
+  const programValue = (d as { study_program?: string }).study_program ?? null;
+  const program = programValue
+    ? await prisma.studyProgram.findFirst({ where: { value: programValue } })
+    : null;
+
+  // Dosen dan kaprodi hanya boleh membuat RPS untuk prodinya sendiri; admin
+  // fakultas untuk prodi di fakultasnya. Tanpa ini, siapa pun yang punya akun
+  // bisa menulis dokumen atas nama prodi lain.
+  if (program && !canManageProgram(admin, program) && admin.role !== "super_admin") {
+    const ownProgram = admin.studyProgramId !== null && admin.studyProgramId === program.id;
+    const ownFaculty = admin.facultyId !== null && admin.facultyId === program.facultyId;
+    if (!(ownProgram || (admin.role === "faculty_admin" && ownFaculty) || (admin.role === "dosen" && ownProgram))) {
+      return c.json({
+        success: false, error: "forbidden",
+        message: `Anda tidak berwenang membuat RPS untuk ${program.label}.`,
+      }, 403);
+    }
+  }
+
   const row = await prisma.rpsDraft.create({
     data: {
+      ownerId: admin.id,
+      studyProgramId: program?.id ?? null,
       courseName: d.course_name, courseCode: d.course_code, courseCluster: d.course_cluster ?? null,
       faculty: (d as { faculty?: string }).faculty ?? null,
-      studyProgram: (d as { study_program?: string }).study_program ?? null,
+      studyProgram: programValue,
       sksTotal: d.sks_total, sksTheory: d.sks_theory, sksPractice: d.sks_practice,
       semester: d.semester, preparationDate: new Date(d.preparation_date),
       lecturers: JSON.stringify(d.lecturers), cpl: JSON.stringify([]), cpmk: JSON.stringify([]), subCpmk: JSON.stringify([]),
@@ -1245,10 +1383,30 @@ app.post("/api/rps", async (c) => {
 
 app.get("/api/rps/:id", async (c) => {
   const id = Number(c.req.param("id"));
-  const r = await prisma.rpsDraft.findUnique({ where: { id } });
+  const r = await prisma.rpsDraft.findUnique({
+    where: { id },
+    include: {
+      owner: { select: { name: true, nidn: true } },
+      studyProgramRef: { select: { facultyId: true } },
+    },
+  });
   if (!r) return c.json({ success: false, message: "Not found" }, 404);
+
+  // Detail tetap boleh dibaca tanpa sesi (dokumen RPS informasi publik), tapi
+  // klien perlu tahu apakah pembacanya berhak mengubah supaya tidak menampilkan
+  // tombol simpan yang pasti ditolak server.
+  const viewer = await resolveSession(getCookie(c, SESSION_COOKIE));
+  const canEdit = viewer ? canEditDraft(viewer, {
+    ownerId: r.ownerId,
+    studyProgramId: r.studyProgramId,
+    facultyId: r.studyProgramRef?.facultyId ?? null,
+  }) : false;
+
   const parse = (s: string | null) => { try { return s ? JSON.parse(s) : []; } catch { return []; } };
   return c.json({ success: true, data: {
+    can_edit: canEdit,
+    owner_name: r.owner?.name ?? null,
+    owner_nidn: r.owner?.nidn ?? null,
     id: r.id, course_name: r.courseName, course_code: r.courseCode, course_cluster: r.courseCluster,
     faculty: (r as unknown as { faculty?: string | null }).faculty ?? null,
     study_program: (r as unknown as { studyProgram?: string | null }).studyProgram ?? null,
@@ -1263,17 +1421,24 @@ app.get("/api/rps/:id", async (c) => {
   }});
 });
 
-app.put("/api/rps/:id", async (c) => {
+app.put("/api/rps/:id", requireAdmin, async (c) => {
   const id = Number(c.req.param("id"));
+  const guard = await resolveDraftForEdit(c, id);
+  if ("error" in guard) return guard.error;
   const body = await c.req.json().catch(() => ({})) as Record<string, unknown>;
-  const r = await prisma.rpsDraft.findUnique({ where: { id } });
-  if (!r) return c.json({ success: false, message: "Not found" }, 404);
   const patch: Record<string, unknown> = {};
   if (body.course_name) patch.courseName = body.course_name as string;
   if (body.course_code) patch.courseCode = body.course_code as string;
   if (body.course_cluster !== undefined) patch.courseCluster = body.course_cluster as string;
   if (body.faculty !== undefined) (patch as Record<string, unknown>).faculty = (body.faculty as string) || null;
-  if (body.study_program !== undefined) (patch as Record<string, unknown>).studyProgram = (body.study_program as string) || null;
+  if (body.study_program !== undefined) {
+    const value = (body.study_program as string) || null;
+    (patch as Record<string, unknown>).studyProgram = value;
+    // Relasi ikut disesuaikan; kalau tidak, wewenang atas draft ini akan
+    // dinilai dari prodi lamanya.
+    const program = value ? await prisma.studyProgram.findFirst({ where: { value } }) : null;
+    (patch as Record<string, unknown>).studyProgramId = program?.id ?? null;
+  }
   if (body.sks_total) patch.sksTotal = body.sks_total as number;
   if (body.sks_theory !== undefined) patch.sksTheory = body.sks_theory as number;
   if (body.sks_practice !== undefined) patch.sksPractice = body.sks_practice as number;
@@ -1305,10 +1470,10 @@ app.put("/api/rps/:id", async (c) => {
  * dari prodi lain. Hanya field yang tersedia di bank yang ditimpa; rencana
  * mingguan tidak disentuh karena itu wewenang dosen pengampu.
  */
-app.post("/api/rps/:id/apply-course", async (c) => {
+app.post("/api/rps/:id/apply-course", requireAdmin, async (c) => {
   const id = Number(c.req.param("id"));
-  const draft = await prisma.rpsDraft.findUnique({ where: { id } });
-  if (!draft) return c.json({ success: false, message: "Not found" }, 404);
+  const guard = await resolveDraftForEdit(c, id);
+  if ("error" in guard) return guard.error;
 
   const body = await c.req.json().catch(() => ({})) as { course_id?: number };
   if (!Number.isInteger(body.course_id)) {
@@ -1380,8 +1545,10 @@ app.post("/api/rps/:id/apply-course", async (c) => {
   });
 });
 
-app.delete("/api/rps/:id", async (c) => {
+app.delete("/api/rps/:id", requireAdmin, async (c) => {
   const id = Number(c.req.param("id"));
+  const guard = await resolveDraftForEdit(c, id);
+  if ("error" in guard) return guard.error;
   const r = await prisma.rpsDraft.findUnique({ where: { id } });
   if (!r) return c.json({ success: false, message: "Not found" }, 404);
   await prisma.rpsDraft.delete({ where: { id } });
@@ -1390,7 +1557,7 @@ app.delete("/api/rps/:id", async (c) => {
 
 // AI adaptor stubs + audit
 // Deskripsi MK 3-5 baris — generate otomatis tanpa /rps/:id (dipakai di Buat RPS sebelum draft ada)
-app.post("/api/description/generate", async (c) => {
+app.post("/api/description/generate", requireAdmin, async (c) => {
   const body = await c.req.json().catch(() => ({})) as { course_name?: string; course_code?: string; semester?: string; sks_total?: number; provider?: string; model?: string };
   const courseName = String(body.course_name ?? "").trim();
   const courseCode = String(body.course_code ?? "").trim();
@@ -1457,8 +1624,10 @@ app.post("/api/description/generate", async (c) => {
 });
 
 // Persist + return description untuk existing draft ( dipakai di /rps/:id )
-app.post("/api/rps/:id/description/generate", async (c) => {
+app.post("/api/rps/:id/description/generate", requireAdmin, async (c) => {
   const id = Number(c.req.param("id"));
+  const guard = await resolveDraftForEdit(c, id);
+  if ("error" in guard) return guard.error;
   const draft = await prisma.rpsDraft.findUnique({ where: { id } });
   if (!draft) return c.json({ success: false, message: "Not found" }, 404);
   const body = await c.req.json().catch(() => ({})) as { provider?: string; model?: string; course_name?: string; course_code?: string };
@@ -1525,8 +1694,10 @@ app.post("/api/rps/:id/description/generate", async (c) => {
   }
 });
 
-app.post("/api/rps/:id/ai/generate", async (c) => {
+app.post("/api/rps/:id/ai/generate", requireAdmin, async (c) => {
   const id = Number(c.req.param("id"));
+  const guard = await resolveDraftForEdit(c, id);
+  if ("error" in guard) return guard.error;
   const draft = await prisma.rpsDraft.findUnique({ where: { id } });
   if (!draft) return c.json({ success: false, message: "Not found" }, 404);
   const body = await c.req.json().catch(()=>({})) as { provider?: string; model?: string; promptOverride?: string };
@@ -1645,8 +1816,10 @@ ${body.promptOverride ?? ""}`;
   return c.json({ success: true, data: { ...gen, audit, ai_provider: provider, ai_model: model }, message: "AI generated successfully" });
 });
 
-app.post("/api/rps/:id/generate", async (c) => {
+app.post("/api/rps/:id/generate", requireAdmin, async (c) => {
   const id = Number(c.req.param("id"));
+  const guard = await resolveDraftForEdit(c, id);
+  if ("error" in guard) return guard.error;
   const draft = await prisma.rpsDraft.findUnique({ where: { id } });
   if (!draft) return c.json({ success: false, message: "Not found" }, 404);
   const plans = (()=>{ try{ return JSON.parse(draft.weeklyPlans as string);}catch{ return []; }})();

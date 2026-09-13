@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import { useNavigate } from "@tanstack/react-router";
 import { api } from "@/lib/api";
 import { fetchProgram } from "@/lib/programs";
 import { useFaculties } from "@/lib/useFaculties";
+import { ADMIN_SESSION_KEY, fetchAdminSession } from "@/lib/admin";
+import { useQuery } from "@tanstack/react-query";
 import { Card } from "./ui/Card";
 import { Banner } from "./ui/Banner";
 import { Text } from "@astryxdesign/core/Text";
@@ -63,6 +66,8 @@ export function CreateRpsForm() {
     fetchProgram(slug).then((r) => setProdiMeta(r.data)).catch(() => setProdiMeta(null));
   }, [form.study_program]);
 
+  const session = useQuery({ queryKey: ADMIN_SESSION_KEY, queryFn: fetchAdminSession, retry: false });
+  const identity = session.data ?? null;
   const { facultyOptions, prodisForFaculty } = useFaculties();
   const prodiOptions = useMemo(() => prodisForFaculty(form.faculty).map((p) => ({ value: p.value, label: p.label })), [form.faculty, prodisForFaculty]);
   const sksOk = form.sks_total === form.sks_theory + form.sks_practice;
@@ -92,6 +97,22 @@ export function CreateRpsForm() {
     const nextProdi = prodis[0]?.value ?? form.study_program;
     setForm((prev) => ({ ...prev, faculty: v, study_program: nextProdi }));
   };
+
+  if (session.isLoading) return <Text type="supporting">Memuat sesi…</Text>;
+
+  if (!identity) {
+    return (
+      <Card>
+        <Text weight="semibold">Masuk untuk membuat RPS</Text>
+        <Text type="supporting">
+          Menulis RPS memerlukan akun dosen atau pengelola. Akun dibuat oleh Super Admin.
+        </Text>
+        <div className="mt-3">
+          <Link to="/admin/login" className="text-sm text-accent">Ke halaman masuk →</Link>
+        </div>
+      </Card>
+    );
+  }
 
   return (
     <div className="grid gap-4">

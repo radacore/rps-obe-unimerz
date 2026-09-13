@@ -22,6 +22,10 @@ import type { ISODateString } from "@astryxdesign/core/Calendar";
 
 type Cp = { code: string; description: string };
 type Detail = {
+  /** Diputuskan server; klien hanya memakainya untuk menyembunyikan aksi. */
+  can_edit: boolean;
+  owner_name: string | null;
+  owner_nidn: string | null;
   id: number;
   course_name: string;
   course_code: string;
@@ -200,6 +204,14 @@ function RpsDetail() {
       {msg && <Banner status="success">{msg}</Banner>}
       {err && <Banner status="error">{err}</Banner>}
 
+      {!d.can_edit && (
+        <Banner status="info" title="Mode baca">
+          {d.owner_name
+            ? `RPS ini ditulis ${d.owner_name}. Anda bisa membaca dan mengunduh dokumennya, tetapi tidak mengubahnya.`
+            : "RPS ini belum punya pemilik. Minta Super Admin menetapkannya lebih dulu."}
+        </Banner>
+      )}
+
       {/* Detail — 50/50 split, kanan pratinjau full */}
       <div className="grid gap-4 xl:grid-cols-2 xl:items-start">
         <div className="grid gap-4 min-w-0 xl:max-h-[calc(100vh-2rem)] xl:overflow-y-auto xl:pr-1">
@@ -228,7 +240,7 @@ function RpsDetail() {
                 <div className="flex items-end"><Button label="Hari ini" variant="secondary" size="sm" onClick={() => setIdentDate(isoDate(new Date().toISOString()))} /></div>
               </div>
               <div className="flex gap-2">
-                <Button label={saveIdent.isPending ? "Menyimpan…" : "Simpan"} variant="primary" size="sm" isLoading={saveIdent.isPending} isDisabled={!identSksOk} onClick={() => saveIdent.mutate()} />
+                <Button label={saveIdent.isPending ? "Menyimpan…" : "Simpan"} variant="primary" size="sm" isLoading={saveIdent.isPending} isDisabled={!identSksOk || !d.can_edit} onClick={() => saveIdent.mutate()} />
               </div>
             </div>
           </Card>
@@ -243,13 +255,13 @@ function RpsDetail() {
               onChange={(e) => setDescLive(e.target.value)}
             />
             <div className="mt-2 flex gap-2">
-              <Button label={genDesc.isPending ? "Memuat…" : "Buat otomatis"} variant="secondary" size="sm" isLoading={genDesc.isPending} onClick={() => genDesc.mutate()} />
-              <Button label={saveDesc.isPending ? "Menyimpan…" : "Simpan"} variant="primary" size="sm" isLoading={saveDesc.isPending} onClick={() => saveDesc.mutate(effectiveDescription.trim())} />
-              <Button label="Isi CONTOH 100%" variant="secondary" size="sm" onClick={fillContoh} />
+              <Button label={genDesc.isPending ? "Memuat…" : "Buat otomatis"} variant="secondary" size="sm" isLoading={genDesc.isPending} isDisabled={!d.can_edit} onClick={() => genDesc.mutate()} />
+              <Button label={saveDesc.isPending ? "Menyimpan…" : "Simpan"} variant="primary" size="sm" isLoading={saveDesc.isPending} isDisabled={!d.can_edit} onClick={() => saveDesc.mutate(effectiveDescription.trim())} />
+              <Button label="Isi CONTOH 100%" variant="secondary" size="sm" isDisabled={!d.can_edit} onClick={fillContoh} />
             </div>
           </Card>
 
-          <ApplyCoursePanel
+          {d.can_edit && <ApplyCoursePanel
             draftId={Number(id)}
             studyProgram={identProdi}
             onApplied={() => {
@@ -259,7 +271,7 @@ function RpsDetail() {
               setCplLive(null); setCpmkLive(null); setSubCpmkLive(null);
               setMsg("Draft terisi dari kurikulum prodi.");
             }}
-          />
+          />}
 
           <TemplateEditor
             description={effectiveDescription}
@@ -281,7 +293,7 @@ function RpsDetail() {
             onSave={(next) => saveTemplate.mutate(next)}
           />
 
-          <AiGeneratePanel id={Number(id)} />
+          {d.can_edit && <AiGeneratePanel id={Number(id)} />}
           <WeeklyTable value={d.weekly_plans} onChange={(rows) => setPreviewRows(rows)} onSave={(rows) => saveWeekly.mutate(rows)} />
         </div>
 

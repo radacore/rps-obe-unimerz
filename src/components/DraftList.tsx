@@ -7,8 +7,12 @@ import { Badge } from "./ui/Badge";
 import { Banner } from "./ui/Banner";
 import { Button } from "@astryxdesign/core/Button";
 
-type Row = { id: number; course_name: string; course_code: string; semester: string; status: string; updated_at: string };
+type Row = {
+  id: number; course_name: string; course_code: string; semester: string; status: string; updated_at: string;
+  study_program: string | null; owner_name: string | null; owner_nidn: string | null; is_mine: boolean;
+};
 type Paged = { current_page: number; per_page: number; total: number; last_page: number; from: number; to: number };
+type Meta = { signed_in: boolean; role: string | null };
 
 export function DraftList() {
   const qc = useQueryClient();
@@ -33,6 +37,8 @@ export function DraftList() {
 
   const rows = data?.data ?? [];
   const pagination = (data as unknown as { pagination?: Paged })?.pagination;
+  const meta = (data as unknown as { meta?: Meta })?.meta;
+  const signedIn = meta?.signed_in ?? false;
   const del = useMutation({
     mutationFn: (id: number) => api<{ success: boolean }>(`/api/rps/${id}`, { method: "DELETE" }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["rps"] }),
@@ -56,17 +62,29 @@ export function DraftList() {
         </div>
       </div>
 
-      {rows.length === 0 ? (
+      {!signedIn ? (
+        <Card>
+          <div className="py-8 text-center">
+            <div className="text-sm font-medium">Masuk untuk melihat dan menulis RPS</div>
+            <div className="mx-auto mt-1 max-w-md text-xs leading-relaxed text-secondary">
+              Menulis RPS memerlukan akun dosen yang dibuat pengelola. Dokumen yang sudah terbit
+              tetap bisa diunduh lewat tautannya tanpa login.
+            </div>
+            <div className="mt-3">
+              <Link to="/admin/login" className="text-sm text-accent">Masuk sebagai dosen / pengelola →</Link>
+            </div>
+          </div>
+        </Card>
+      ) : rows.length === 0 ? (
         <Card>
           <div className="py-8 text-center">
             <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-accent-muted text-accent">＋</div>
             <div className="mt-3 text-sm font-medium">Belum ada draft</div>
             <div className="mt-1 text-xs leading-relaxed text-secondary">
-              Buat draft pertama di form di bawah — contoh siap pakai <span className="font-mono">IW21ASK1541 Ilmu Biomedik Dasar (3SKS Teori + 1 Praktik)</span>.
-              <br />
-              Alur demo dosen (2 menit): <span className="font-medium">Buat Draft → Detail → Generate AI 9 baris → Simpan → Audit → Generate DOCX → Download</span>.
+              Buat draft pertama di form di bawah, atau isi otomatis dari bank kurikulum prodi
+              setelah draft dibuka.
             </div>
-            <div className="mt-3 text-xs text-secondary">Tip: atur API Key di Settings dulu bila ingin Generate AI (BYOK OpenAI/Gemini).</div>
+            <div className="mt-3 text-xs text-secondary">Tip: atur API Key di Settings bila ingin memakai Generate AI (BYOK).</div>
           </div>
         </Card>
       ) : (
@@ -76,7 +94,13 @@ export function DraftList() {
               <div className="flex items-center justify-between gap-3">
                 <Link to="/rps/$id" params={{ id: String(r.id) }} className="min-w-0 flex-1 no-underline">
                   <div className="truncate font-medium">{r.course_name} <span className="font-mono text-xs text-secondary">({r.course_code})</span></div>
-                  <div className="text-xs text-secondary">Semester {r.semester} · {new Date(r.updated_at).toLocaleDateString("id-ID")} · ID {r.id}</div>
+                  <div className="text-xs text-secondary">
+                    Semester {r.semester} · {new Date(r.updated_at).toLocaleDateString("id-ID")} · ID {r.id}
+                    {r.study_program ? ` · ${r.study_program}` : ""}
+                  </div>
+                  <div className="mt-0.5 text-xs text-secondary">
+                    {r.is_mine ? "Milik Anda" : r.owner_name ? `Penulis: ${r.owner_name}` : "Belum ada pemilik"}
+                  </div>
                 </Link>
                 <div className="flex shrink-0 items-center gap-2">
                   <Badge variant={r.status === "generated" ? "success" : "default"}>{r.status}</Badge>
