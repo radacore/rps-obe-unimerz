@@ -1562,6 +1562,39 @@ describe("BYOK per akun", () => {
   });
 });
 
+describe("penyusunan isi RPS dengan AI di wizard", () => {
+  const ctx = {
+    course_name: "Basis Data Lanjut", course_code: "IK24IK1305",
+    study_program: "S1 Ilmu Komputer", semester: "IV",
+    sks_theory: 2, sks_practice: 1,
+  };
+
+  test("memerlukan sesi", async () => {
+    expect((await req("/api/rps/ai/draft", { method: "POST", body: JSON.stringify(ctx) })).status).toBe(401);
+  });
+
+  test("menolak konteks yang belum lengkap", async () => {
+    const cookie = sessionCookie(await loginAs(SUPER_NIDN))!;
+    const res = await req("/api/rps/ai/draft", { method: "POST", cookie, body: JSON.stringify({ course_name: "X" }) });
+    expect(res.status).toBe(422);
+    expect((await res.json()).error).toBe("validation_error");
+  });
+
+  test("kegagalan penyedia dijelaskan tanpa membocorkan respons mentah", async () => {
+    // Key palsu: penyedia sungguhan menolak dengan 400 API_KEY_INVALID.
+    const cookie = sessionCookie(await loginAs(SUPER_NIDN))!;
+    const su = await prisma.adminUser.findUniqueOrThrow({ where: { nidn: SUPER_NIDN } });
+    await seedApiKey(su.id);
+    const res = await req("/api/rps/ai/draft", { method: "POST", cookie, body: JSON.stringify(ctx) });
+    expect(res.status).toBe(502);
+    const j = await res.json() as { message: string };
+    // Dosen perlu tahu tindakannya, bukan melihat blok JSON penyedia.
+    expect(j.message).toContain("Settings");
+    expect(j.message).not.toContain("{");
+    expect(j.message).not.toContain("INVALID_ARGUMENT");
+  });
+});
+
 describe("pratinjau wizard tanpa draft", () => {
   const payload = () => ({
     course_name: "Algoritma dan Struktur Data",

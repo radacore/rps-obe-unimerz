@@ -5,7 +5,7 @@ import { getCookie, setCookie, deleteCookie } from "hono/cookie";
 import { Buffer } from "node:buffer";
 import { prisma } from "./src/lib/db";
 import { encrypt, decrypt, keyHint } from "./src/lib/crypto";
-import { rpsCreateSchema, adminLoginSchema, adminChangePasswordSchema, studyProgramUpdateSchema, studyProgramCplSchema, facultyUpdateSchema, accountCreateSchema, accountUpdateSchema, courseCreateSchema, courseUpdateSchema, courseCpmkSchema } from "./src/lib/zod";
+import { rpsCreateSchema, adminLoginSchema, adminChangePasswordSchema, studyProgramUpdateSchema, studyProgramCplSchema, facultyUpdateSchema, accountCreateSchema, accountUpdateSchema, courseCreateSchema, courseUpdateSchema, courseCpmkSchema, aiDraftSchema } from "./src/lib/zod";
 import { auditDraft } from "./src/lib/audit";
 import {
   SESSION_COOKIE, SESSION_TTL_HOURS, LOCKOUT_MINUTES,
@@ -1199,6 +1199,59 @@ app.get("/api/faculties", async (c) => {
  * ada jalur yang membuat satu pengguna memakai kunci milik orang lain. Tidak
  * ada kunci institusi sebagai cadangan — setiap dosen memakai kuncinya sendiri.
  */
+/**
+ * Basis URL penyedia AI.
+ *
+ * Dapat ditimpa lewat environment agar alur AI bisa diuji ujung ke ujung tanpa
+ * memanggil layanan berbayar. Default selalu alamat resmi penyedia, sehingga
+ * lupa menyetel variabel ini tidak mengubah perilaku produksi.
+ */
+const GEMINI_BASE = (process.env.GEMINI_BASE_URL ?? "https://generativelanguage.googleapis.com").replace(/\/$/, "");
+const OPENAI_BASE = (process.env.OPENAI_BASE_URL ?? "https://api.openai.com").replace(/\/$/, "");
+
+/**
+ * Terjemahkan kegagalan penyedia AI menjadi pesan yang bisa ditindaklanjuti.
+ *
+ * Sebelumnya respons mentah penyedia diteruskan apa adanya, sehingga dosen
+ * hanya melihat "Provider error" atau blok JSON Google. Yang ia perlu tahu:
+ * apa yang salah dan apa langkah berikutnya.
+ */
+function providerFailureMessage(provider: string, status: number, raw: string): string {
+  const name = provider === "openai" ? "OpenAI" : provider === "gemini" ? "Gemini" : "Claude";
+  const body = raw.toLowerCase();
+  const settingsHint = "Perbaiki di Settings → API Key.";
+
+  if (status === 400 && (body.includes("api key not valid") || body.includes("api_key_invalid"))) {
+    return `API key ${name} tidak valid — mungkin salah ketik atau sudah dicabut. ${settingsHint}`;
+  }
+  if (status === 401 || status === 403) {
+    return `API key ${name} ditolak (${status}). Pastikan kunci masih aktif dan punya izin memakai model ini. ${settingsHint}`;
+  }
+  if (status === 404) {
+    return `Model yang diminta tidak tersedia untuk akun ${name} Anda. Coba pilih model lain di panel AI.`;
+  }
+  if (status === 429) {
+    return `Kuota ${name} Anda habis atau terlalu banyak permintaan sekaligus. Tunggu beberapa saat, lalu coba lagi.`;
+  }
+  if (status >= 500) {
+    return `Layanan ${name} sedang bermasalah (${status}). Ini di sisi penyedia — coba lagi beberapa saat.`;
+  }
+  if (body.includes("quota") || body.includes("billing")) {
+    return `Tagihan atau kuota ${name} bermasalah. Periksa dasbor ${name} Anda.`;
+  }
+  return `Permintaan ke ${name} gagal (${status}). ${settingsHint}`;
+}
+
+/** Kegagalan jaringan atau exception saat memanggil penyedia. */
+function providerExceptionMessage(provider: string, e: unknown): string {
+  const name = provider === "openai" ? "OpenAI" : provider === "gemini" ? "Gemini" : "Claude";
+  const text = String(e);
+  if (/fetch|network|ENOTFOUND|ECONNREFUSED|timeout/i.test(text)) {
+    return `Tidak bisa menghubungi ${name}. Periksa koneksi internet server, lalu coba lagi.`;
+  }
+  return `Permintaan ke ${name} gagal diproses. Coba lagi; bila terus terjadi, simpan ulang API key di Settings.`;
+}
+
 async function resolveOwnKey(
   c: Context<AppEnv>,
   requested?: string,
@@ -1285,20 +1338,26 @@ app.post("/api/settings/api-keys/test", requireAdmin, async (c) => {
   try { key = decrypt(row.encryptedKey); } catch (e) { return c.json({ success: false, message: "Decrypt failed" }, 500); }
   try {
     if (provider === "openai") {
-      const r = await fetch("https://api.openai.com/v1/models", { headers: { Authorization: `Bearer ${key}` } });
-      if (!r.ok) return c.json({ success: true, data: { valid: false }, message: `Invalid key: ${r.status}` });
+      const r = await fetch(`${OPENAI_BASE}/v1/models`, { headers: { Authorization: `Bearer ${key}` } });
+      if (!r.ok) {
+        const raw = await r.text().catch(() => "");
+        return c.json({ success: true, data: { valid: false }, message: providerFailureMessage(provider, r.status, raw) });
+      }
       const j = await r.json() as { data: { id: string }[] };
       return c.json({ success: true, data: { valid: true, models: j.data?.slice(0, 20).map((m) => m.id) ?? [] } });
     } else if (provider === "gemini") {
-      const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(key)}`);
-      if (!r.ok) return c.json({ success: true, data: { valid: false }, message: `Invalid key: ${r.status}` });
+      const r = await fetch(`${GEMINI_BASE}/v1beta/models?key=${encodeURIComponent(key)}`);
+      if (!r.ok) {
+        const raw = await r.text().catch(() => "");
+        return c.json({ success: true, data: { valid: false }, message: providerFailureMessage(provider, r.status, raw) });
+      }
       const j = await r.json() as { models: { name: string }[] };
       return c.json({ success: true, data: { valid: true, models: (j.models ?? []).map((m) => m.name.split("/").pop()!) } });
     } else {
       return c.json({ success: true, data: { valid: true, models: [] } });
     }
   } catch (e) {
-    return c.json({ success: false, message: "Provider error", error: String(e) }, 502);
+    return c.json({ success: false, message: providerExceptionMessage(provider, e) }, 502);
   }
 });
 
@@ -1686,19 +1745,27 @@ app.post("/api/description/generate", requireAdmin, async (c) => {
   try {
     let description: string | null = null;
     if (provider === "openai") {
-      const r = await fetch("https://api.openai.com/v1/chat/completions", {
+      const r = await fetch(`${OPENAI_BASE}/v1/chat/completions`, {
         method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
         body: JSON.stringify({ model, messages: [{ role: "system", content: "Output JSON only: {\"description\":\"...\"}" }, { role: "user", content: dPrompt }], response_format: { type: "json_object" }, temperature: 0.5 }),
       });
-      if (!r.ok) { const t = await r.text(); return c.json({ success: false, message: `Provider error ${r.status}`, error: t }, 502); }
+      if (!r.ok) {
+        const raw = await r.text().catch(() => "");
+        return c.json({
+          success: false, error: "provider_error",
+          message: providerFailureMessage(provider, r.status, raw),
+          detail: raw.slice(0, 600),
+        }, 502);
+      }
       const j = await r.json() as { choices: { message: { content: string } }[] };
       const parsed = JSON.parse(j.choices[0].message.content) as { description?: string };
       description = parsed.description?.trim() ?? null;
     } else if (provider === "gemini") {
-      let lastErr = ""; let successModel = model;
+      let lastErr = "";
+      let lastStatus = 0; let successModel = model;
       const tryModels = [model, ...GEMINI_FALLBACKS_D.filter((m) => m !== model)];
       for (const tryM of tryModels) {
-        const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(tryM)}:generateContent?key=${encodeURIComponent(apiKey)}`, {
+        const r = await fetch(`${GEMINI_BASE}/v1beta/models/${encodeURIComponent(tryM)}:generateContent?key=${encodeURIComponent(apiKey)}`, {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ contents: [{ parts: [{ text: dPrompt }] }], generationConfig: { responseMimeType: "application/json", temperature: 0.5 } }),
         });
@@ -1713,15 +1780,24 @@ app.post("/api/description/generate", requireAdmin, async (c) => {
           } catch (e) { lastErr = String(e).slice(0, 400); continue; }
         }
         lastErr = await r.text().catch(() => String(r.status));
+        lastStatus = r.status;
         if (r.status === 401 || r.status === 403 || r.status === 429) break;
       }
-      if (!description) return c.json({ success: false, message: `Provider error`, error: lastErr.slice(0, 1500) }, 502);
+      if (!description) {
+        return c.json({
+          success: false, error: "provider_error",
+          message: providerFailureMessage(provider, lastStatus, lastErr),
+          // Rincian mentah tetap disertakan untuk penelusuran, tapi UI
+          // menampilkan `message` — bukan blok JSON penyedia.
+          detail: lastErr.slice(0, 600),
+        }, 502);
+      }
       model = successModel;
     } else return c.json({ success: false, message: "Claude belum tersedia untuk deskripsi" }, 502);
     if (!description || description.length < 20) return c.json({ success: false, message: "AI output terlalu pendek" }, 502);
     return c.json({ success: true, data: { description, provider, model }, message: "Description generated" });
   } catch (e) {
-    return c.json({ success: false, message: "AI generate failed", error: String(e) }, 502);
+    return c.json({ success: false, error: "provider_error", message: providerExceptionMessage(provider, e), detail: String(e).slice(0, 600) }, 502);
   }
 });
 
@@ -1752,18 +1828,26 @@ app.post("/api/rps/:id/description/generate", requireAdmin, async (c) => {
   try {
     let description: string | null = null;
     if (provider === "openai") {
-      const r = await fetch("https://api.openai.com/v1/chat/completions", {
+      const r = await fetch(`${OPENAI_BASE}/v1/chat/completions`, {
         method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
         body: JSON.stringify({ model, messages: [{ role: "system", content: "Output JSON only: {\"description\":\"...\"}" }, { role: "user", content: dPrompt }], response_format: { type: "json_object" }, temperature: 0.5 }),
       });
-      if (!r.ok) { const t = await r.text(); return c.json({ success: false, message: `Provider error ${r.status}`, error: t }, 502); }
+      if (!r.ok) {
+        const raw = await r.text().catch(() => "");
+        return c.json({
+          success: false, error: "provider_error",
+          message: providerFailureMessage(provider, r.status, raw),
+          detail: raw.slice(0, 600),
+        }, 502);
+      }
       const j = await r.json() as { choices: { message: { content: string } }[] };
       description = (JSON.parse(j.choices[0].message.content) as { description?: string }).description?.trim() ?? null;
     } else if (provider === "gemini") {
-      let lastErr = ""; let successModel = model;
+      let lastErr = "";
+      let lastStatus = 0; let successModel = model;
       const tryModels2 = [model, ...GEMINI_FALLBACKS_D2.filter((m) => m !== model)];
       for (const tryM of tryModels2) {
-        const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(tryM)}:generateContent?key=${encodeURIComponent(apiKey)}`, {
+        const r = await fetch(`${GEMINI_BASE}/v1beta/models/${encodeURIComponent(tryM)}:generateContent?key=${encodeURIComponent(apiKey)}`, {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ contents: [{ parts: [{ text: dPrompt }] }], generationConfig: { responseMimeType: "application/json", temperature: 0.5 } }),
         });
@@ -1777,28 +1861,64 @@ app.post("/api/rps/:id/description/generate", requireAdmin, async (c) => {
           } catch (e) { lastErr = String(e).slice(0, 400); continue; }
         }
         lastErr = await r.text().catch(() => String(r.status));
+        lastStatus = r.status;
         if (r.status === 401 || r.status === 403 || r.status === 429) break;
       }
-      if (!description) return c.json({ success: false, message: `Provider error`, error: lastErr.slice(0, 1500) }, 502);
+      if (!description) {
+        return c.json({
+          success: false, error: "provider_error",
+          message: providerFailureMessage(provider, lastStatus, lastErr),
+          // Rincian mentah tetap disertakan untuk penelusuran, tapi UI
+          // menampilkan `message` — bukan blok JSON penyedia.
+          detail: lastErr.slice(0, 600),
+        }, 502);
+      }
       model = successModel;
     } else return c.json({ success: false, message: "Claude belum tersedia untuk deskripsi" }, 502);
     if (!description || description.length < 20) return c.json({ success: false, message: "AI output terlalu pendek" }, 502);
     await prisma.rpsDraft.update({ where: { id }, data: { description } as never });
     return c.json({ success: true, data: { description, provider, model }, message: "Description generated & saved" });
   } catch (e) {
-    return c.json({ success: false, message: "AI generate failed", error: String(e) }, 502);
+    return c.json({ success: false, error: "provider_error", message: providerExceptionMessage(provider, e), detail: String(e).slice(0, 600) }, 502);
   }
 });
 
-app.post("/api/rps/:id/ai/generate", requireAdmin, async (c) => {
-  const id = Number(c.req.param("id"));
-  const guard = await resolveDraftForEdit(c, id);
-  if ("error" in guard) return guard.error;
-  const draft = await prisma.rpsDraft.findUnique({ where: { id } });
-  if (!draft) return c.json({ success: false, message: "Not found" }, 404);
-  const body = await c.req.json().catch(()=>({})) as { provider?: string; model?: string; promptOverride?: string };
+/**
+ * Susun isi RPS dengan AI dari konteks mata kuliah.
+ *
+ * Dipisahkan dari endpoint supaya bisa dipakai dua jalur: menyusun draft yang
+ * sudah ada, dan menyusun isi di dalam wizard sebelum dokumen disimpan.
+ * Mengembalikan hasil mentah generator — pemanggil yang memutuskan disimpan
+ * atau tidak.
+ */
+type AiCourseContext = {
+  course_name: string;
+  course_code: string;
+  semester: string;
+  sks_theory: number;
+  sks_practice: number;
+  study_program: string;
+  description: string;
+};
+
+type AiGenerateOutcome =
+  | { ok: true; gen: AiGeneratedRps; provider: string; model: string; audit: ReturnType<typeof auditDraft> }
+  | { ok: false; response: Response };
+
+type AiGeneratedRps = {
+  cpl?: unknown[]; cpmk?: unknown[]; sub_cpmk?: unknown[];
+  weeklyPlans: { weight: number; is_merged?: boolean }[];
+  bahan_kajian?: unknown[]; pustaka_utama?: unknown[]; pustaka_pendukung?: unknown[];
+  rtmTasks?: unknown[]; rubrics?: unknown;
+};
+
+async function generateRpsWithAi(
+  c: Context<AppEnv>,
+  ctx: AiCourseContext,
+  body: { provider?: string; model?: string; promptOverride?: string },
+): Promise<AiGenerateOutcome> {
   const resolved = await resolveOwnKey(c, body.provider as string | undefined);
-  if ("error" in resolved) return resolved.error;
+  if ("error" in resolved) return { ok: false, response: resolved.error };
   const { provider, apiKey } = resolved;
   const GEMINI_FALLBACKS = ["gemini-3.6-flash", "gemini-3.5-flash", "gemini-3-flash-preview", "gemini-flash-latest"];
   const rawModel = body.model;
@@ -1807,9 +1927,9 @@ app.post("/api/rps/:id/ai/generate", requireAdmin, async (c) => {
   if (provider === "gemini" && /gemini-(1\.5|2\.5)-/.test(model)) {
     model = "gemini-3.6-flash";
   }
-  const descriptionForPrompt = (() => { try { return String((draft as unknown as { description?: string | null }).description ?? "").trim(); } catch { return ""; } })();
+  const descriptionForPrompt = ctx.description.trim();
   // Program context — dipakai agar AI align CPL/CPMK dengan visi/misi/profil prodi dan universitas
-  const studyProgramValue = String((draft as unknown as { studyProgram?: string | null }).studyProgram ?? "").trim();
+  const studyProgramValue = ctx.study_program.trim();
   let programCtx = "";
   let universityCtx = "";
   try {
@@ -1826,9 +1946,10 @@ app.post("/api/rps/:id/ai/generate", requireAdmin, async (c) => {
     if (uni?.vision) universityCtx = `Visi UNIMERZ: ${uni.vision}.`;
   } catch { /* ignore ctx errors */ }
   // Prompt canonical — 1:1 template 8 kolom (tc1-7) untuk fidelity DOCX + bahan kajian & pustaka
-  const prompt = `Kamu generator RPS OBE Universitas Megarezky. Course: ${draft.courseName} (${draft.courseCode}), SKS ${draft.sksTheory}/${draft.sksPractice}, semester ${draft.semester}. ${descriptionForPrompt ? `Deskripsi MK (bahan kajian singkat, R23): ${descriptionForPrompt}` : ""} ${programCtx ? `\nKonteks Prodi (wajib selaras): ${programCtx}` : ""} ${universityCtx ? `\n${universityCtx} Tema: unggul berbasis teknologi.` : ""} 
+  const prompt = `Kamu generator RPS OBE Universitas Megarezky. Course: ${ctx.course_name} (${ctx.course_code}), SKS ${ctx.sks_theory}/${ctx.sks_practice}, semester ${ctx.semester}. ${descriptionForPrompt ? `Deskripsi MK (bahan kajian singkat, R23): ${descriptionForPrompt}` : ""} ${programCtx ? `\nKonteks Prodi (wajib selaras): ${programCtx}` : ""} ${universityCtx ? `\n${universityCtx} Tema: unggul berbasis teknologi.` : ""} 
 Instruksi selaras prodi: CPL/CPMK/Sub-CPMK, bahan kajian, pustaka, dan materi weekly WAJIB menurunkan dari Visi/Misi/Profil Lulusan prodi dan CPL SN-Dikti di atas. Untuk prodi kesehatan tekankan asuhan/patient safety/teknologi tepat guna; untuk keguruan tekankan pedagogik & inovasi pembelajaran; untuk bisnis/teknologi tekankan technopreneurship & sistem cerdas; untuk pascasarjana tekankan riset & manajerial. Jangan ubah label fakultas/prodi.
-Output JSON ketat tanpa markdown: {"cpl":[{"code":"...","description":"..."}], "cpmk":[{"code":"CPMK 1","description":"...","taxonomy":"C2","cpl_code":"CPL1"}], "sub_cpmk":[{"code":"Sub-CPMK-1","description":"...","taxonomy":"C3","cpmk_code":"CPMK 1"}], "weeklyPlans":[{"week":"1","material":"...","method":"TM 1×(4×50\\")","experience":"Kuliah | Diskusi","assessment_criteria":"Rubrik","sub_cpmk":"Mahasiswa mampu menjelaskan tentang ...","indikator":"Ketepatan dalam menjelaskan ... | Keaktifan dalam diskusi","kriteria":"Rubrik penilaian presentasi kelompok (lampiran 1) | ...","daring":"Menyesuaikan perkembangan pandemic COVID-19","luring":"TM 1×(4×50\\") | Kuliah | Diskusi","materi":"Materi pembelajaran ringkas","weight":5,"is_merged":false}], "bahan_kajian":["Topik1","Topik2",...], "pustaka_utama":["Referensi utama 1","..."], "pustaka_pendukung":["Referensi pendukung 1","..."], "rtmTasks":[{"task_no":1,"description":"Mind Map","duration":"4x50'","weight":5,"cpmk_code":"M1"}], "rubrics":{"observation":[],"assessment":[]}}
+${descriptionForPrompt ? "" : `\nSertakan juga "description": deskripsi singkat mata kuliah 2-4 kalimat (minimal 120 karakter) dalam bahasa Indonesia formal.`}
+Output JSON ketat tanpa markdown: {${descriptionForPrompt ? "" : '"description":"...", '}"cpl":[{"code":"...","description":"..."}], "cpmk":[{"code":"CPMK 1","description":"...","taxonomy":"C2","cpl_code":"CPL1"}], "sub_cpmk":[{"code":"Sub-CPMK-1","description":"...","taxonomy":"C3","cpmk_code":"CPMK 1"}], "weeklyPlans":[{"week":"1","material":"...","method":"TM 1×(4×50\\")","experience":"Kuliah | Diskusi","assessment_criteria":"Rubrik","sub_cpmk":"Mahasiswa mampu menjelaskan tentang ...","indikator":"Ketepatan dalam menjelaskan ... | Keaktifan dalam diskusi","kriteria":"Rubrik penilaian presentasi kelompok (lampiran 1) | ...","daring":"Menyesuaikan perkembangan pandemic COVID-19","luring":"TM 1×(4×50\\") | Kuliah | Diskusi","materi":"Materi pembelajaran ringkas","weight":5,"is_merged":false}], "bahan_kajian":["Topik1","Topik2",...], "pustaka_utama":["Referensi utama 1","..."], "pustaka_pendukung":["Referensi pendukung 1","..."], "rtmTasks":[{"task_no":1,"description":"Mind Map","duration":"4x50'","weight":5,"cpmk_code":"M1"}], "rubrics":{"observation":[],"assessment":[]}}
 Aturan: 9 baris weeklyPlans mewakili 16 minggu: R35 1:5, R36 2:5, R37 3,4:10, R38 5,6,7:20, R39 8:UTS merge is_merged true label UJIAN MID SEMESTER weight 0, R40 9,10,11:30, R41 12,13:10, R42 14,15:20, R43 16:UAS merge is_merged true label UJIAN FINAL SEMESTER weight 0. Sum non-merge 100. 
 Setiap weeklyPlans WAJIB isi 8 kolom template 1:1: sub_cpmk (tc1 Sub-CPMK, contoh "Mahasiswa mampu menjelaskan tentang ..."), indikator (tc2 Ketepatan...|Keaktifan...), kriteria (tc3 Kriteria & Bentuk / rubrik), daring (tc4 Daring), luring (tc5 Luring metode + [TM 1x(...) ]), materi (tc6 Materi Pembelajaran), plus week (tc0), weight (tc7). Untuk UTS/UAS hanya week + is_merged true + material label ujian.
 Compat: field legacy material/method/experience/assessment_criteria tetap isi; field baru sub_cpmk/indikator/kriteria/daring/luring/materi adalah verbatim untuk DOCX — jangan duplikat antar kolom.
@@ -1841,20 +1962,28 @@ ${body.promptOverride ?? ""}`;
   let gen: Gen | null = null;
   try {
     if (provider === "openai") {
-      const r = await fetch("https://api.openai.com/v1/chat/completions", {
+      const r = await fetch(`${OPENAI_BASE}/v1/chat/completions`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
         body: JSON.stringify({ model, messages: [{ role: "system", content: "You are RPS OBE generator. Output JSON only." }, { role: "user", content: prompt }], response_format: { type: "json_object" }, temperature: 0.4 }),
       });
-      if (!r.ok) { const t = await r.text(); return c.json({ success: false, message: `Provider error ${r.status}`, error: t }, 502); }
+      if (!r.ok) {
+        const raw = await r.text().catch(() => "");
+        return { ok: false, response: c.json({
+          success: false, error: "provider_error",
+          message: providerFailureMessage(provider, r.status, raw),
+          detail: raw.slice(0, 600),
+        }, 502) };
+      }
       const j = await r.json() as { choices: { message: { content: string } }[] };
       gen = JSON.parse(j.choices[0].message.content);
     } else if (provider === "gemini") {
       let lastErr = "";
+      let lastStatus = 0;
       let successModel = model;
       const tryModels = [model, ...GEMINI_FALLBACKS.filter((m) => m !== model)];
       for (const tryM of tryModels) {
-        const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(tryM)}:generateContent?key=${encodeURIComponent(apiKey)}`, {
+        const r = await fetch(`${GEMINI_BASE}/v1beta/models/${encodeURIComponent(tryM)}:generateContent?key=${encodeURIComponent(apiKey)}`, {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: "application/json", temperature: 0.4 } }),
         });
@@ -1873,28 +2002,55 @@ ${body.promptOverride ?? ""}`;
           }
         }
         lastErr = await r.text().catch(() => String(r.status));
+        lastStatus = r.status;
         // retry on 404 (deprecated) and 503 (high demand); fail fast on 401/403/429
         if (r.status === 401 || r.status === 403 || r.status === 429) break;
         // otherwise continue to next fallback
       }
-      if (!gen) return c.json({ success: false, message: `Provider error 404/503 — model tidak tersedia. Coba lagi atau pilih model lain.`, error: lastErr.slice(0, 1500) }, 502);
+      if (!gen) {
+        return { ok: false, response: c.json({
+          success: false, error: "provider_error",
+          message: providerFailureMessage(provider, lastStatus, lastErr),
+          detail: lastErr.slice(0, 600),
+        }, 502) };
+      }
       // remember which model actually succeeded
       model = successModel;
     } else {
-      return c.json({ success: false, message: "Claude adaptor belum tersedia" }, 502);
+      return { ok: false, response: c.json({ success: false, message: "Adaptor Claude belum tersedia untuk penyusunan RPS." }, 502) };
     }
   } catch (e) {
-    return c.json({ success: false, message: "AI generate failed", error: String(e) }, 502);
+    return { ok: false, response: c.json({ success: false, error: "provider_error", message: providerExceptionMessage(provider, e), detail: String(e).slice(0, 600) }, 502) };
   }
-  if (!gen || !Array.isArray(gen.weeklyPlans)) return c.json({ success: false, message: "AI output invalid" }, 502);
+  if (!gen || !Array.isArray(gen.weeklyPlans)) return { ok: false, response: c.json({ success: false, message: "AI output invalid" }, 502) };
   // Zod-ish validate weight
   const sum = gen.weeklyPlans.filter((p) => !p.is_merged).reduce((s, p) => s + p.weight, 0);
   if (sum !== 100) {
     // retry 1x via model? for now return 422 with audit
     const audit = auditDraft({ weeklyPlans: JSON.stringify(gen.weeklyPlans) });
-    return c.json({ success: false, message: `Weight sum ${sum} ≠ 100, retry`, audit, data: gen }, 422);
+    return { ok: false, response: c.json({ success: false, message: `Weight sum ${sum} ≠ 100, retry`, audit, data: gen }, 422) };
   }
   const audit = auditDraft({ weeklyPlans: JSON.stringify(gen.weeklyPlans) });
+  return { ok: true, gen, provider, model, audit };
+}
+
+/** Susun isi draft yang sudah ada dengan AI, lalu simpan hasilnya. */
+app.post("/api/rps/:id/ai/generate", requireAdmin, async (c) => {
+  const id = Number(c.req.param("id"));
+  const guard = await resolveDraftForEdit(c, id);
+  if ("error" in guard) return guard.error;
+  const draft = await prisma.rpsDraft.findUnique({ where: { id } });
+  if (!draft) return c.json({ success: false, message: "Not found" }, 404);
+  const body = await c.req.json().catch(() => ({})) as { provider?: string; model?: string; promptOverride?: string };
+
+  const out = await generateRpsWithAi(c, {
+    course_name: draft.courseName, course_code: draft.courseCode,
+    semester: draft.semester, sks_theory: draft.sksTheory, sks_practice: draft.sksPractice,
+    study_program: draft.studyProgram ?? "", description: draft.description ?? "",
+  }, body);
+  if (!out.ok) return out.response;
+  const { gen, provider, model, audit } = out;
+
   await prisma.rpsDraft.update({ where: { id }, data: {
     cpl: JSON.stringify(gen.cpl ?? []), cpmk: JSON.stringify(gen.cpmk ?? []), subCpmk: JSON.stringify(gen.sub_cpmk ?? []),
     weeklyPlans: JSON.stringify(gen.weeklyPlans), rtmTasks: JSON.stringify(gen.rtmTasks ?? []), rubrics: JSON.stringify(gen.rubrics ?? {}),
@@ -1904,6 +2060,34 @@ ${body.promptOverride ?? ""}`;
     ...(Array.isArray(gen.pustaka_pendukung) && gen.pustaka_pendukung.length ? { pustakaPendukung: JSON.stringify(gen.pustaka_pendukung) } as never : {}),
   }});
   return c.json({ success: true, data: { ...gen, audit, ai_provider: provider, ai_model: model }, message: "AI generated successfully" });
+});
+
+/**
+ * Susun isi RPS dengan AI di dalam wizard, sebelum draft dibuat.
+ *
+ * Tanpa ini, memilih "bantuan AI" hanya menghasilkan deskripsi sementara
+ * capaian dan rencana mingguan tetap harus diisi tangan — padahal generator
+ * yang sama sudah mampu menyusun semuanya.
+ */
+app.post("/api/rps/ai/draft", requireAdmin, async (c) => {
+  const raw = await c.req.json().catch(() => ({})) as Record<string, unknown>;
+  const parsed = aiDraftSchema.safeParse(raw);
+  if (!parsed.success) {
+    return c.json({ success: false, error: "validation_error", message: "Isi identitas mata kuliah terlebih dahulu.", issues: parsed.error.issues }, 422);
+  }
+  const p = parsed.data;
+  const out = await generateRpsWithAi(c, {
+    course_name: p.course_name, course_code: p.course_code, semester: p.semester,
+    sks_theory: p.sks_theory, sks_practice: p.sks_practice,
+    study_program: p.study_program, description: p.description ?? "",
+  }, { provider: p.provider, model: p.model });
+  if (!out.ok) return out.response;
+  const { gen, provider, model, audit } = out;
+  return c.json({
+    success: true,
+    data: { ...gen, audit, ai_provider: provider, ai_model: model },
+    message: "Isi RPS berhasil disusun dengan AI.",
+  });
 });
 
 app.post("/api/rps/:id/generate", requireAdmin, async (c) => {

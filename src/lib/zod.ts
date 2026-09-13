@@ -273,3 +273,16 @@ export const courseCpmkSchema = z.object({
 
 
 
+
+/** Konteks minimum agar AI bisa menyusun isi RPS di dalam wizard. */
+export const aiDraftSchema = z.object({
+  course_name: z.string().min(3),
+  course_code: z.string().min(2),
+  study_program: z.string().min(2),
+  semester: z.string().min(1),
+  sks_theory: z.number().int().min(0).max(12),
+  sks_practice: z.number().int().min(0).max(12),
+  description: z.string().optional(),
+  provider: z.enum(["openai", "gemini", "claude"]).optional(),
+  model: z.string().optional(),
+}).strict();

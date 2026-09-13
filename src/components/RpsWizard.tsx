@@ -16,6 +16,8 @@ import {
   CANONICAL_WEEKS, STEP_IDS, STEP_LABELS, flattenCurriculumCpmk, incompleteSteps,
   initialFormState, isReadyToPublish, stepIssues, toApiPayload,
   type ContentSource, type CpItem, type LecturerRole, type RpsFormState, type StepId, type WeeklyRow,
+  aiDraftToForm,
+  type AiDraftResult,
 } from "@/lib/rps-wizard";
 import { Badge } from "./ui/Badge";
 import { Banner } from "./ui/Banner";
@@ -392,6 +394,37 @@ function SourceStep({ form, patch }: { form: RpsFormState; patch: (n: Partial<Rp
     setApplied(`${course.code} diterapkan: ${cpmk.length} CPMK, ${sub_cpmk.length} Sub-CPMK.`);
   };
 
+  const identityReady =
+    form.course_name.trim().length >= 3 && form.course_code.trim().length >= 2 && !!form.study_program;
+
+  const [aiError, setAiError] = useState<unknown>(null);
+  const [aiApplied, setAiApplied] = useState<string | null>(null);
+
+  const aiDraft = useMutation({
+    mutationFn: () => api<ApiOk<AiDraftResult>>("/api/rps/ai/draft", {
+      method: "POST",
+      body: JSON.stringify({
+        course_name: form.course_name,
+        course_code: form.course_code,
+        study_program: form.study_program,
+        semester: form.semester,
+        sks_theory: form.sks_theory,
+        sks_practice: form.sks_practice,
+        ...(form.description.trim() ? { description: form.description.trim() } : {}),
+      }),
+    }),
+    onSuccess: (res) => {
+      setAiError(null);
+      const g = res.data;
+      patch(aiDraftToForm(g));
+      setAiApplied(
+        `AI menyusun ${g.cpl?.length ?? 0} CPL, ${g.cpmk?.length ?? 0} CPMK, ${g.sub_cpmk?.length ?? 0} Sub-CPMK, ` +
+        `dan ${g.weeklyPlans?.length ?? 0} baris rencana mingguan. Periksa langkah 3 sampai 5.`,
+      );
+    },
+    onError: (e: unknown) => { setAiApplied(null); setAiError(e); },
+  });
+
   const OPTIONS: { id: ContentSource; title: string; body: string }[] = [
     {
       id: "curriculum",
@@ -467,9 +500,29 @@ function SourceStep({ form, patch }: { form: RpsFormState; patch: (n: Partial<Rp
       )}
 
       {form.source === "ai" && (
-        <Banner status="info">
-          Tombol bantuan AI tersedia di langkah Deskripsi dan Capaian Pembelajaran.
-        </Banner>
+        <div className="grid gap-2 rounded-lg border border-border bg-muted/20 p-3">
+          {!identityReady && (
+            <Banner status="warning">
+              Lengkapi nama, kode, dan program studi di langkah 1 supaya AI punya konteks.
+            </Banner>
+          )}
+          <Text type="supporting">
+            AI menyusun deskripsi, bahan kajian, pustaka, CPL, CPMK, Sub-CPMK, dan rencana 16 minggu
+            sekaligus. Hasilnya draf: periksa dan sunting sebelum diterbitkan.
+          </Text>
+          <div>
+            <Button
+              label={aiDraft.isPending ? "Menyusun isi RPS…" : "Susun isi RPS dengan AI"}
+              variant="secondary"
+              size="sm"
+              isLoading={aiDraft.isPending}
+              isDisabled={!identityReady || aiDraft.isPending}
+              onClick={() => aiDraft.mutate()}
+            />
+          </div>
+          {aiError !== null && <Banner status="error">{errorMessage(aiError)}</Banner>}
+          {aiApplied && <Banner status="success">{aiApplied}</Banner>}
+        </div>
       )}
     </div>
   );

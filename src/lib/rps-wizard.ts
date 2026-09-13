@@ -261,3 +261,67 @@ export function toApiPayload(form: RpsFormState) {
     weekly_plans: form.weekly_plans,
   };
 }
+
+/** Bentuk hasil penyusunan AI yang dipakai wizard. */
+export type AiDraftResult = {
+  description?: string;
+  bahan_kajian?: string[];
+  pustaka_utama?: string[];
+  pustaka_pendukung?: string[];
+  cpl?: { code?: string; description?: string }[];
+  cpmk?: { code?: string; description?: string; taxonomy?: string; cpl_code?: string }[];
+  sub_cpmk?: { code?: string; description?: string; taxonomy?: string; cpmk_code?: string }[];
+  weeklyPlans?: Record<string, unknown>[];
+};
+
+/**
+ * Terjemahkan hasil AI menjadi isian wizard.
+ *
+ * Generator memakai nama medan warisan (`material`, `assessment_criteria`) yang
+ * berbeda dari medan formulir, dan baris ujian tidak boleh menimpa struktur
+ * 16 pertemuan. Keduanya diselaraskan di satu tempat ini.
+ */
+export function aiDraftToForm(g: AiDraftResult): Partial<RpsFormState> {
+  const text = (v: unknown) => (typeof v === "string" ? v.trim() : "");
+  const lines = (v: unknown) => (Array.isArray(v) ? v.map(text).filter(Boolean) : []);
+
+  const next: Partial<RpsFormState> = {};
+  if (text(g.description)) next.description = text(g.description);
+  if (lines(g.bahan_kajian).length) next.bahan_kajian = lines(g.bahan_kajian);
+  if (lines(g.pustaka_utama).length) next.pustaka_utama = lines(g.pustaka_utama);
+  if (lines(g.pustaka_pendukung).length) next.pustaka_pendukung = lines(g.pustaka_pendukung);
+
+  const cp = (rows: { code?: string; description?: string; taxonomy?: string }[] | undefined) =>
+    (rows ?? [])
+      .map((r) => ({ code: text(r.code), description: text(r.description), taxonomy: text(r.taxonomy) }))
+      .filter((r) => r.code || r.description);
+  if (cp(g.cpl).length) next.cpl = cp(g.cpl);
+  if (cp(g.cpmk).length) next.cpmk = cp(g.cpmk);
+  if (cp(g.sub_cpmk).length) next.sub_cpmk = cp(g.sub_cpmk);
+
+  // Baris mingguan dipetakan ke kerangka baku supaya jumlah dan posisi baris
+  // ujian tetap cocok dengan template dokumen.
+  const rows = Array.isArray(g.weeklyPlans) ? g.weeklyPlans : [];
+  if (rows.length) {
+    next.weekly_plans = CANONICAL_WEEKS.map((canon, i) => {
+      const r = rows[i] ?? {};
+      const pick = (...keys: string[]) => {
+        for (const k of keys) { const v = text(r[k]); if (v) return v; }
+        return "";
+      };
+      const weight = typeof r.weight === "number" && Number.isFinite(r.weight) ? r.weight : 0;
+      return {
+        week: canon.week,
+        is_merged: canon.is_merged,
+        weight: canon.is_merged ? 0 : weight,
+        materi: canon.is_merged ? (canon.label ?? "") : pick("materi", "material"),
+        sub_cpmk: canon.is_merged ? "" : pick("sub_cpmk", "subCpmk"),
+        indikator: canon.is_merged ? "" : pick("indikator", "indicator"),
+        kriteria: canon.is_merged ? "" : pick("kriteria", "assessment_criteria", "criteria"),
+        luring: canon.is_merged ? "" : pick("luring", "method", "offline"),
+        daring: canon.is_merged ? "" : pick("daring", "online"),
+      };
+    });
+  }
+  return next;
+}
