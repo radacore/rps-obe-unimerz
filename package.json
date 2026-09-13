@@ -8,7 +8,7 @@
     "dev:api": "bun run server.ts",
     "dev:web": "vite --port 3000",
     "theme:build": "bunx astryx theme build src/lib/theme.ts",
-    "build": "bun run theme:build && tsc -b && vite build",
+    "build": "bun run theme:build && tsc -b && tsc -p tsconfig.server.json && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
     "db:generate": "bunx prisma generate",
@@ -19,7 +19,10 @@
     "docx:dev": "uvicorn docx_service.app:app --host 0.0.0.0 --port 8001 --reload",
     "dev:all": "bun run server.ts & python3 -m uvicorn docx_service.app:app --host 127.0.0.1 --port 8001 --reload & vite --port 3000",
     "preview:api": "bun run server.ts",
-    "docx:test": "python3 -m pytest docx_service/test_generate.py -q"
+    "docx:test": "python3 -m pytest docx_service/test_generate.py -q",
+    "test": "bun test",
+    "test:api": "bun test server.test.ts",
+    "typecheck": "tsc -b && tsc -p tsconfig.server.json"
   },
   "dependencies": {
     "@astryxdesign/core": "^0.5.4",
@@ -40,6 +43,7 @@
   "devDependencies": {
     "@astryxdesign/cli": "^0.5.4",
     "@tailwindcss/vite": "^4.1.0",
+    "@types/bun": "1.4.2",
     "@types/node": "^24.13.3",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.7",

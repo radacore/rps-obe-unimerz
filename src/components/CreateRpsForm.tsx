@@ -3,7 +3,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { api } from "@/lib/api";
 import { fetchProgram } from "@/lib/programs";
-import { FACULTIES, prodisForFaculty } from "@/lib/faculties";
+import { useFaculties } from "@/lib/useFaculties";
 import { Card } from "./ui/Card";
 import { Banner } from "./ui/Banner";
 import { Text } from "@astryxdesign/core/Text";
@@ -22,8 +22,6 @@ const ROLE_OPTIONS = [
   { value: "ketua_prodi", label: "Ketua PRODI" },
   { value: "anggota", label: "Anggota" },
 ];
-
-const FACULTY_OPTIONS = FACULTIES.map((f) => ({ value: f.label, label: f.label }));
 
 // placeholder contoh — S1 Ilmu Komputer (hanya hint, bukan nilai awal)
 const PH = {
@@ -65,7 +63,8 @@ export function CreateRpsForm() {
     fetchProgram(slug).then((r) => setProdiMeta(r.data)).catch(() => setProdiMeta(null));
   }, [form.study_program]);
 
-  const prodiOptions = useMemo(() => prodisForFaculty(form.faculty).map((p) => ({ value: p.value, label: p.label })), [form.faculty]);
+  const { facultyOptions, prodisForFaculty } = useFaculties();
+  const prodiOptions = useMemo(() => prodisForFaculty(form.faculty).map((p) => ({ value: p.value, label: p.label })), [form.faculty, prodisForFaculty]);
   const sksOk = form.sks_total === form.sks_theory + form.sks_practice;
   const hasKoord = form.lecturers.some((l) => l.role === "koordinator_mk");
   const canSubmit = sksOk && hasKoord && form.course_name.trim().length >= 2 && form.course_code.trim().length >= 2;
@@ -107,7 +106,7 @@ export function CreateRpsForm() {
           <div className="grid gap-3 md:grid-cols-2">
             <TextInput label="Nama mata kuliah" value={form.course_name} onChange={(v) => setForm({ ...form, course_name: v })} placeholder={PH.course_name} />
             <TextInput label="Kode mata kuliah" value={form.course_code} onChange={(v) => setForm({ ...form, course_code: v })} placeholder={PH.course_code} />
-            <Selector label="Fakultas" value={form.faculty} onChange={setFaculty} options={FACULTY_OPTIONS} />
+            <Selector label="Fakultas" value={form.faculty} onChange={setFaculty} options={facultyOptions} />
             <Selector label="Program studi" value={form.study_program} onChange={(v) => setForm({ ...form, study_program: v })} options={prodiOptions.length ? prodiOptions : [{ value: form.study_program, label: form.study_program }]} />
           </div>
 

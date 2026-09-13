@@ -1,17 +1,300 @@
 import { Hono } from "hono";
+import type { Context, Next } from "hono";
 import { cors } from "hono/cors";
+import { getCookie, setCookie, deleteCookie } from "hono/cookie";
 import { Buffer } from "node:buffer";
 import { prisma } from "./src/lib/db";
 import { encrypt, decrypt, keyHint } from "./src/lib/crypto";
-import { rpsCreateSchema } from "./src/lib/zod";
+import { rpsCreateSchema, adminLoginSchema, adminChangePasswordSchema, studyProgramUpdateSchema } from "./src/lib/zod";
 import { auditDraft } from "./src/lib/audit";
+import {
+  SESSION_COOKIE, SESSION_TTL_HOURS, LOCKOUT_MINUTES,
+  login as adminLogin, resolveSession, destroySession,
+  changePassword, verifyPassword, canManageFaculty,
+  type AdminIdentity,
+} from "./src/lib/auth";
 
-const app = new Hono();
-app.use("/*", cors());
+type AppEnv = { Variables: { admin: AdminIdentity } };
+const app = new Hono<AppEnv>();
+
+/**
+ * CORS dibatasi allowlist dan mengizinkan credential, karena sesi admin
+ * memakai cookie. Wildcard `*` tidak boleh dikombinasikan dengan
+ * `credentials: true` — browser menolaknya, dan seandainya bisa, situs mana
+ * pun akan dapat memanggil endpoint admin memakai cookie korban.
+ */
+const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS ?? "http://localhost:3000,http://localhost:3001")
+  .split(",").map((s) => s.trim()).filter(Boolean);
+app.use("/*", cors({
+  origin: (origin) => (!origin || ALLOWED_ORIGINS.includes(origin) ? origin ?? ALLOWED_ORIGINS[0] : null),
+  credentials: true,
+  allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowHeaders: ["Content-Type"],
+}));
+
+const isProduction = process.env.NODE_ENV === "production";
+
+// ---------------------------------------------------------------------------
+// Rate limit sederhana in-memory untuk endpoint login.
+// Lockout per-akun saja tidak cukup: penyerang bisa merotasi NIDN untuk
+// menghindarinya. Pembatas per-IP ini menutup celah itu. Cukup untuk deployment
+// satu proses; kalau nanti multi-instance, pindahkan ke store bersama.
+// ---------------------------------------------------------------------------
+const LOGIN_WINDOW_MS = 15 * 60 * 1000;
+const LOGIN_MAX_PER_WINDOW = 20;
+const loginHits = new Map<string, { count: number; resetAt: number }>();
+
+/**
+ * `X-Forwarded-For` hanya dipercaya bila aplikasi memang berada di belakang
+ * reverse proxy (`TRUST_PROXY=true`). Kalau server terekspos langsung,
+ * memercayai header ini berarti siapa pun bisa memalsukannya untuk mendapat
+ * kuota rate limit baru pada setiap request.
+ */
+const TRUST_PROXY = process.env.TRUST_PROXY === "true";
+
+function clientIp(c: Context): string {
+  if (TRUST_PROXY) {
+    const forwarded = c.req.header("x-forwarded-for")?.split(",")[0]?.trim();
+    if (forwarded) return forwarded;
+    const real = c.req.header("x-real-ip")?.trim();
+    if (real) return real;
+  }
+  // Bun menyediakan alamat remote lewat info koneksi server.
+  const conn = c.env as { requestIP?: (req: Request) => { address?: string } | null } | undefined;
+  return conn?.requestIP?.(c.req.raw)?.address ?? "unknown";
+}
+
+function rateLimitLogin(ip: string): { allowed: boolean; retryAfterSeconds: number } {
+  const now = Date.now();
+  const entry = loginHits.get(ip);
+  if (!entry || entry.resetAt <= now) {
+    loginHits.set(ip, { count: 1, resetAt: now + LOGIN_WINDOW_MS });
+    return { allowed: true, retryAfterSeconds: 0 };
+  }
+  entry.count += 1;
+  if (entry.count > LOGIN_MAX_PER_WINDOW) {
+    return { allowed: false, retryAfterSeconds: Math.ceil((entry.resetAt - now) / 1000) };
+  }
+  return { allowed: true, retryAfterSeconds: 0 };
+}
+
+// Bersihkan entri kedaluwarsa agar map tidak tumbuh tanpa batas.
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, entry] of loginHits) if (entry.resetAt <= now) loginHits.delete(ip);
+}, LOGIN_WINDOW_MS).unref?.();
+
+/** Dipakai test: menyetel ulang kuota agar setiap kasus mulai dari kondisi bersih. */
+export function __resetLoginRateLimit() {
+  loginHits.clear();
+}
+
+/** Tolak request tanpa sesi admin yang sah. */
+async function requireAdmin(c: Context<AppEnv>, next: Next) {
+  const identity = await resolveSession(getCookie(c, SESSION_COOKIE));
+  if (!identity) {
+    return c.json({ success: false, error: "unauthorized", message: "Sesi tidak valid atau sudah berakhir. Silakan login." }, 401);
+  }
+  c.set("admin", identity);
+  await next();
+}
+
+/**
+ * Admin yang wajib ganti password hanya boleh mengakses endpoint sesi dan
+ * penggantian password — bukan mutasi master data.
+ */
+function blockIfMustChangePassword(c: Context<AppEnv>) {
+  const admin = c.get("admin");
+  if (admin.mustChangePassword) {
+    return c.json({ success: false, error: "password_change_required", message: "Ganti password dulu sebelum mengelola data." }, 403);
+  }
+  return null;
+}
+
+function setSessionCookie(c: Context, sessionId: string) {
+  setCookie(c, SESSION_COOKIE, sessionId, {
+    httpOnly: true,       // tidak terbaca JavaScript — membatasi dampak XSS
+    sameSite: "Lax",      // menahan CSRF lintas situs untuk request state-changing
+    secure: isProduction, // di dev lewat http://localhost, cookie Secure tidak akan terkirim
+    path: "/",
+    maxAge: SESSION_TTL_HOURS * 60 * 60,
+  });
+}
 
 app.get("/api/health", async (c) => {
   try { await prisma.$queryRaw`SELECT 1`; return c.json({ success: true, data: { db: "ok", version: "2.0-simple" } }); }
   catch (e) { return c.json({ success: false, error: "db_error" }, 500); }
+});
+
+// ---------------------------------------------------------------------------
+// Admin: sesi
+// ---------------------------------------------------------------------------
+app.post("/api/admin/login", async (c) => {
+  const ip = clientIp(c);
+  const limit = rateLimitLogin(ip);
+  if (!limit.allowed) {
+    return c.json({
+      success: false, error: "rate_limited",
+      message: `Terlalu banyak percobaan login. Coba lagi dalam ${Math.ceil(limit.retryAfterSeconds / 60)} menit.`,
+    }, 429, { "Retry-After": String(limit.retryAfterSeconds) });
+  }
+
+  const body = await c.req.json().catch(() => ({}));
+  const parsed = adminLoginSchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json({ success: false, error: "validation_error", message: "Validation failed", errors: parsed.error.flatten().fieldErrors }, 422);
+  }
+
+  const result = await adminLogin(parsed.data.nidn, parsed.data.password, {
+    ip, userAgent: c.req.header("user-agent") ?? null,
+  });
+
+  if (!result.ok) {
+    if (result.failure.kind === "locked") {
+      return c.json({
+        success: false, error: "account_locked",
+        message: `Akun terkunci sementara karena percobaan gagal berulang. Coba lagi dalam ${Math.ceil(result.failure.retryAfterSeconds / 60)} menit.`,
+      }, 423, { "Retry-After": String(result.failure.retryAfterSeconds) });
+    }
+    if (result.failure.kind === "inactive") {
+      return c.json({ success: false, error: "account_inactive", message: "Akun ini sudah dinonaktifkan." }, 403);
+    }
+    // Pesan sengaja tidak membedakan "NIDN tidak terdaftar" dari "password
+    // salah": pembedaan itu memberi penyerang daftar NIDN yang valid.
+    return c.json({
+      success: false, error: "invalid_credentials",
+      message: `NIDN atau password salah. Setelah beberapa percobaan gagal, akun terkunci ${LOCKOUT_MINUTES} menit.`,
+    }, 401);
+  }
+
+  setSessionCookie(c, result.session.id);
+  return c.json({ success: true, data: result.identity, message: `Selamat datang, ${result.identity.name}.` });
+});
+
+app.post("/api/admin/logout", async (c) => {
+  const token = getCookie(c, SESSION_COOKIE);
+  if (token) await destroySession(token);
+  deleteCookie(c, SESSION_COOKIE, { path: "/" });
+  return c.json({ success: true, data: { loggedOut: true } });
+});
+
+app.get("/api/admin/me", async (c) => {
+  const identity = await resolveSession(getCookie(c, SESSION_COOKIE));
+  if (!identity) return c.json({ success: false, error: "unauthorized", message: "Belum login." }, 401);
+  return c.json({ success: true, data: identity });
+});
+
+app.post("/api/admin/change-password", requireAdmin, async (c) => {
+  const admin = c.get("admin");
+  const body = await c.req.json().catch(() => ({}));
+  const parsed = adminChangePasswordSchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json({ success: false, error: "validation_error", message: "Validation failed", errors: parsed.error.flatten().fieldErrors }, 422);
+  }
+  const row = await prisma.adminUser.findUnique({ where: { id: admin.id } });
+  if (!row) return c.json({ success: false, message: "Akun tidak ditemukan" }, 404);
+  if (!(await verifyPassword(parsed.data.current_password, row.passwordHash))) {
+    return c.json({ success: false, error: "invalid_credentials", message: "Password saat ini salah." }, 401);
+  }
+  // Mencabut semua sesi termasuk yang sedang dipakai — pemanggil harus login ulang.
+  await changePassword(admin.id, parsed.data.new_password);
+  deleteCookie(c, SESSION_COOKIE, { path: "/" });
+  return c.json({ success: true, data: { changed: true }, message: "Password diganti. Silakan login ulang." });
+});
+
+// ---------------------------------------------------------------------------
+// Admin: master data prodi
+// ---------------------------------------------------------------------------
+
+/** Prodi yang boleh dikelola admin ini. */
+app.get("/api/admin/programs", requireAdmin, async (c) => {
+  const admin = c.get("admin");
+  const rows = await prisma.studyProgram.findMany({
+    where: admin.role === "super_admin" ? {} : { facultyId: admin.facultyId },
+    orderBy: [{ facultyLabel: "asc" }, { label: "asc" }],
+    include: { faculty: true },
+  });
+  const parse = (s: string) => { try { return JSON.parse(s) as unknown[]; } catch { return []; } };
+  return c.json({
+    success: true,
+    data: rows.map((p) => ({
+      slug: p.slug, label: p.label, value: p.value,
+      faculty_label: p.faculty?.label ?? p.facultyLabel,
+      faculty_slug: p.faculty?.slug ?? p.facultySlug,
+      akreditasi: p.akreditasi, completeness: p.completeness,
+      vision: p.vision,
+      mission: parse(p.mission),
+      objective: parse(p.objective),
+      graduate_profile: parse(p.graduateProfile),
+      cpl: parse(p.cpl),
+      updated_at: p.updatedAt,
+    })),
+  });
+});
+
+app.put("/api/admin/programs/:slug", requireAdmin, async (c) => {
+  const blocked = blockIfMustChangePassword(c);
+  if (blocked) return blocked;
+
+  const admin = c.get("admin");
+  const slug = c.req.param("slug");
+  const program = await prisma.studyProgram.findUnique({ where: { slug } });
+  if (!program) return c.json({ success: false, message: "Program studi tidak ditemukan" }, 404);
+
+  // Otorisasi memakai facultyId, bukan pencocokan label: perbandingan string
+  // rapuh terhadap selisih spasi/kapitalisasi, dan di jalur otorisasi
+  // kerapuhan itu berarti akses yang jebol.
+  if (!canManageFaculty(admin, program.facultyId)) {
+    return c.json({
+      success: false, error: "forbidden",
+      message: `Anda hanya berwenang atas ${admin.facultyLabel ?? "fakultas Anda"}.`,
+    }, 403);
+  }
+
+  const body = await c.req.json().catch(() => ({}));
+  const parsed = studyProgramUpdateSchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json({ success: false, error: "validation_error", message: "Validation failed", errors: parsed.error.flatten().fieldErrors }, 422);
+  }
+
+  const patch: Record<string, unknown> = {};
+  if ("vision" in parsed.data) patch.vision = parsed.data.vision ?? null;
+  if (parsed.data.mission) patch.mission = JSON.stringify(parsed.data.mission);
+  if (parsed.data.objective) patch.objective = JSON.stringify(parsed.data.objective);
+  if (parsed.data.graduate_profile) patch.graduateProfile = JSON.stringify(parsed.data.graduate_profile);
+
+  const updated = await prisma.studyProgram.update({ where: { slug }, data: patch });
+  const parse = (s: string) => { try { return JSON.parse(s) as unknown[]; } catch { return []; } };
+  return c.json({
+    success: true,
+    data: {
+      slug: updated.slug, label: updated.label,
+      vision: updated.vision,
+      mission: parse(updated.mission),
+      objective: parse(updated.objective),
+      graduate_profile: parse(updated.graduateProfile),
+      updated_at: updated.updatedAt,
+    },
+    message: `Profil ${updated.label} tersimpan.`,
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Fakultas (publik, read-only) — dipakai dropdown form RPS supaya daftarnya
+// mengikuti DB, bukan konstanta yang bisa menyimpang.
+// ---------------------------------------------------------------------------
+app.get("/api/faculties", async (c) => {
+  const rows = await prisma.faculty.findMany({
+    orderBy: { id: "asc" },
+    include: { programs: { orderBy: { label: "asc" }, select: { label: true, value: true, slug: true, akreditasi: true } } },
+  });
+  return c.json({
+    success: true,
+    data: rows.map((f) => ({
+      slug: f.slug, label: f.label, href: f.href,
+      programs: f.programs.map((p) => ({ slug: p.slug, label: p.label, value: p.value, akreditasi: p.akreditasi })),
+    })),
+  });
 });
 
 // Settings
@@ -321,7 +604,6 @@ app.post("/api/rps/:id/ai/generate", async (c) => {
   }
   const descriptionForPrompt = (() => { try { return String((draft as unknown as { description?: string | null }).description ?? "").trim(); } catch { return ""; } })();
   // Program context — dipakai agar AI align CPL/CPMK dengan visi/misi/profil prodi dan universitas
-  const facultyLabel = String((draft as unknown as { faculty?: string | null }).faculty ?? "").trim();
   const studyProgramValue = String((draft as unknown as { studyProgram?: string | null }).studyProgram ?? "").trim();
   let programCtx = "";
   let universityCtx = "";
@@ -445,9 +727,12 @@ app.post("/api/rps/:id/generate", async (c) => {
       }
     }
   } catch { /* ignore */ }
+  // Dideklarasikan di luar try: blok catch di bawah memakainya untuk fallback JS.
+  // Sebelumnya keduanya berada di dalam try sehingga jalur fallback selalu gagal
+  // dengan "ReferenceError: faculty is not defined".
+  const faculty = (draft as unknown as { faculty?: string | null }).faculty ?? null;
+  const studyProgram = (draft as unknown as { studyProgram?: string | null }).studyProgram ?? null;
   try {
-    const faculty = (draft as unknown as { faculty?: string | null }).faculty ?? null;
-    const studyProgram = (draft as unknown as { studyProgram?: string | null }).studyProgram ?? null;
     const parseArr = (s: string | null | undefined) => { try { return s ? JSON.parse(s) as unknown[] : []; } catch { return []; } };
     const payload = {
       rps_draft: {
@@ -696,6 +981,10 @@ app.get("/api/programs/:slug", async (c) => {
   }
   return c.json({ success: true, data: toData(r as unknown as typeof r & { cpl: string }) });
 });
+
+// Diekspor agar `server.test.ts` bisa memanggil route lewat `app.request()`
+// tanpa membuka port.
+export { app };
 
 export default {
   port: Number(process.env.PORT ?? 3001),

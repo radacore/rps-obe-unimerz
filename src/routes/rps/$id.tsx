@@ -7,7 +7,7 @@ import { AiGeneratePanel } from "@/components/AiGeneratePanel";
 import { DocxPreview } from "@/components/DocxPreview";
 import { TemplateEditor } from "@/components/TemplateEditor";
 import { CONTOH_BAHAN_KAJIAN, CONTOH_CPL, CONTOH_CPMK, CONTOH_DESCRIPTION, CONTOH_PUSTAKA_PENDUKUNG, CONTOH_PUSTAKA_UTAMA, CONTOH_SUB_CPMK } from "@/lib/contoh";
-import { FACULTIES, prodisForFaculty } from "@/lib/faculties";
+import { useFaculties } from "@/lib/useFaculties";
 import { Card } from "@/components/ui/Card";
 import { Banner } from "@/components/ui/Banner";
 import { Button } from "@astryxdesign/core/Button";
@@ -161,7 +161,8 @@ function RpsDetail() {
     if (!identProdi) { setProdiMeta(null); return; }
     fetchProgram(identProdi).then((r) => setProdiMeta(r.data)).catch(() => setProdiMeta(null));
   }, [identProdi]);
-  const prodiOptions = useMemo(() => prodisForFaculty(identFaculty).map((p) => ({ value: p.value, label: p.label })), [identFaculty]);
+  const { facultyOptions, prodisForFaculty } = useFaculties();
+  const prodiOptions = useMemo(() => prodisForFaculty(identFaculty).map((p) => ({ value: p.value, label: p.label })), [identFaculty, prodisForFaculty]);
   const identSksOk = Number(identSksTotal) === Number(identSksT) + Number(identSksP);
   const saveIdent = useMutation({
     mutationFn: () => api<{ success: boolean }>(`/api/rps/${id}`, {
@@ -180,7 +181,6 @@ function RpsDetail() {
   if (q.isLoading) return <div className="text-sm text-secondary">Memuat…</div>;
   if (!d) return <Banner status="error">RPS tidak ditemukan.</Banner>;
 
-  const facultyOpts = FACULTIES.map((f) => ({ value: f.label, label: f.label }));
 
   return (
     <div className="grid gap-4">
@@ -206,7 +206,7 @@ function RpsDetail() {
             <Text weight="semibold">Identitas</Text>
             <div className="mt-3 grid gap-3">
               <div className="grid gap-3 md:grid-cols-2">
-                <Selector label="Fakultas" value={identFaculty} onChange={(v) => { const prodis = prodisForFaculty(v); setIdentFaculty(v); if (!prodis.some((p) => p.value === identProdi) && prodis[0]) setIdentProdi(prodis[0].value); }} options={facultyOpts} />
+                <Selector label="Fakultas" value={identFaculty} onChange={(v) => { const prodis = prodisForFaculty(v); setIdentFaculty(v); if (!prodis.some((p) => p.value === identProdi) && prodis[0]) setIdentProdi(prodis[0].value); }} options={facultyOptions} />
                 <Selector label="Program studi" value={identProdi} onChange={setIdentProdi} options={prodiOptions.length ? prodiOptions : [{ value: identProdi, label: identProdi }]} />
               </div>
               {prodiMeta?.vision && <Text type="supporting">{prodiMeta.vision}</Text>}

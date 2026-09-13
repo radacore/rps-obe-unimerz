@@ -20,35 +20,101 @@ model ApiKey {
 }
 
 model UniversityProfile {
-  id              Int      @id @default(autoincrement())
-  vision          String?  // "Menjadi Universitas Unggul..."
-  mission         String   @default("[]") // JSON string array
-  tujuan          String   @default("[]") // JSON array
-  sasaran         String?  // optional
-  sejarah         String?  // ringkas
-  sourceUrl       String?  @map("source_url")
-  sourceTimestamp String?  @map("source_timestamp")
+  id              Int       @id @default(autoincrement())
+  vision          String? // "Menjadi Universitas Unggul..."
+  mission         String    @default("[]") // JSON string array
+  tujuan          String    @default("[]") // JSON array
+  sasaran         String? // optional
+  sejarah         String? // ringkas
+  sourceUrl       String?   @map("source_url")
+  sourceTimestamp String?   @map("source_timestamp")
   verifiedAt      DateTime? @map("verified_at")
-  createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @updatedAt @map("updated_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
 
   @@map("university_profile")
+}
+
+model Faculty {
+  id        Int      @id @default(autoincrement())
+  slug      String   @unique // fikom, fkk, propas
+  label     String   @unique // "Fakultas Ilmu Komputer"
+  href      String?
+  vision    String? // diisi lewat panel admin (fase 2)
+  mission   String   @default("[]") // JSON array string
+  objective String   @default("[]") // JSON array string — tujuan
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  programs StudyProgram[]
+  admins   AdminUser[]
+
+  @@map("faculty")
+}
+
+/// Akun pengelola master data OBE.
+/// `nidn` dipakai sebagai identitas login: 10 digit sesuai PDDikti, konsisten
+/// dengan `RpsDraft.lecturers[].nidn`. NUPTK tidak dipakai karena hanya
+/// diterbitkan untuk pendidik dikdasmen, bukan dosen perguruan tinggi.
+model AdminUser {
+  id           Int     @id @default(autoincrement())
+  nidn         String  @unique
+  name         String
+  passwordHash String  @map("password_hash") // argon2id via Bun.password — one-way, JANGAN pakai src/lib/crypto.ts (AES reversible)
+  role         String  @default("faculty_admin") // super_admin|faculty_admin
+  facultyId    Int?    @map("faculty_id") // wajib untuk faculty_admin, null untuk super_admin
+  isActive     Boolean @default(true) @map("is_active")
+
+  // Pengunci brute-force: login endpoint adalah satu-satunya permukaan
+  // yang bisa ditebak berulang, dan aplikasi ini belum punya rate limit global.
+  failedAttempts     Int       @default(0) @map("failed_attempts")
+  lockedUntil        DateTime? @map("locked_until")
+  lastLoginAt        DateTime? @map("last_login_at")
+  mustChangePassword Boolean   @default(false) @map("must_change_password")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  faculty  Faculty?       @relation(fields: [facultyId], references: [id], onDelete: SetNull)
+  sessions AdminSession[]
+
+  @@index([facultyId])
+  @@map("admin_user")
+}
+
+/// Sesi opaque yang disimpan server, bukan JWT: panel admin perlu bisa
+/// mencabut akses (logout paksa, akun dinonaktifkan) sebelum masa berlaku
+/// habis — sesuatu yang tidak bisa dilakukan token stateless.
+model AdminSession {
+  id        String   @id // 32 byte acak, hex
+  userId    Int      @map("user_id")
+  expiresAt DateTime @map("expires_at")
+  ip        String?
+  userAgent String?  @map("user_agent")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user AdminUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("admin_session")
 }
 
 model StudyProgram {
   id              Int      @id @default(autoincrement())
   slug            String   @unique // s1-keperawatan, d3-farmasi
-  facultyLabel    String   @map("faculty_label")
+  facultyId       Int?     @map("faculty_id") // relasi sebenarnya; dipakai untuk scoping wewenang admin
+  facultyLabel    String   @map("faculty_label") // dipertahankan: dibaca generator DOCX & payload RPS
   facultySlug     String   @map("faculty_slug")
-  label           String   // S1 Ilmu Keperawatan
+  label           String // S1 Ilmu Keperawatan
   value           String   @unique // same as label, digunakan di RpsDraft.studyProgram
   akreditasi      String?
   href            String?
-  vision          String?  // text
+  vision          String? // text
   mission         String   @default("[]") // JSON array string
   objective       String   @default("[]") // JSON array / tujuan
   graduateProfile String   @default("[]") // JSON array — profil lulusan
-  curriculum      String?  // JSON string summary / null
+  curriculum      String? // JSON string summary / null
   sourceUrl       String?  @map("source_url")
   sourceTimestamp String?  @map("source_timestamp")
   completeness    String   @default("partial") // verified|partial|missing|lorem
@@ -56,42 +122,45 @@ model StudyProgram {
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 
+  faculty Faculty? @relation(fields: [facultyId], references: [id], onDelete: SetNull)
+
   @@index([facultySlug])
   @@index([facultyLabel])
+  @@index([facultyId])
   @@map("study_program")
 }
 
 model RpsDraft {
-  id              Int      @id @default(autoincrement())
-  courseName      String   @map("course_name")
-  courseCode      String   @map("course_code")
-  courseCluster   String?  @map("course_cluster")
-  faculty         String?  @map("faculty")
-  studyProgram    String?  @map("study_program")
-  sksTotal        Int      @map("sks_total")
-  sksTheory       Int      @map("sks_theory")
-  sksPractice     Int      @map("sks_practice")
-  semester        String
-  preparationDate DateTime @map("preparation_date")
-  lecturers       String   @default("[]") // JSON string
-  description     String?  // Deskripsi MK 3-5 baris — bahan kajian singkat (R23, prompt AI)
-  bahanKajian     String?  @map("bahan_kajian") // JSON array string — R24
-  pustakaUtama    String?  @map("pustaka_utama") // JSON array string — R26
-  pustakaPendukung String? @map("pustaka_pendukung") // JSON array string — R28
-  cpl             String   @default("[]")
-  cpmk            String   @default("[]")
-  subCpmk         String   @default("[]") @map("sub_cpmk")
-  weeklyPlans     String   @default("[]") @map("weekly_plans")
-  rtmTasks        String?  @map("rtm_tasks")
-  rubrics         String?  // {observation:[], assessment:[]}
-  mediaMethods    String   @default("[]") @map("media_methods")
-  aiProvider      String?  @map("ai_provider")
-  aiModel         String?  @map("ai_model")
-  status          String   @default("draft") // draft|generated
-  fileHash        String?  @map("file_hash")
-  storagePath     String?  @map("storage_path")
-  createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @updatedAt @map("updated_at")
+  id               Int      @id @default(autoincrement())
+  courseName       String   @map("course_name")
+  courseCode       String   @map("course_code")
+  courseCluster    String?  @map("course_cluster")
+  faculty          String?  @map("faculty")
+  studyProgram     String?  @map("study_program")
+  sksTotal         Int      @map("sks_total")
+  sksTheory        Int      @map("sks_theory")
+  sksPractice      Int      @map("sks_practice")
+  semester         String
+  preparationDate  DateTime @map("preparation_date")
+  lecturers        String   @default("[]") // JSON string
+  description      String? // Deskripsi MK 3-5 baris — bahan kajian singkat (R23, prompt AI)
+  bahanKajian      String?  @map("bahan_kajian") // JSON array string — R24
+  pustakaUtama     String?  @map("pustaka_utama") // JSON array string — R26
+  pustakaPendukung String?  @map("pustaka_pendukung") // JSON array string — R28
+  cpl              String   @default("[]")
+  cpmk             String   @default("[]")
+  subCpmk          String   @default("[]") @map("sub_cpmk")
+  weeklyPlans      String   @default("[]") @map("weekly_plans")
+  rtmTasks         String?  @map("rtm_tasks")
+  rubrics          String? // {observation:[], assessment:[]}
+  mediaMethods     String   @default("[]") @map("media_methods")
+  aiProvider       String?  @map("ai_provider")
+  aiModel          String?  @map("ai_model")
+  status           String   @default("draft") // draft|generated
+  fileHash         String?  @map("file_hash")
+  storagePath      String?  @map("storage_path")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
 
   @@index([courseCode])
   @@index([updatedAt])

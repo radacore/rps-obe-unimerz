@@ -1,13 +1,28 @@
 import { Link, useRouterState } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
 import { AppShell as AstryxAppShell } from "@astryxdesign/core/AppShell";
 import { TopNav } from "@astryxdesign/core/TopNav";
 import { TopNavItem } from "@astryxdesign/core/TopNav";
 import { TopNavHeading } from "@astryxdesign/core/TopNav";
 import { Text } from "@astryxdesign/core/Text";
+import { fetchAdminMe } from "@/lib/admin";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const isRpsDetail = pathname.startsWith("/rps/");
+
+  // Sesi dipakai hanya untuk memilih tujuan tautan Admin. 401 adalah jawaban
+  // yang sah ("belum login"), jadi jangan diperlakukan sebagai kegagalan.
+  const session = useQuery({
+    queryKey: ["admin-me"],
+    queryFn: fetchAdminMe,
+    retry: false,
+    throwOnError: false,
+    staleTime: 60_000,
+  });
+  const isLoggedIn = !!session.data?.data;
+  const adminHref = isLoggedIn ? "/admin" : "/admin/login";
+
   return (
     <AstryxAppShell
       variant="elevated"
@@ -18,6 +33,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <>
               <TopNavItem label="Drafts" href="/" isSelected={pathname === "/"} as={({ href, children: c, ...p }) => <Link to={href as "/"} {...p}>{c}</Link>} />
               <TopNavItem label="Settings" href="/settings" isSelected={pathname === "/settings"} as={({ href, children: c, ...p }) => <Link to={href as "/settings"} {...p}>{c}</Link>} />
+              <TopNavItem label="Admin" href={adminHref} isSelected={pathname.startsWith("/admin")} as={({ href, children: c, ...p }) => <Link to={href as "/admin"} {...p}>{c}</Link>} />
             </>
           }
         />
@@ -27,7 +43,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <div className="min-w-0 w-full max-w-full">{children}</div>
         <div className="py-8 text-center">
           <Text type="supporting" color="secondary">
-            Universitas Megarezky · 8 Fakultas + Pascasarjana · 30 Prodi (S1/S2/D3/D4/Profesi) · Kop surat dinamis per Fakultas/Prodi · Academic Navy #1E3A5F
+            Universitas Megarezky · 8 Fakultas + Pascasarjana · 37 Prodi (S1/S2/D3/D4/Profesi) · Kop surat dinamis per Fakultas/Prodi · Academic Navy #1E3A5F
           </Text>
         </div>
       </div>

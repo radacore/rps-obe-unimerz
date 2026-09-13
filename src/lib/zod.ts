@@ -46,3 +46,52 @@ export const auditResultSchema = z.object({
   passed: z.boolean(),
   issues: z.array(z.object({ code: z.string(), severity: z.enum(["critical", "warning"]), message: z.string(), field: z.string().optional() })),
 });
+
+// ---------------------------------------------------------------------------
+// Panel admin
+// ---------------------------------------------------------------------------
+
+/** NIDN PDDikti: tepat 10 digit. */
+export const nidnSchema = z.string().trim().regex(/^\d{10}$/, "NIDN harus 10 digit angka");
+
+export const adminLoginSchema = z.object({
+  nidn: nidnSchema,
+  // Panjang minimum tidak divalidasi di sini: aturan kekuatan hanya berlaku
+  // saat MENETAPKAN password. Menolak login karena "terlalu pendek" akan
+  // memberi tahu penyerang bentuk password yang tersimpan.
+  password: z.string().min(1, "Password wajib diisi"),
+});
+
+const strongPassword = z.string()
+  .min(12, "Password minimal 12 karakter")
+  .regex(/[a-z]/, "Harus ada huruf kecil")
+  .regex(/[A-Z]/, "Harus ada huruf besar")
+  .regex(/\d/, "Harus ada angka");
+
+export const adminChangePasswordSchema = z.object({
+  current_password: z.string().min(1, "Password saat ini wajib diisi"),
+  new_password: strongPassword,
+}).refine((d) => d.current_password !== d.new_password, {
+  message: "Password baru harus berbeda dari password saat ini",
+  path: ["new_password"],
+});
+
+/** Baris teks bebas (misi, tujuan, profil lulusan) — dibersihkan & dibatasi. */
+const textLines = z.array(z.string().trim().min(1).max(600)).max(30);
+
+/**
+ * Perubahan profil prodi oleh admin. Semua field opsional supaya panel bisa
+ * menyimpan sebagian, tapi `.strict()` menolak field asing agar tidak ada
+ * kolom lain (mis. `completeness`, `facultyId`) yang bisa ditumpangi lewat
+ * payload yang tidak diharapkan.
+ */
+export const studyProgramUpdateSchema = z.object({
+  vision: z.string().trim().max(2000).nullable().optional(),
+  mission: textLines.optional(),
+  objective: textLines.optional(),
+  graduate_profile: textLines.optional(),
+}).strict().refine(
+  (d) => Object.keys(d).length > 0,
+  { message: "Tidak ada perubahan yang dikirim" },
+);
+
