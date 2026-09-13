@@ -43,7 +43,9 @@ const SCRYPT_P = 1;
 const SCRYPT_KEYLEN = 32;
 const SCRYPT_MAXMEM = 256 * 1024 * 1024;
 
-export type AdminRole = "super_admin" | "faculty_admin";
+export type AdminRole = "super_admin" | "faculty_admin" | "kaprodi";
+
+export const ADMIN_ROLES: AdminRole[] = ["super_admin", "faculty_admin", "kaprodi"];
 
 export type AdminIdentity = {
   id: number;
@@ -53,12 +55,15 @@ export type AdminIdentity = {
   facultyId: number | null;
   facultyLabel: string | null;
   facultySlug: string | null;
+  studyProgramId: number | null;
+  studyProgramLabel: string | null;
+  studyProgramSlug: string | null;
   mustChangePassword: boolean;
 };
 
 /** NIDN PDDikti: tepat 10 digit angka. */
-export function isValidNidn(value: string): boolean {
-  return /^\d{10}$/.test(value.trim());
+export function isValidNidn(value: string | undefined | null): boolean {
+  return /^\d{10}$/.test((value ?? "").trim());
 }
 
 /** Format tersimpan: `scrypt$N$r$p$salt$hash`, salt & hash base64. */
@@ -128,6 +133,42 @@ export async function destroyAllSessions(userId: number): Promise<void> {
   await prisma.adminSession.deleteMany({ where: { userId } });
 }
 
+/** Bentuk baris AdminUser beserta relasi yang dibutuhkan identitas. */
+type AdminUserWithScope = {
+  id: number;
+  nidn: string;
+  name: string;
+  role: string;
+  facultyId: number | null;
+  studyProgramId: number | null;
+  mustChangePassword: boolean;
+  faculty?: { id: number; label: string; slug: string } | null;
+  studyProgram?: { id: number; label: string; slug: string } | null;
+};
+
+/** Satu tempat pemetaan baris DB ke identitas, dipakai login dan resolve sesi. */
+function toIdentity(user: AdminUserWithScope): AdminIdentity {
+  return {
+    id: user.id,
+    nidn: user.nidn,
+    name: user.name,
+    role: user.role as AdminRole,
+    facultyId: user.facultyId,
+    facultyLabel: user.faculty?.label ?? null,
+    facultySlug: user.faculty?.slug ?? null,
+    studyProgramId: user.studyProgramId,
+    studyProgramLabel: user.studyProgram?.label ?? null,
+    studyProgramSlug: user.studyProgram?.slug ?? null,
+    mustChangePassword: user.mustChangePassword,
+  };
+}
+
+/** Relasi yang selalu diikutkan saat memuat akun untuk identitas. */
+const SCOPE_INCLUDE = {
+  faculty: { select: { id: true, label: true, slug: true } },
+  studyProgram: { select: { id: true, label: true, slug: true } },
+} as const;
+
 /**
  * Tukar token sesi jadi identitas. Mengembalikan `null` untuk sesi tidak ada,
  * kedaluwarsa, atau milik akun yang sudah dinonaktifkan — pemeriksaan
@@ -137,7 +178,7 @@ export async function resolveSession(token: string | undefined): Promise<AdminId
   if (!token) return null;
   const session = await prisma.adminSession.findUnique({
     where: { id: token },
-    include: { user: { include: { faculty: true } } },
+    include: { user: { include: SCOPE_INCLUDE } },
   });
   if (!session) return null;
   if (session.expiresAt.getTime() <= Date.now()) {
@@ -146,16 +187,7 @@ export async function resolveSession(token: string | undefined): Promise<AdminId
   }
   const user = session.user;
   if (!user.isActive) return null;
-  return {
-    id: user.id,
-    nidn: user.nidn,
-    name: user.name,
-    role: user.role as AdminRole,
-    facultyId: user.facultyId,
-    facultyLabel: user.faculty?.label ?? null,
-    facultySlug: user.faculty?.slug ?? null,
-    mustChangePassword: user.mustChangePassword,
-  };
+  return toIdentity(user);
 }
 
 /** Hapus sesi kedaluwarsa. Dipanggil oportunistik saat login. */
@@ -228,24 +260,11 @@ export async function login(
   });
   await pruneExpiredSessions();
   const session = await createSession(user.id, meta);
-  const withFaculty = await prisma.adminUser.findUnique({
+  const withScope = await prisma.adminUser.findUniqueOrThrow({
     where: { id: user.id },
-    include: { faculty: true },
+    include: SCOPE_INCLUDE,
   });
-  return {
-    ok: true,
-    session,
-    identity: {
-      id: user.id,
-      nidn: user.nidn,
-      name: user.name,
-      role: user.role as AdminRole,
-      facultyId: user.facultyId,
-      facultyLabel: withFaculty?.faculty?.label ?? null,
-      facultySlug: withFaculty?.faculty?.slug ?? null,
-      mustChangePassword: user.mustChangePassword,
-    },
-  };
+  return { ok: true, session, identity: toIdentity(withScope) };
 }
 
 /**
@@ -256,8 +275,33 @@ export async function login(
  */
 export function canManageFaculty(identity: AdminIdentity, facultyId: number | null): boolean {
   if (identity.role === "super_admin") return true;
+  // Kaprodi tidak berwenang atas profil fakultas, hanya prodinya sendiri.
+  if (identity.role === "kaprodi") return false;
   if (identity.facultyId === null || facultyId === null) return false;
   return identity.facultyId === facultyId;
+}
+
+/**
+ * Apakah admin ini berwenang atas satu program studi.
+ *
+ * Tiga tingkat: super admin semua, admin fakultas seluruh prodi di
+ * fakultasnya, kaprodi hanya prodi yang ditugaskan padanya.
+ */
+export function canManageProgram(
+  identity: AdminIdentity,
+  program: { id: number; facultyId: number | null },
+): boolean {
+  if (identity.role === "super_admin") return true;
+  if (identity.role === "kaprodi") {
+    return identity.studyProgramId !== null && identity.studyProgramId === program.id;
+  }
+  if (identity.facultyId === null || program.facultyId === null) return false;
+  return identity.facultyId === program.facultyId;
+}
+
+/** Hanya super admin yang boleh mengelola akun. */
+export function canManageAccounts(identity: AdminIdentity): boolean {
+  return identity.role === "super_admin";
 }
 
 export async function changePassword(userId: number, newPassword: string): Promise<void> {
@@ -269,4 +313,32 @@ export async function changePassword(userId: number, newPassword: string): Promi
   // Paksa login ulang di semua perangkat: setelah password berganti, sesi lama
   // yang mungkin sudah dikuasai orang lain harus mati.
   await destroyAllSessions(userId);
+}
+
+/**
+ * Password sementara untuk akun baru / reset oleh super admin.
+ *
+ * Ditampilkan sekali kepada super admin lalu tidak pernah bisa dibaca lagi:
+ * yang tersimpan hanya hash-nya. Akun wajib menggantinya saat login pertama.
+ */
+export function generateTemporaryPassword(): string {
+  // Hindari karakter yang mudah tertukar saat dibacakan (0/O, 1/l/I).
+  const upper = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+  const lower = "abcdefghijkmnopqrstuvwxyz";
+  const digits = "23456789";
+  const symbols = "!@#$%*-_";
+  const all = upper + lower + digits + symbols;
+
+  const pick = (chars: string) => chars[randomBytes(1)[0] % chars.length];
+  // Pastikan tiap golongan terwakili supaya lolos aturan kekuatan password.
+  const required = [pick(upper), pick(lower), pick(digits), pick(symbols)];
+  const rest = Array.from({ length: 12 }, () => pick(all));
+  const chars = [...required, ...rest];
+
+  // Fisher–Yates dengan sumber acak kriptografis.
+  for (let i = chars.length - 1; i > 0; i--) {
+    const j = randomBytes(1)[0] % (i + 1);
+    [chars[i], chars[j]] = [chars[j], chars[i]];
+  }
+  return chars.join("");
 }

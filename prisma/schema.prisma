@@ -57,13 +57,15 @@ model Faculty {
 /// dengan `RpsDraft.lecturers[].nidn`. NUPTK tidak dipakai karena hanya
 /// diterbitkan untuk pendidik dikdasmen, bukan dosen perguruan tinggi.
 model AdminUser {
-  id           Int     @id @default(autoincrement())
-  nidn         String  @unique
-  name         String
-  passwordHash String  @map("password_hash") // argon2id via Bun.password — one-way, JANGAN pakai src/lib/crypto.ts (AES reversible)
-  role         String  @default("faculty_admin") // super_admin|faculty_admin
-  facultyId    Int?    @map("faculty_id") // wajib untuk faculty_admin, null untuk super_admin
-  isActive     Boolean @default(true) @map("is_active")
+  id             Int     @id @default(autoincrement())
+  nidn           String  @unique
+  name           String
+  passwordHash   String  @map("password_hash") // argon2id via Bun.password — one-way, JANGAN pakai src/lib/crypto.ts (AES reversible)
+  role           String  @default("faculty_admin") // super_admin|faculty_admin|kaprodi
+  facultyId      Int?    @map("faculty_id") // wajib untuk faculty_admin & kaprodi, null untuk super_admin
+  /// Wajib untuk role kaprodi: membatasi wewenang ke satu program studi saja.
+  studyProgramId Int?    @map("study_program_id")
+  isActive       Boolean @default(true) @map("is_active")
 
   // Pengunci brute-force: login endpoint adalah satu-satunya permukaan
   // yang bisa ditebak berulang, dan aplikasi ini belum punya rate limit global.
@@ -75,11 +77,40 @@ model AdminUser {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  faculty  Faculty?       @relation(fields: [facultyId], references: [id], onDelete: SetNull)
-  sessions AdminSession[]
+  faculty      Faculty?       @relation(fields: [facultyId], references: [id], onDelete: SetNull)
+  studyProgram StudyProgram?  @relation(fields: [studyProgramId], references: [id], onDelete: SetNull)
+  sessions     AdminSession[]
+  auditLogs    AuditLog[]
 
   @@index([facultyId])
+  @@index([studyProgramId])
   @@map("admin_user")
+}
+
+/// Jejak perubahan master data.
+///
+/// Dokumen akreditasi menuntut kejelasan siapa mengubah CPL atau visi kapan.
+/// `actorNidn` dan `actorName` disalin sebagai teks, bukan hanya relasi, supaya
+/// riwayat tetap terbaca setelah akun pelakunya dihapus.
+model AuditLog {
+  id          Int      @id @default(autoincrement())
+  actorId     Int?     @map("actor_id")
+  actorNidn   String   @map("actor_nidn")
+  actorName   String   @map("actor_name")
+  action      String // update_program_profile|update_program_cpl|update_faculty|create_admin|...
+  entity      String // study_program|faculty|admin_user
+  entityRef   String   @map("entity_ref") // slug atau nidn
+  entityLabel String?  @map("entity_label")
+  /// Ringkasan perubahan: { field: { before, after } }. Password tidak pernah masuk.
+  changes     String   @default("{}")
+  ip          String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  actor AdminUser? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([entity, entityRef])
+  @@index([createdAt])
+  @@map("audit_log")
 }
 
 /// Sesi opaque yang disimpan server, bukan JWT: panel admin perlu bisa
@@ -122,7 +153,8 @@ model StudyProgram {
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 
-  faculty Faculty? @relation(fields: [facultyId], references: [id], onDelete: SetNull)
+  faculty Faculty?    @relation(fields: [facultyId], references: [id], onDelete: SetNull)
+  admins  AdminUser[]
 
   @@index([facultySlug])
   @@index([facultyLabel])

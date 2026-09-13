@@ -131,4 +131,52 @@ export const studyProgramCplSchema = z.object({
   { message: "Kode CPL tidak boleh duplikat", path: ["cpl"] },
 );
 
+// ---------------------------------------------------------------------------
+// Manajemen akun (super admin)
+// ---------------------------------------------------------------------------
+
+export const ADMIN_ROLE_VALUES = ["super_admin", "faculty_admin", "kaprodi"] as const;
+
+/**
+ * Pembuatan akun oleh super admin.
+ *
+ * Password tidak ikut: sistem yang membuat password sementara, lalu
+ * menampilkannya sekali. Membiarkan pembuat menentukan password orang lain
+ * berarti ada pihak lain yang tahu kredensial pemilik akun.
+ */
+export const accountCreateSchema = z.object({
+  nidn: nidnSchema,
+  name: z.string().trim().min(3, "Nama minimal 3 karakter").max(150),
+  role: z.enum(ADMIN_ROLE_VALUES),
+  faculty_slug: z.string().trim().min(1).optional(),
+  study_program_slug: z.string().trim().min(1).optional(),
+}).strict()
+  // Lingkup wajib sesuai peran: tanpa aturan ini, "kaprodi" tanpa prodi akan
+  // tersimpan sebagai akun yang tidak berwenang atas apa pun (atau lebih
+  // buruk, jatuh ke pemeriksaan yang salah).
+  .refine((d) => d.role !== "kaprodi" || !!d.study_program_slug, {
+    message: "Kaprodi wajib ditugaskan ke satu program studi",
+    path: ["study_program_slug"],
+  })
+  .refine((d) => d.role !== "faculty_admin" || !!d.faculty_slug, {
+    message: "Admin fakultas wajib ditugaskan ke satu fakultas",
+    path: ["faculty_slug"],
+  })
+  .refine((d) => d.role !== "super_admin" || (!d.faculty_slug && !d.study_program_slug), {
+    message: "Super admin tidak terikat fakultas atau program studi",
+    path: ["role"],
+  });
+
+export const accountUpdateSchema = z.object({
+  name: z.string().trim().min(3).max(150).optional(),
+  role: z.enum(ADMIN_ROLE_VALUES).optional(),
+  faculty_slug: z.string().trim().min(1).nullable().optional(),
+  study_program_slug: z.string().trim().min(1).nullable().optional(),
+  is_active: z.boolean().optional(),
+}).strict().refine(
+  (d) => Object.keys(d).length > 0,
+  { message: "Tidak ada perubahan yang dikirim" },
+);
+
+
 

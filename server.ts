@@ -5,14 +5,16 @@ import { getCookie, setCookie, deleteCookie } from "hono/cookie";
 import { Buffer } from "node:buffer";
 import { prisma } from "./src/lib/db";
 import { encrypt, decrypt, keyHint } from "./src/lib/crypto";
-import { rpsCreateSchema, adminLoginSchema, adminChangePasswordSchema, studyProgramUpdateSchema, studyProgramCplSchema, facultyUpdateSchema } from "./src/lib/zod";
+import { rpsCreateSchema, adminLoginSchema, adminChangePasswordSchema, studyProgramUpdateSchema, studyProgramCplSchema, facultyUpdateSchema, accountCreateSchema, accountUpdateSchema } from "./src/lib/zod";
 import { auditDraft } from "./src/lib/audit";
 import {
   SESSION_COOKIE, SESSION_TTL_HOURS, LOCKOUT_MINUTES,
-  login as adminLogin, resolveSession, destroySession,
-  changePassword, verifyPassword, canManageFaculty,
+  login as adminLogin, resolveSession, destroySession, destroyAllSessions,
+  changePassword, verifyPassword, canManageFaculty, canManageProgram, canManageAccounts,
+  hashPassword, generateTemporaryPassword, isValidNidn,
   type AdminIdentity,
 } from "./src/lib/auth";
+import { recordAudit, diffFields, listAudit } from "./src/lib/audit-log";
 
 type AppEnv = { Variables: { admin: AdminIdentity } };
 const app = new Hono<AppEnv>();
@@ -109,6 +111,26 @@ function blockIfMustChangePassword(c: Context<AppEnv>) {
     return c.json({ success: false, error: "password_change_required", message: "Ganti password dulu sebelum mengelola data." }, 403);
   }
   return null;
+}
+
+/** Batas wewenang dalam bahasa yang bisa dipahami pengguna. */
+function scopeMessage(admin: AdminIdentity): string {
+  if (admin.role === "kaprodi") {
+    return `Anda hanya berwenang atas ${admin.studyProgramLabel ?? "program studi Anda"}.`;
+  }
+  return `Anda hanya berwenang atas ${admin.facultyLabel ?? "fakultas Anda"}.`;
+}
+
+/** Tolak request dari akun yang bukan super admin. */
+async function requireSuperAdmin(c: Context<AppEnv>, next: Next) {
+  const admin = c.get("admin");
+  if (!canManageAccounts(admin)) {
+    return c.json({
+      success: false, error: "forbidden",
+      message: "Hanya Super Admin yang boleh mengelola akun.",
+    }, 403);
+  }
+  await next();
 }
 
 function setSessionCookie(c: Context, sessionId: string) {
@@ -209,8 +231,14 @@ app.post("/api/admin/change-password", requireAdmin, async (c) => {
 /** Prodi yang boleh dikelola admin ini. */
 app.get("/api/admin/programs", requireAdmin, async (c) => {
   const admin = c.get("admin");
+  // Kaprodi hanya melihat prodinya sendiri; admin fakultas seluruh prodi di
+  // fakultasnya; super admin semuanya.
+  const scope =
+    admin.role === "super_admin" ? {}
+    : admin.role === "kaprodi" ? { id: admin.studyProgramId ?? -1 }
+    : { facultyId: admin.facultyId ?? -1 };
   const rows = await prisma.studyProgram.findMany({
-    where: admin.role === "super_admin" ? {} : { facultyId: admin.facultyId },
+    where: scope,
     orderBy: [{ facultyLabel: "asc" }, { label: "asc" }],
     include: { faculty: true },
   });
@@ -241,14 +269,11 @@ app.put("/api/admin/programs/:slug", requireAdmin, async (c) => {
   const program = await prisma.studyProgram.findUnique({ where: { slug } });
   if (!program) return c.json({ success: false, message: "Program studi tidak ditemukan" }, 404);
 
-  // Otorisasi memakai facultyId, bukan pencocokan label: perbandingan string
+  // Otorisasi memakai id relasi, bukan pencocokan label: perbandingan string
   // rapuh terhadap selisih spasi/kapitalisasi, dan di jalur otorisasi
   // kerapuhan itu berarti akses yang jebol.
-  if (!canManageFaculty(admin, program.facultyId)) {
-    return c.json({
-      success: false, error: "forbidden",
-      message: `Anda hanya berwenang atas ${admin.facultyLabel ?? "fakultas Anda"}.`,
-    }, 403);
+  if (!canManageProgram(admin, program)) {
+    return c.json({ success: false, error: "forbidden", message: scopeMessage(admin) }, 403);
   }
 
   const body = await c.req.json().catch(() => ({}));
@@ -265,6 +290,16 @@ app.put("/api/admin/programs/:slug", requireAdmin, async (c) => {
 
   const updated = await prisma.studyProgram.update({ where: { slug }, data: patch });
   const parse = (s: string) => { try { return JSON.parse(s) as unknown[]; } catch { return []; } };
+
+  await recordAudit({
+    actor: admin, action: "update_program_profile", entity: "study_program",
+    entityRef: updated.slug, entityLabel: updated.label, ip: clientIp(c),
+    changes: diffFields(
+      { vision: program.vision, mission: parse(program.mission), objective: parse(program.objective), graduate_profile: parse(program.graduateProfile) },
+      { vision: updated.vision, mission: parse(updated.mission), objective: parse(updated.objective), graduate_profile: parse(updated.graduateProfile) },
+    ),
+  });
+
   return c.json({
     success: true,
     data: {
@@ -292,11 +327,8 @@ app.put("/api/admin/programs/:slug/cpl", requireAdmin, async (c) => {
   const slug = c.req.param("slug");
   const program = await prisma.studyProgram.findUnique({ where: { slug } });
   if (!program) return c.json({ success: false, message: "Program studi tidak ditemukan" }, 404);
-  if (!canManageFaculty(admin, program.facultyId)) {
-    return c.json({
-      success: false, error: "forbidden",
-      message: `Anda hanya berwenang atas ${admin.facultyLabel ?? "fakultas Anda"}.`,
-    }, 403);
+  if (!canManageProgram(admin, program)) {
+    return c.json({ success: false, error: "forbidden", message: scopeMessage(admin) }, 403);
   }
 
   const body = await c.req.json().catch(() => ({}));
@@ -317,6 +349,14 @@ app.put("/api/admin/programs/:slug/cpl", requireAdmin, async (c) => {
     where: { slug },
     data: { cpl: JSON.stringify(normalised) },
   });
+
+  const previousCpl = (() => { try { return JSON.parse(program.cpl) as unknown[]; } catch { return []; } })();
+  await recordAudit({
+    actor: admin, action: "update_program_cpl", entity: "study_program",
+    entityRef: updated.slug, entityLabel: updated.label, ip: clientIp(c),
+    changes: diffFields({ cpl: previousCpl }, { cpl: normalised }),
+  });
+
   return c.json({
     success: true,
     data: { slug: updated.slug, label: updated.label, cpl: normalised, updated_at: updated.updatedAt },
@@ -376,6 +416,16 @@ app.put("/api/admin/faculties/:slug", requireAdmin, async (c) => {
 
   const updated = await prisma.faculty.update({ where: { slug }, data: patch });
   const parse = (s: string) => { try { return JSON.parse(s) as unknown[]; } catch { return []; } };
+
+  await recordAudit({
+    actor: admin, action: "update_faculty_profile", entity: "faculty",
+    entityRef: updated.slug, entityLabel: updated.label, ip: clientIp(c),
+    changes: diffFields(
+      { vision: faculty.vision, mission: parse(faculty.mission), objective: parse(faculty.objective) },
+      { vision: updated.vision, mission: parse(updated.mission), objective: parse(updated.objective) },
+    ),
+  });
+
   return c.json({
     success: true,
     data: {
@@ -387,6 +437,278 @@ app.put("/api/admin/faculties/:slug", requireAdmin, async (c) => {
     },
     message: `Profil ${updated.label} tersimpan.`,
   });
+});
+
+// ---------------------------------------------------------------------------
+// Super admin: manajemen akun (termasuk pembuatan akun kaprodi)
+// ---------------------------------------------------------------------------
+
+/** Bentuk akun untuk panel — tanpa hash password dalam bentuk apa pun. */
+function accountView(row: {
+  id: number; nidn: string; name: string; role: string; isActive: boolean;
+  mustChangePassword: boolean; lastLoginAt: Date | null; lockedUntil: Date | null;
+  createdAt: Date;
+  faculty?: { label: string; slug: string } | null;
+  studyProgram?: { label: string; slug: string } | null;
+}) {
+  return {
+    id: row.id,
+    nidn: row.nidn,
+    name: row.name,
+    role: row.role,
+    faculty_label: row.faculty?.label ?? null,
+    faculty_slug: row.faculty?.slug ?? null,
+    study_program_label: row.studyProgram?.label ?? null,
+    study_program_slug: row.studyProgram?.slug ?? null,
+    is_active: row.isActive,
+    must_change_password: row.mustChangePassword,
+    is_locked: !!row.lockedUntil && row.lockedUntil.getTime() > Date.now(),
+    last_login_at: row.lastLoginAt,
+    created_at: row.createdAt,
+  };
+}
+
+const ACCOUNT_INCLUDE = {
+  faculty: { select: { label: true, slug: true } },
+  studyProgram: { select: { label: true, slug: true } },
+} as const;
+
+app.get("/api/admin/accounts", requireAdmin, requireSuperAdmin, async (c) => {
+  const rows = await prisma.adminUser.findMany({
+    orderBy: [{ role: "asc" }, { name: "asc" }],
+    include: ACCOUNT_INCLUDE,
+  });
+  return c.json({ success: true, data: rows.map(accountView) });
+});
+
+/**
+ * Buat akun baru (kaprodi / admin fakultas / super admin).
+ *
+ * Password sementara dibuat sistem dan hanya dikembalikan sekali di respons
+ * ini; yang tersimpan cuma hash-nya. Super admin menyerahkannya lewat kanal
+ * terpisah, dan pemilik akun wajib menggantinya saat login pertama.
+ */
+app.post("/api/admin/accounts", requireAdmin, requireSuperAdmin, async (c) => {
+  const blocked = blockIfMustChangePassword(c);
+  if (blocked) return blocked;
+
+  const admin = c.get("admin");
+  const body = await c.req.json().catch(() => ({}));
+  const parsed = accountCreateSchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json({ success: false, error: "validation_error", message: "Validation failed", errors: parsed.error.flatten().fieldErrors }, 422);
+  }
+  const { nidn, name, role } = parsed.data;
+
+  if (await prisma.adminUser.findUnique({ where: { nidn } })) {
+    return c.json({
+      success: false, error: "duplicate_nidn",
+      message: `NIDN ${nidn} sudah terdaftar.`,
+      errors: { nidn: ["NIDN sudah terdaftar"] },
+    }, 409);
+  }
+
+  // Lingkup diturunkan dari slug: prodi menentukan fakultasnya sendiri supaya
+  // tidak mungkin ada kaprodi yang terdaftar di fakultas yang bukan induk
+  // prodinya.
+  let facultyId: number | null = null;
+  let studyProgramId: number | null = null;
+  let scopeLabel = "seluruh universitas";
+
+  if (role === "kaprodi") {
+    const program = await prisma.studyProgram.findUnique({
+      where: { slug: parsed.data.study_program_slug! },
+      include: { faculty: { select: { id: true, label: true } } },
+    });
+    if (!program) {
+      return c.json({ success: false, message: "Program studi tidak ditemukan", errors: { study_program_slug: ["Tidak ditemukan"] } }, 422);
+    }
+    studyProgramId = program.id;
+    facultyId = program.facultyId;
+    scopeLabel = `${program.label} (${program.faculty?.label ?? "-"})`;
+  } else if (role === "faculty_admin") {
+    const faculty = await prisma.faculty.findUnique({ where: { slug: parsed.data.faculty_slug! } });
+    if (!faculty) {
+      return c.json({ success: false, message: "Fakultas tidak ditemukan", errors: { faculty_slug: ["Tidak ditemukan"] } }, 422);
+    }
+    facultyId = faculty.id;
+    scopeLabel = faculty.label;
+  }
+
+  const temporaryPassword = generateTemporaryPassword();
+  const created = await prisma.adminUser.create({
+    data: {
+      nidn, name, role, facultyId, studyProgramId,
+      passwordHash: await hashPassword(temporaryPassword),
+      mustChangePassword: true,
+    },
+    include: ACCOUNT_INCLUDE,
+  });
+
+  await recordAudit({
+    actor: admin, action: "create_account", entity: "admin_user",
+    entityRef: created.nidn, entityLabel: created.name, ip: clientIp(c),
+    changes: { role: { before: null, after: role }, scope: { before: null, after: scopeLabel } },
+  });
+
+  return c.json({
+    success: true,
+    data: {
+      account: accountView(created),
+      // Satu-satunya kesempatan membaca password ini.
+      temporary_password: temporaryPassword,
+    },
+    message: `Akun ${created.name} dibuat. Serahkan password sementara ini sekarang — tidak bisa dilihat lagi.`,
+  }, 201);
+});
+
+app.put("/api/admin/accounts/:nidn", requireAdmin, requireSuperAdmin, async (c) => {
+  const blocked = blockIfMustChangePassword(c);
+  if (blocked) return blocked;
+
+  const admin = c.get("admin");
+  const nidn = c.req.param("nidn");
+  const target = await prisma.adminUser.findUnique({ where: { nidn }, include: ACCOUNT_INCLUDE });
+  if (!target) return c.json({ success: false, message: "Akun tidak ditemukan" }, 404);
+
+  const body = await c.req.json().catch(() => ({}));
+  const parsed = accountUpdateSchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json({ success: false, error: "validation_error", message: "Validation failed", errors: parsed.error.flatten().fieldErrors }, 422);
+  }
+
+  // Mencegah super admin mengunci dirinya sendiri: menonaktifkan atau
+  // menurunkan peran akun sendiri bisa menyisakan sistem tanpa siapa pun yang
+  // berwenang membuat akun.
+  if (target.id === admin.id) {
+    if (parsed.data.is_active === false) {
+      return c.json({ success: false, error: "self_lockout", message: "Anda tidak bisa menonaktifkan akun sendiri." }, 422);
+    }
+    if (parsed.data.role && parsed.data.role !== "super_admin") {
+      return c.json({ success: false, error: "self_lockout", message: "Anda tidak bisa menurunkan peran akun sendiri." }, 422);
+    }
+  }
+
+  // Sistem harus selalu punya minimal satu super admin aktif.
+  const losingSuperAdmin = target.role === "super_admin"
+    && ((parsed.data.role && parsed.data.role !== "super_admin") || parsed.data.is_active === false);
+  if (losingSuperAdmin) {
+    const activeSuperAdmins = await prisma.adminUser.count({
+      where: { role: "super_admin", isActive: true, id: { not: target.id } },
+    });
+    if (activeSuperAdmins === 0) {
+      return c.json({
+        success: false, error: "last_super_admin",
+        message: "Ini satu-satunya Super Admin aktif. Buat penggantinya lebih dulu.",
+      }, 422);
+    }
+  }
+
+  const nextRole = parsed.data.role ?? (target.role as "super_admin" | "faculty_admin" | "kaprodi");
+  const patch: Record<string, unknown> = {};
+  if (parsed.data.name) patch.name = parsed.data.name;
+  if (parsed.data.role) patch.role = parsed.data.role;
+  if (typeof parsed.data.is_active === "boolean") patch.isActive = parsed.data.is_active;
+
+  if ("study_program_slug" in parsed.data || "faculty_slug" in parsed.data || parsed.data.role) {
+    if (nextRole === "kaprodi") {
+      const slug = parsed.data.study_program_slug ?? target.studyProgram?.slug;
+      if (!slug) {
+        return c.json({ success: false, error: "validation_error", message: "Kaprodi wajib punya program studi", errors: { study_program_slug: ["Wajib diisi"] } }, 422);
+      }
+      const program = await prisma.studyProgram.findUnique({ where: { slug } });
+      if (!program) return c.json({ success: false, message: "Program studi tidak ditemukan" }, 422);
+      patch.studyProgramId = program.id;
+      patch.facultyId = program.facultyId;
+    } else if (nextRole === "faculty_admin") {
+      const slug = parsed.data.faculty_slug ?? target.faculty?.slug;
+      if (!slug) {
+        return c.json({ success: false, error: "validation_error", message: "Admin fakultas wajib punya fakultas", errors: { faculty_slug: ["Wajib diisi"] } }, 422);
+      }
+      const faculty = await prisma.faculty.findUnique({ where: { slug } });
+      if (!faculty) return c.json({ success: false, message: "Fakultas tidak ditemukan" }, 422);
+      patch.facultyId = faculty.id;
+      patch.studyProgramId = null;
+    } else {
+      patch.facultyId = null;
+      patch.studyProgramId = null;
+    }
+  }
+
+  const updated = await prisma.adminUser.update({ where: { nidn }, data: patch, include: ACCOUNT_INCLUDE });
+
+  // Peran atau lingkup yang berubah harus berlaku seketika, bukan menunggu
+  // sesi lama kedaluwarsa — sesi menyimpan wewenang saat login.
+  const scopeChanged = updated.role !== target.role
+    || updated.facultyId !== target.facultyId
+    || updated.studyProgramId !== target.studyProgramId
+    || updated.isActive !== target.isActive;
+  if (scopeChanged) await destroyAllSessions(updated.id);
+
+  await recordAudit({
+    actor: admin, action: parsed.data.is_active === false ? "deactivate_account" : "update_account",
+    entity: "admin_user", entityRef: updated.nidn, entityLabel: updated.name, ip: clientIp(c),
+    changes: diffFields(
+      { name: target.name, role: target.role, is_active: target.isActive, faculty: target.faculty?.slug ?? null, study_program: target.studyProgram?.slug ?? null },
+      { name: updated.name, role: updated.role, is_active: updated.isActive, faculty: updated.faculty?.slug ?? null, study_program: updated.studyProgram?.slug ?? null },
+    ),
+  });
+
+  return c.json({
+    success: true,
+    data: accountView(updated),
+    message: scopeChanged
+      ? `Akun ${updated.name} diperbarui. Sesi aktifnya diakhiri agar wewenang baru langsung berlaku.`
+      : `Akun ${updated.name} diperbarui.`,
+  });
+});
+
+/** Reset password: terbitkan password sementara baru dan cabut semua sesi. */
+app.post("/api/admin/accounts/:nidn/reset-password", requireAdmin, requireSuperAdmin, async (c) => {
+  const blocked = blockIfMustChangePassword(c);
+  if (blocked) return blocked;
+
+  const admin = c.get("admin");
+  const nidn = c.req.param("nidn");
+  if (!isValidNidn(nidn)) return c.json({ success: false, message: "NIDN tidak valid" }, 422);
+
+  const target = await prisma.adminUser.findUnique({ where: { nidn } });
+  if (!target) return c.json({ success: false, message: "Akun tidak ditemukan" }, 404);
+
+  const temporaryPassword = generateTemporaryPassword();
+  await prisma.adminUser.update({
+    where: { nidn },
+    data: {
+      passwordHash: await hashPassword(temporaryPassword),
+      mustChangePassword: true,
+      failedAttempts: 0,
+      lockedUntil: null,
+    },
+  });
+  await destroyAllSessions(target.id);
+
+  await recordAudit({
+    actor: admin, action: "reset_password", entity: "admin_user",
+    entityRef: target.nidn, entityLabel: target.name, ip: clientIp(c),
+    // Password apa pun, lama maupun baru, tidak pernah masuk jejak audit.
+    changes: { password: { before: "(dirahasiakan)", after: "(direset)" } },
+  });
+
+  return c.json({
+    success: true,
+    data: { nidn: target.nidn, name: target.name, temporary_password: temporaryPassword },
+    message: `Password ${target.name} direset. Serahkan sekarang — tidak bisa dilihat lagi.`,
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Riwayat perubahan (audit)
+// ---------------------------------------------------------------------------
+app.get("/api/admin/audit", requireAdmin, async (c) => {
+  const admin = c.get("admin");
+  const limit = Number(c.req.query("limit") ?? 50);
+  const entries = await listAudit(admin, Number.isFinite(limit) ? limit : 50);
+  return c.json({ success: true, data: entries });
 });
 
 // ---------------------------------------------------------------------------

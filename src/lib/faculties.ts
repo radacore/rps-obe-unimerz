@@ -3,7 +3,8 @@
  * Sumber: input user 2026-09-10 — 8 fakultas (termasuk Pascasarjana) + 30 prodi S1/D3/D4/Profesi + 7 S2
  * Kop surat DOCX dinamis per fakultas/prodi (Cover P20/P21, kop R00, R03/R04).
  */
-export type Prodi = { label: string; value: string; akreditasi?: string };
+/** `slug` hanya ada bila data berasal dari API; konstanta cadangan tidak memuatnya. */
+export type Prodi = { label: string; value: string; akreditasi?: string | null; slug?: string };
 export type Fakultas = { slug: string; label: string; href: string; prodis: Prodi[] };
 
 export const FACULTIES: Fakultas[] = [

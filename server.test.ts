@@ -47,6 +47,14 @@ function loginAs(nidn: string, password = PASSWORD) {
   return req("/api/admin/login", { method: "POST", body: JSON.stringify({ nidn, password }) });
 }
 
+/** Setel ulang password akun ke PASSWORD uji tanpa mengubah peran/lingkupnya. */
+async function seedUserPassword(nidn: string) {
+  await prisma.adminUser.update({
+    where: { nidn },
+    data: { passwordHash: await hashPassword(PASSWORD), failedAttempts: 0, lockedUntil: null },
+  });
+}
+
 async function seedUser(nidn: string, role: string, facultyId: number | null, opts?: { isActive?: boolean }) {
   const passwordHash = await hashPassword(PASSWORD);
   await prisma.adminUser.upsert({
@@ -78,7 +86,10 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  const nidns = [SUPER_NIDN, FIKOM_NIDN, OTHER_NIDN, INACTIVE_NIDN];
+  const nidns = [SUPER_NIDN, FIKOM_NIDN, OTHER_NIDN, INACTIVE_NIDN, "9000000005", "9000000006", "9000000007", "9000000008"];
+  // Jejak audit dari akun uji dibuang agar riwayat produksi tidak tercemar.
+  await prisma.auditLog.deleteMany({ where: { actorNidn: { in: nidns } } });
+  await prisma.auditLog.deleteMany({ where: { entityRef: { in: nidns } } });
   await prisma.adminSession.deleteMany({ where: { user: { nidn: { in: nidns } } } });
   await prisma.adminUser.deleteMany({ where: { nidn: { in: nidns } } });
   await prisma.$disconnect();
@@ -530,6 +541,265 @@ describe("CPL program studi", () => {
   });
 });
 
+describe("akun kaprodi (dibuat super admin)", () => {
+  const KAPRODI_NIDN = "9000000005";
+
+  async function createKaprodi(cookie: string, programSlug: string) {
+    return req("/api/admin/accounts", {
+      method: "POST", cookie,
+      body: JSON.stringify({
+        nidn: KAPRODI_NIDN, name: "Kaprodi Uji", role: "kaprodi", study_program_slug: programSlug,
+      }),
+    });
+  }
+
+  test("super admin membuat akun kaprodi; fakultas terisi dari prodinya", async () => {
+    const cookie = sessionCookie(await loginAs(SUPER_NIDN))!;
+    await prisma.adminUser.deleteMany({ where: { nidn: KAPRODI_NIDN } });
+
+    const res = await createKaprodi(cookie, fikomSlug);
+    expect(res.status).toBe(201);
+    const body = await res.json();
+    expect(body.data.account.role).toBe("kaprodi");
+    expect(body.data.account.study_program_slug).toBe(fikomSlug);
+    // Fakultas tidak dikirim pemanggil — diturunkan dari prodi supaya tidak
+    // mungkin ada kaprodi yang terdaftar di fakultas bukan induk prodinya.
+    expect(body.data.account.faculty_slug).toBe("fikom");
+    expect(body.data.account.must_change_password).toBe(true);
+    expect(body.data.temporary_password).toHaveLength(16);
+
+    // Yang tersimpan hanya hash, bukan password itu sendiri.
+    const row = await prisma.adminUser.findUnique({ where: { nidn: KAPRODI_NIDN } });
+    expect(row!.passwordHash).not.toContain(body.data.temporary_password);
+    expect(row!.passwordHash.startsWith("scrypt$")).toBe(true);
+  });
+
+  test("password sementara bisa dipakai login dan wajib diganti sebelum mengubah data", async () => {
+    const superCookie = sessionCookie(await loginAs(SUPER_NIDN))!;
+    await prisma.adminUser.deleteMany({ where: { nidn: KAPRODI_NIDN } });
+    const created = await (await createKaprodi(superCookie, fikomSlug)).json();
+    const tempPassword = created.data.temporary_password;
+
+    const loginRes = await loginAs(KAPRODI_NIDN, tempPassword);
+    expect(loginRes.status).toBe(200);
+    const cookie = sessionCookie(loginRes)!;
+
+    const blocked = await req(`/api/admin/programs/${fikomSlug}`, {
+      method: "PUT", cookie, body: JSON.stringify({ vision: "belum ganti" }),
+    });
+    expect(blocked.status).toBe(403);
+    expect((await blocked.json()).error).toBe("password_change_required");
+  });
+
+  test("kaprodi hanya melihat dan mengubah prodinya sendiri", async () => {
+    const superCookie = sessionCookie(await loginAs(SUPER_NIDN))!;
+    await prisma.adminUser.deleteMany({ where: { nidn: KAPRODI_NIDN } });
+    await (await createKaprodi(superCookie, fikomSlug)).json();
+    // Lewati gerbang ganti password supaya yang diuji adalah scoping-nya.
+    await prisma.adminUser.update({ where: { nidn: KAPRODI_NIDN }, data: { mustChangePassword: false } });
+    await seedUserPassword(KAPRODI_NIDN);
+    const cookie = sessionCookie(await loginAs(KAPRODI_NIDN))!;
+
+    const list = await (await req("/api/admin/programs", { cookie })).json();
+    expect(list.data).toHaveLength(1);
+    expect(list.data[0].slug).toBe(fikomSlug);
+
+    const own = await req(`/api/admin/programs/${fikomSlug}`, {
+      method: "PUT", cookie, body: JSON.stringify({ vision: "Visi oleh kaprodi" }),
+    });
+    expect(own.status).toBe(200);
+  });
+
+  test("kaprodi TIDAK bisa mengubah prodi lain di fakultas yang sama", async () => {
+    const superCookie = sessionCookie(await loginAs(SUPER_NIDN))!;
+    const sibling = await prisma.studyProgram.findFirst({
+      where: { facultySlug: "fikom", slug: { not: fikomSlug } },
+    });
+    expect(sibling).not.toBeNull();
+
+    await prisma.adminUser.deleteMany({ where: { nidn: KAPRODI_NIDN } });
+    await (await createKaprodi(superCookie, fikomSlug)).json();
+    await prisma.adminUser.update({ where: { nidn: KAPRODI_NIDN }, data: { mustChangePassword: false } });
+    await seedUserPassword(KAPRODI_NIDN);
+    const cookie = sessionCookie(await loginAs(KAPRODI_NIDN))!;
+
+    const before = sibling!;
+    const res = await req(`/api/admin/programs/${before.slug}`, {
+      method: "PUT", cookie, body: JSON.stringify({ vision: "lintas prodi" }),
+    });
+    expect(res.status).toBe(403);
+    const after = await prisma.studyProgram.findUnique({ where: { slug: before.slug } });
+    expect(after!.vision).toBe(before.vision);
+  });
+
+  test("kaprodi tidak berwenang atas profil fakultas maupun manajemen akun", async () => {
+    const superCookie = sessionCookie(await loginAs(SUPER_NIDN))!;
+    await prisma.adminUser.deleteMany({ where: { nidn: KAPRODI_NIDN } });
+    await (await createKaprodi(superCookie, fikomSlug)).json();
+    await prisma.adminUser.update({ where: { nidn: KAPRODI_NIDN }, data: { mustChangePassword: false } });
+    await seedUserPassword(KAPRODI_NIDN);
+    const cookie = sessionCookie(await loginAs(KAPRODI_NIDN))!;
+
+    expect((await req("/api/admin/faculties/fikom", {
+      method: "PUT", cookie, body: JSON.stringify({ vision: "x" }),
+    })).status).toBe(403);
+    expect((await req("/api/admin/accounts", { cookie })).status).toBe(403);
+    expect((await req("/api/admin/accounts", {
+      method: "POST", cookie,
+      body: JSON.stringify({ nidn: "9000000099", name: "Nakal", role: "super_admin" }),
+    })).status).toBe(403);
+  });
+});
+
+describe("manajemen akun", () => {
+  test("kaprodi tanpa program studi ditolak", async () => {
+    const cookie = sessionCookie(await loginAs(SUPER_NIDN))!;
+    const res = await req("/api/admin/accounts", {
+      method: "POST", cookie,
+      body: JSON.stringify({ nidn: "9000000006", name: "Tanpa Prodi", role: "kaprodi" }),
+    });
+    expect(res.status).toBe(422);
+    expect((await res.json()).errors.study_program_slug).toBeDefined();
+    expect(await prisma.adminUser.findUnique({ where: { nidn: "9000000006" } })).toBeNull();
+  });
+
+  test("admin fakultas tanpa fakultas ditolak", async () => {
+    const cookie = sessionCookie(await loginAs(SUPER_NIDN))!;
+    const res = await req("/api/admin/accounts", {
+      method: "POST", cookie,
+      body: JSON.stringify({ nidn: "9000000007", name: "Tanpa Fakultas", role: "faculty_admin" }),
+    });
+    expect(res.status).toBe(422);
+  });
+
+  test("super admin tidak boleh terikat fakultas", async () => {
+    const cookie = sessionCookie(await loginAs(SUPER_NIDN))!;
+    const res = await req("/api/admin/accounts", {
+      method: "POST", cookie,
+      body: JSON.stringify({ nidn: "9000000008", name: "Super Aneh", role: "super_admin", faculty_slug: "fikom" }),
+    });
+    expect(res.status).toBe(422);
+  });
+
+  test("NIDN yang sudah ada ditolak dengan 409", async () => {
+    const cookie = sessionCookie(await loginAs(SUPER_NIDN))!;
+    const res = await req("/api/admin/accounts", {
+      method: "POST", cookie,
+      body: JSON.stringify({ nidn: SUPER_NIDN, name: "Kembar", role: "kaprodi", study_program_slug: fikomSlug }),
+    });
+    expect(res.status).toBe(409);
+  });
+
+  test("super admin tidak bisa menonaktifkan atau menurunkan peran akun sendiri", async () => {
+    const cookie = sessionCookie(await loginAs(SUPER_NIDN))!;
+    const deactivate = await req(`/api/admin/accounts/${SUPER_NIDN}`, {
+      method: "PUT", cookie, body: JSON.stringify({ is_active: false }),
+    });
+    expect(deactivate.status).toBe(422);
+    expect((await deactivate.json()).error).toBe("self_lockout");
+
+    const demote = await req(`/api/admin/accounts/${SUPER_NIDN}`, {
+      method: "PUT", cookie, body: JSON.stringify({ role: "kaprodi", study_program_slug: fikomSlug }),
+    });
+    expect(demote.status).toBe(422);
+
+    const still = await prisma.adminUser.findUnique({ where: { nidn: SUPER_NIDN } });
+    expect(still!.role).toBe("super_admin");
+    expect(still!.isActive).toBe(true);
+  });
+
+  test("reset password mencabut sesi dan mematikan password lama", async () => {
+    const superCookie = sessionCookie(await loginAs(SUPER_NIDN))!;
+    const victimCookie = sessionCookie(await loginAs(OTHER_NIDN))!;
+    expect((await req("/api/admin/me", { cookie: victimCookie })).status).toBe(200);
+
+    const res = await req(`/api/admin/accounts/${OTHER_NIDN}/reset-password`, { method: "POST", cookie: superCookie });
+    expect(res.status).toBe(200);
+    const temp = (await res.json()).data.temporary_password;
+
+    expect((await req("/api/admin/me", { cookie: victimCookie })).status).toBe(401);
+    expect((await loginAs(OTHER_NIDN, PASSWORD)).status).toBe(401);
+    expect((await loginAs(OTHER_NIDN, temp)).status).toBe(200);
+
+    await seedUser(OTHER_NIDN, "faculty_admin", (await prisma.faculty.findUniqueOrThrow({ where: { slug: "farmasi" } })).id);
+  });
+
+  test("mengubah peran mencabut sesi aktif agar wewenang baru langsung berlaku", async () => {
+    const superCookie = sessionCookie(await loginAs(SUPER_NIDN))!;
+    const targetCookie = sessionCookie(await loginAs(OTHER_NIDN))!;
+    expect((await req("/api/admin/me", { cookie: targetCookie })).status).toBe(200);
+
+    const res = await req(`/api/admin/accounts/${OTHER_NIDN}`, {
+      method: "PUT", cookie: superCookie,
+      body: JSON.stringify({ role: "kaprodi", study_program_slug: farmasiSlug }),
+    });
+    expect(res.status).toBe(200);
+    expect((await req("/api/admin/me", { cookie: targetCookie })).status).toBe(401);
+
+    await seedUser(OTHER_NIDN, "faculty_admin", (await prisma.faculty.findUniqueOrThrow({ where: { slug: "farmasi" } })).id);
+  });
+
+  test("akun nonaktif tidak bisa login lagi", async () => {
+    const superCookie = sessionCookie(await loginAs(SUPER_NIDN))!;
+    await req(`/api/admin/accounts/${OTHER_NIDN}`, {
+      method: "PUT", cookie: superCookie, body: JSON.stringify({ is_active: false }),
+    });
+    expect((await loginAs(OTHER_NIDN)).status).toBe(403);
+    await prisma.adminUser.update({ where: { nidn: OTHER_NIDN }, data: { isActive: true } });
+  });
+});
+
+describe("riwayat audit", () => {
+  test("perubahan profil tercatat beserta pelaku dan field yang berubah", async () => {
+    const cookie = sessionCookie(await loginAs(FIKOM_NIDN))!;
+    const before = await prisma.studyProgram.findUnique({ where: { slug: fikomSlug } });
+
+    await req(`/api/admin/programs/${fikomSlug}`, {
+      method: "PUT", cookie, body: JSON.stringify({ vision: "Visi untuk uji audit" }),
+    });
+
+    const entries = (await (await req("/api/admin/audit", { cookie })).json()).data;
+    const entry = entries.find((e: { action: string; entity_ref: string }) =>
+      e.action === "update_program_profile" && e.entity_ref === fikomSlug);
+    expect(entry).toBeDefined();
+    expect(entry.actor_nidn).toBe(FIKOM_NIDN);
+    expect(entry.changes.vision.after).toBe("Visi untuk uji audit");
+
+    await prisma.studyProgram.update({ where: { slug: fikomSlug }, data: { vision: before!.vision } });
+  });
+
+  test("riwayat dibatasi lingkup pembaca — bukan celah kebocoran lintas fakultas", async () => {
+    const superCookie = sessionCookie(await loginAs(SUPER_NIDN))!;
+    // Perubahan pada prodi Farmasi oleh super admin.
+    const farmasiBefore = await prisma.studyProgram.findUnique({ where: { slug: farmasiSlug } });
+    await req(`/api/admin/programs/${farmasiSlug}`, {
+      method: "PUT", cookie: superCookie, body: JSON.stringify({ vision: "Visi farmasi uji" }),
+    });
+
+    const fikomCookie = sessionCookie(await loginAs(FIKOM_NIDN))!;
+    const seen = (await (await req("/api/admin/audit", { cookie: fikomCookie })).json()).data;
+    expect(seen.some((e: { entity_ref: string }) => e.entity_ref === farmasiSlug)).toBe(false);
+
+    const all = (await (await req("/api/admin/audit", { cookie: superCookie })).json()).data;
+    expect(all.some((e: { entity_ref: string }) => e.entity_ref === farmasiSlug)).toBe(true);
+
+    await prisma.studyProgram.update({ where: { slug: farmasiSlug }, data: { vision: farmasiBefore!.vision } });
+  });
+
+  test("password tidak pernah masuk catatan audit", async () => {
+    const cookie = sessionCookie(await loginAs(SUPER_NIDN))!;
+    const res = await req(`/api/admin/accounts/${OTHER_NIDN}/reset-password`, { method: "POST", cookie });
+    const temp = (await res.json()).data.temporary_password;
+
+    const logs = await prisma.auditLog.findMany();
+    const serialised = JSON.stringify(logs);
+    expect(serialised).not.toContain(temp);
+    expect(serialised).not.toContain("scrypt$");
+
+    await seedUser(OTHER_NIDN, "faculty_admin", (await prisma.faculty.findUniqueOrThrow({ where: { slug: "farmasi" } })).id);
+  });
+});
+
 describe("endpoint fakultas publik", () => {
   test("mengembalikan fakultas beserta prodinya tanpa perlu login", async () => {
     const res = await req("/api/faculties");
@@ -538,5 +808,20 @@ describe("endpoint fakultas publik", () => {
     const totalPrograms = body.data.reduce((n: number, f: { programs: unknown[] }) => n + f.programs.length, 0);
     expect(body.data.length).toBe(await prisma.faculty.count());
     expect(totalPrograms).toBe(await prisma.studyProgram.count());
+  });
+
+  test("setiap program memuat slug, value, dan label", async () => {
+    // Kontrak ini dipakai dropdown form RPS dan pembuatan akun kaprodi. Field
+    // yang hilang membuat dropdown jatuh ke satu opsi tanpa pesan error apa pun.
+    const body = await (await req("/api/faculties")).json();
+    for (const faculty of body.data) {
+      expect(Array.isArray(faculty.programs)).toBe(true);
+      for (const program of faculty.programs) {
+        expect(typeof program.slug).toBe("string");
+        expect(program.slug.length).toBeGreaterThan(0);
+        expect(typeof program.value).toBe("string");
+        expect(typeof program.label).toBe("string");
+      }
+    }
   });
 });

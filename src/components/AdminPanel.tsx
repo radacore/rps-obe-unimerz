@@ -15,6 +15,8 @@ import { LinesEditor } from "./ui/LinesEditor";
 import { AdminLoginForm, ForcedPasswordChange } from "./AdminLoginForm";
 import { CplEditor } from "./CplEditor";
 import { FacultyProfilePanel } from "./FacultyProfilePanel";
+import { AccountManagerPanel } from "./AccountManagerPanel";
+import { AuditLogPanel } from "./AuditLogPanel";
 
 function errorMessage(e: unknown): string {
   if (e instanceof ApiError) {
@@ -51,19 +53,26 @@ export function AdminPanel() {
       qc.setQueryData(ADMIN_SESSION_KEY, null);
       qc.removeQueries({ queryKey: ["admin-programs"] });
       qc.removeQueries({ queryKey: ["admin-faculties"] });
+      qc.removeQueries({ queryKey: ["admin-accounts"] });
+      qc.removeQueries({ queryKey: ["admin-audit"] });
     },
   });
 
-  const [tab, setTab] = useState<"fakultas" | "prodi" | "cpl">("prodi");
+  const [tab, setTab] = useState<"fakultas" | "prodi" | "cpl" | "akun" | "riwayat">("prodi");
 
   if (session.isLoading) return <Text type="supporting">Memuat sesi…</Text>;
   if (!identity) return <AdminLoginForm />;
   if (identity.mustChangePassword) return <ForcedPasswordChange name={identity.name} />;
 
+  // Kaprodi tidak berwenang atas profil fakultas, jadi tab itu disembunyikan;
+  // manajemen akun hanya untuk super admin. Penyembunyian ini demi kejelasan —
+  // server tetap yang menegakkan wewenangnya.
   const TABS: { id: typeof tab; label: string }[] = [
-    { id: "fakultas", label: "Profil Fakultas" },
+    ...(identity.role === "kaprodi" ? [] : [{ id: "fakultas" as const, label: "Profil Fakultas" }]),
     { id: "prodi", label: "Profil Prodi" },
     { id: "cpl", label: "CPL Prodi" },
+    ...(identity.role === "super_admin" ? [{ id: "akun" as const, label: "Akun Pengelola" }] : []),
+    { id: "riwayat", label: "Riwayat" },
   ];
 
   return (
@@ -103,8 +112,10 @@ export function AdminPanel() {
       </div>
 
       {tab === "fakultas" && <FacultyProfilePanel enabled={!identity.mustChangePassword} />}
+      {tab === "akun" && <AccountManagerPanel />}
+      {tab === "riwayat" && <AuditLogPanel enabled={!identity.mustChangePassword} />}
 
-      {tab !== "fakultas" && (
+      {(tab === "prodi" || tab === "cpl") && (
         <>
           {programs.isLoading && <Text type="supporting">Memuat daftar program studi…</Text>}
           {programs.isError && <Banner status="error">{errorMessage(programs.error)}</Banner>}
@@ -114,7 +125,11 @@ export function AdminPanel() {
               <Text weight="semibold">Program studi dalam wewenang Anda</Text>
               <Text type="supporting">
                 {rows.length} program studi
-                {identity.role === "faculty_admin" ? ` di ${identity.facultyLabel}` : " di seluruh universitas"}
+                {identity.role === "kaprodi"
+                  ? ` — ${identity.studyProgramLabel ?? "prodi Anda"}`
+                  : identity.role === "faculty_admin"
+                    ? ` di ${identity.facultyLabel}`
+                    : " di seluruh universitas"}
               </Text>
               <div className="mt-3 max-w-xl">
                 <Selector
