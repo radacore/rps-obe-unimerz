@@ -21,6 +21,17 @@ export const rpsCreateSchema = z.object({
   description: z.string().optional(),
   cpl_hint: z.string().optional(),
   cpmk_hint: z.string().optional(),
+
+  // Wizard mengirim seluruh isi dokumen dalam satu permintaan, jadi field
+  // berikut diterima saat pembuatan — sebelumnya hanya bisa lewat PUT setelah
+  // draft ada, yang memaksa alurnya terpecah dua halaman.
+  bahan_kajian: z.array(z.string()).optional(),
+  pustaka_utama: z.array(z.string()).optional(),
+  pustaka_pendukung: z.array(z.string()).optional(),
+  cpl: z.array(z.object({ code: z.string(), description: z.string() }).passthrough()).optional(),
+  cpmk: z.array(z.object({ code: z.string(), description: z.string() }).passthrough()).optional(),
+  sub_cpmk: z.array(z.object({ code: z.string(), description: z.string() }).passthrough()).optional(),
+  weekly_plans: z.array(z.record(z.unknown())).optional(),
 }).refine((d) => d.sks_total === d.sks_theory + d.sks_practice, { message: "sks_total harus = T+P", path: ["sks_total"] })
   .refine((d) => d.lecturers.some((l) => l.role === "koordinator_mk"), { message: "Minimal 1 Koordinator MK", path: ["lecturers"] });
 

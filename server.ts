@@ -738,9 +738,24 @@ function cpmkView(rows: CpmkRow[]) {
   }));
 }
 
+/** CPL prodi yang ditopang CPMK sebuah mata kuliah, lengkap dengan rumusannya. */
+function chargedCpl(row: {
+  cpmks: { cplCode: string | null }[];
+  studyProgram?: { cpl?: string } | null;
+}): { code: string; description: string }[] {
+  const codes = new Set(
+    row.cpmks.map((c) => (c.cplCode ?? "").trim().toUpperCase()).filter(Boolean),
+  );
+  if (codes.size === 0) return [];
+  const programCpl = parseJsonArray(row.studyProgram?.cpl ?? "[]") as { code?: string; description?: string }[];
+  return programCpl
+    .filter((x) => codes.has(String(x.code ?? "").toUpperCase()))
+    .map((x) => ({ code: String(x.code), description: String(x.description ?? "") }));
+}
+
 const COURSE_INCLUDE = {
   cpmks: { orderBy: { ordering: "asc" }, include: { subCpmks: { orderBy: { ordering: "asc" } } } },
-  studyProgram: { select: { slug: true, label: true, facultyLabel: true } },
+  studyProgram: { select: { slug: true, label: true, facultyLabel: true, cpl: true } },
 } as const;
 
 function courseView(row: {
@@ -748,7 +763,7 @@ function courseView(row: {
   sksTheory: number; sksPractice: number; isElective: boolean; description: string | null;
   bahanKajian: string; pustakaUtama: string; pustakaPendukung: string; updatedAt: Date;
   cpmks: CpmkRow[];
-  studyProgram?: { slug: string; label: string; facultyLabel: string } | null;
+  studyProgram?: { slug: string; label: string; facultyLabel: string; cpl?: string } | null;
 }) {
   return {
     id: row.id,
@@ -767,6 +782,9 @@ function courseView(row: {
     study_program_slug: row.studyProgram?.slug ?? null,
     study_program_label: row.studyProgram?.label ?? null,
     faculty_label: row.studyProgram?.facultyLabel ?? null,
+    // Rumusan CPL prodi yang benar-benar ditopang mata kuliah ini. Tanpa ini,
+    // pengisian RPS hanya mendapat kodenya sehingga baris CPL di dokumen kosong.
+    charged_cpl: chargedCpl(row),
     cpmk: cpmkView(row.cpmks),
     cpmk_count: row.cpmks.length,
     sub_cpmk_count: row.cpmks.reduce((n, c) => n + c.subCpmks.length, 0),
@@ -1454,12 +1472,18 @@ app.post("/api/rps", requireAdmin, async (c) => {
       studyProgram: programValue,
       sksTotal: d.sks_total, sksTheory: d.sks_theory, sksPractice: d.sks_practice,
       semester: d.semester, preparationDate: new Date(d.preparation_date),
-      lecturers: JSON.stringify(d.lecturers), cpl: JSON.stringify([]), cpmk: JSON.stringify([]), subCpmk: JSON.stringify([]),
-      weeklyPlans: JSON.stringify([]), mediaMethods: JSON.stringify([]), status: "draft",
-      ...(d.description ? { description: d.description } as never : {}),
-      ...(((d as Record<string, unknown>).bahan_kajian) ? { bahanKajian: JSON.stringify((d as Record<string, unknown>).bahan_kajian) } as never : {}),
-      ...(((d as Record<string, unknown>).pustaka_utama) ? { pustakaUtama: JSON.stringify((d as Record<string, unknown>).pustaka_utama) } as never : {}),
-      ...(((d as Record<string, unknown>).pustaka_pendukung) ? { pustakaPendukung: JSON.stringify((d as Record<string, unknown>).pustaka_pendukung) } as never : {}),
+      lecturers: JSON.stringify(d.lecturers),
+      // Wizard mengirim seluruh isi sekali jalan; field yang tidak disertakan
+      // tetap default kosong seperti sebelumnya.
+      cpl: JSON.stringify(d.cpl ?? []),
+      cpmk: JSON.stringify(d.cpmk ?? []),
+      subCpmk: JSON.stringify(d.sub_cpmk ?? []),
+      weeklyPlans: JSON.stringify(d.weekly_plans ?? []),
+      bahanKajian: JSON.stringify(d.bahan_kajian ?? []),
+      pustakaUtama: JSON.stringify(d.pustaka_utama ?? []),
+      pustakaPendukung: JSON.stringify(d.pustaka_pendukung ?? []),
+      mediaMethods: JSON.stringify([]), status: "draft",
+      ...(d.description ? { description: d.description } : {}),
     },
   });
   return c.json({ success: true, data: { id: row.id, course_code: row.courseCode, status: row.status }, message: "Draft created" }, 201);
@@ -1976,6 +2000,84 @@ app.post("/api/rps/:id/generate", requireAdmin, async (c) => {
 });
 
 // Live preview: DOCX ephemeral (tidak tulis storage/file_hash, tidak perlu audit passed) — render di browser via docx-preview
+/**
+ * Pratinjau DOCX dari payload lepas, tanpa draft di basis data.
+ *
+ * Dipakai wizard pembuatan RPS: dosen ingin melihat hasilnya sebelum dokumen
+ * disimpan. Tidak menulis apa pun, jadi tidak ada risiko draft setengah jadi
+ * menumpuk kalau wizard ditinggalkan.
+ */
+app.post("/api/rps/preview", requireAdmin, async (c) => {
+  const body = await c.req.json().catch(() => ({})) as Record<string, unknown>;
+
+  const asArray = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
+  const programValue = String(body.study_program ?? "").trim();
+
+  // Narasi sampul (Visi/Misi/Profil/CPL prodi) diambil dari katalog, bukan dari
+  // payload, supaya isi sampul tidak bisa dikarang lewat request.
+  let programVision: string | null = null;
+  let programMission: unknown[] = [];
+  let programProfile: unknown[] = [];
+  let programCpl: unknown[] = [];
+  if (programValue) {
+    const prog = await prisma.studyProgram.findFirst({ where: { value: programValue } });
+    if (prog) {
+      programVision = prog.vision ?? null;
+      programMission = parseJsonArray(prog.mission);
+      programProfile = parseJsonArray(prog.graduateProfile);
+      programCpl = parseJsonArray(prog.cpl);
+    }
+  }
+
+  const sksTheory = Number(body.sks_theory ?? 0);
+  const sksPractice = Number(body.sks_practice ?? 0);
+  const payload = {
+    rps_draft: {
+      course_name: String(body.course_name ?? ""),
+      course_code: String(body.course_code ?? ""),
+      course_cluster: body.course_cluster ? String(body.course_cluster) : null,
+      faculty: body.faculty ? String(body.faculty) : null,
+      study_program: programValue || null,
+      sks_total: Number(body.sks_total ?? sksTheory + sksPractice),
+      sks_theory: sksTheory,
+      sks_practice: sksPractice,
+      semester: String(body.semester ?? ""),
+      preparation_date: String(body.preparation_date ?? new Date().toISOString().slice(0, 10)),
+      lecturers: asArray(body.lecturers),
+      description: typeof body.description === "string" ? body.description : "",
+      bahan_kajian: asArray(body.bahan_kajian),
+      pustaka_utama: asArray(body.pustaka_utama),
+      pustaka_pendukung: asArray(body.pustaka_pendukung),
+      cpl: asArray(body.cpl),
+      cpmk: asArray(body.cpmk),
+      sub_cpmk: asArray(body.sub_cpmk),
+      weekly_plans: asArray(body.weekly_plans),
+      program_vision: programVision,
+      program_mission: programMission,
+      program_graduate_profile: programProfile,
+      program_cpl: programCpl,
+      kop: ["Universitas Megarezky", body.faculty, programValue].filter(Boolean).join(" | "),
+    },
+  };
+
+  const docxUrl = process.env.DOCX_SERVICE_URL ?? "http://localhost:8001";
+  try {
+    const r = await fetch(`${docxUrl.replace(/\/$/, "")}/generate`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+    });
+    if (!r.ok) {
+      const detail = await r.text().catch(() => "");
+      return c.json({ success: false, message: `Layanan DOCX gagal: ${r.status}`, error: detail.slice(0, 200) }, 502);
+    }
+    const buf = Buffer.from(await r.arrayBuffer());
+    c.header("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+    c.header("Content-Disposition", 'inline; filename="pratinjau-rps.docx"');
+    return c.body(buf as never);
+  } catch (e) {
+    return c.json({ success: false, message: `Layanan DOCX tidak dapat dihubungi: ${String(e).slice(0, 120)}` }, 502);
+  }
+});
+
 app.post("/api/rps/:id/preview", async (c) => {
   const id = Number(c.req.param("id"));
   const draft = await prisma.rpsDraft.findUnique({ where: { id } });

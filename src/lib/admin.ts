@@ -288,6 +288,8 @@ export type Course = {
   study_program_slug: string | null;
   study_program_label: string | null;
   faculty_label: string | null;
+  /** Rumusan CPL prodi yang ditopang MK ini — dipakai mengisi baris CPL dokumen. */
+  charged_cpl: { code: string; description: string }[];
   cpmk: CpmkItem[];
   cpmk_count: number;
   sub_cpmk_count: number;

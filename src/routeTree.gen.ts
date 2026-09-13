@@ -14,6 +14,7 @@ import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as AdminIndexRouteImport } from './routes/admin/index'
 import { Route as AdminLoginRouteImport } from './routes/admin/login'
 import { Route as RpsIdRouteImport } from './routes/rps/$id'
+import { Route as RpsBaruRouteImport } from './routes/rps/baru'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -40,12 +41,18 @@ const RpsIdRoute = RpsIdRouteImport.update({
   path: '/rps/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RpsBaruRoute = RpsBaruRouteImport.update({
+  id: '/rps/baru',
+  path: '/rps/baru',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/settings': typeof SettingsRoute
   '/admin/login': typeof AdminLoginRoute
   '/rps/$id': typeof RpsIdRoute
+  '/rps/baru': typeof RpsBaruRoute
   '/admin/': typeof AdminIndexRoute
 }
 export interface FileRoutesByTo {
@@ -53,6 +60,7 @@ export interface FileRoutesByTo {
   '/settings': typeof SettingsRoute
   '/admin/login': typeof AdminLoginRoute
   '/rps/$id': typeof RpsIdRoute
+  '/rps/baru': typeof RpsBaruRoute
   '/admin': typeof AdminIndexRoute
 }
 export interface FileRoutesById {
@@ -61,14 +69,23 @@ export interface FileRoutesById {
   '/settings': typeof SettingsRoute
   '/admin/login': typeof AdminLoginRoute
   '/rps/$id': typeof RpsIdRoute
+  '/rps/baru': typeof RpsBaruRoute
   '/admin/': typeof AdminIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/settings' | '/admin/login' | '/rps/$id' | '/admin/'
+  fullPaths:
+    '/' | '/settings' | '/admin/login' | '/rps/$id' | '/rps/baru' | '/admin/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/settings' | '/admin/login' | '/rps/$id' | '/admin'
-  id: '__root__' | '/' | '/settings' | '/admin/login' | '/rps/$id' | '/admin/'
+  to: '/' | '/settings' | '/admin/login' | '/rps/$id' | '/rps/baru' | '/admin'
+  id:
+    | '__root__'
+    | '/'
+    | '/settings'
+    | '/admin/login'
+    | '/rps/$id'
+    | '/rps/baru'
+    | '/admin/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -76,6 +93,7 @@ export interface RootRouteChildren {
   SettingsRoute: typeof SettingsRoute
   AdminLoginRoute: typeof AdminLoginRoute
   RpsIdRoute: typeof RpsIdRoute
+  RpsBaruRoute: typeof RpsBaruRoute
   AdminIndexRoute: typeof AdminIndexRoute
 }
 
@@ -116,6 +134,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RpsIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/rps/baru': {
+      id: '/rps/baru'
+      path: '/rps/baru'
+      fullPath: '/rps/baru'
+      preLoaderRoute: typeof RpsBaruRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -124,6 +149,7 @@ const rootRouteChildren: RootRouteChildren = {
   SettingsRoute: SettingsRoute,
   AdminLoginRoute: AdminLoginRoute,
   RpsIdRoute: RpsIdRoute,
+  RpsBaruRoute: RpsBaruRoute,
   AdminIndexRoute: AdminIndexRoute,
 }
 export const routeTree = rootRouteImport

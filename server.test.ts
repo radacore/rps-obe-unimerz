@@ -1562,6 +1562,96 @@ describe("BYOK per akun", () => {
   });
 });
 
+describe("pratinjau wizard tanpa draft", () => {
+  const payload = () => ({
+    course_name: "Algoritma dan Struktur Data",
+    course_code: "UJWZ001",
+    faculty: "Fakultas Ilmu Komputer",
+    study_program: "S1 Ilmu Komputer",
+    semester: "III",
+    sks_theory: 2,
+    sks_practice: 1,
+    sks_total: 3,
+    preparation_date: "2026-03-15",
+    lecturers: [{ name: "Dr. Uji Wizard, M.Kom.", nidn: "0922038401", role: "koordinator_mk" }],
+    description: "Mata kuliah ini membahas konsep algoritma dan struktur data.",
+    bahan_kajian: ["Konsep Algoritma", "Sorting"],
+    pustaka_utama: ["Cormen, T. H. (2022). Introduction to Algorithms."],
+    pustaka_pendukung: [],
+    cpl: [{ code: "CPL2", description: "Mampu merancang sistem perangkat lunak" }],
+    cpmk: [{ code: "CPMK 1", description: "Mampu menganalisis kompleksitas algoritma" }],
+    sub_cpmk: [{ code: "Sub-CPMK-1", description: "Mahasiswa mampu menjelaskan notasi asimtotik" }],
+    weekly_plans: [{ week: "1", weight: 100, is_merged: false, materi: "Konsep Algoritma" }],
+  });
+
+  test("memerlukan sesi", async () => {
+    expect((await req("/api/rps/preview", { method: "POST", body: JSON.stringify(payload()) })).status).toBe(401);
+  });
+
+  test("menghasilkan DOCX tanpa menyimpan draft apa pun", async () => {
+    const cookie = sessionCookie(await loginAs(SUPER_NIDN))!;
+    const before = await prisma.rpsDraft.count();
+
+    const res = await req("/api/rps/preview", { method: "POST", cookie, body: JSON.stringify(payload()) });
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("wordprocessingml");
+    const bytes = (await res.arrayBuffer()).byteLength;
+    expect(bytes).toBeGreaterThan(100_000);
+
+    // Wizard bisa ditinggalkan tanpa meninggalkan draft setengah jadi.
+    expect(await prisma.rpsDraft.count()).toBe(before);
+  });
+
+  test("narasi sampul diambil dari katalog, bukan dari payload", async () => {
+    const cookie = sessionCookie(await loginAs(SUPER_NIDN))!;
+    // Payload menyisipkan visi palsu; server harus mengabaikannya.
+    const body = { ...payload(), program_vision: "VISI PALSU DARI PAYLOAD" };
+    const res = await req("/api/rps/preview", { method: "POST", cookie, body: JSON.stringify(body) });
+    expect(res.status).toBe(200);
+    const text = Buffer.from(await res.arrayBuffer()).toString("latin1");
+    expect(text).not.toContain("VISI PALSU DARI PAYLOAD");
+  });
+});
+
+describe("pembuatan RPS sekali kirim", () => {
+  test("isi lengkap dari wizard tersimpan dalam satu permintaan", async () => {
+    const cookie = sessionCookie(await loginAs(SUPER_NIDN))!;
+    const program = await prisma.studyProgram.findUniqueOrThrow({ where: { slug: fikomSlug } });
+
+    const res = await req("/api/rps", {
+      method: "POST", cookie,
+      body: JSON.stringify({
+        course_name: "MK Wizard Sekali Kirim", course_code: "UJWZ002",
+        faculty: program.facultyLabel, study_program: program.value,
+        semester: "III", sks_theory: 2, sks_practice: 1, sks_total: 3,
+        preparation_date: "2026-03-15",
+        lecturers: [{ name: "Dr. Uji Wizard, M.Kom.", nidn: SUPER_NIDN, role: "koordinator_mk" }],
+        description: "Deskripsi yang dikirim bersama pembuatan draft.",
+        bahan_kajian: ["Topik A", "Topik B"],
+        pustaka_utama: ["Pustaka utama"],
+        cpl: [{ code: "CPL2", description: "Rumusan CPL yang memadai" }],
+        cpmk: [{ code: "CPMK 1", description: "Rumusan CPMK yang memadai" }],
+        sub_cpmk: [{ code: "Sub-CPMK-1", description: "Rumusan Sub-CPMK yang memadai" }],
+        weekly_plans: [{ week: "1", weight: 100, is_merged: false, materi: "Materi pertama" }],
+      }),
+    });
+    expect(res.status).toBe(201);
+    const id = (await res.json()).data.id;
+
+    // Sebelumnya isi ini hanya bisa masuk lewat PUT setelah draft ada, yang
+    // memaksa alur pengisian terpecah dua halaman.
+    const row = await prisma.rpsDraft.findUniqueOrThrow({ where: { id } });
+    expect(row.description).toBe("Deskripsi yang dikirim bersama pembuatan draft.");
+    expect(JSON.parse(row.bahanKajian ?? "[]")).toHaveLength(2);
+    expect(JSON.parse(row.cpl)).toHaveLength(1);
+    expect(JSON.parse(row.cpmk)).toHaveLength(1);
+    expect(JSON.parse(row.subCpmk)).toHaveLength(1);
+    expect(JSON.parse(row.weeklyPlans)).toHaveLength(1);
+
+    await prisma.rpsDraft.delete({ where: { id } });
+  });
+});
+
 describe("endpoint fakultas publik", () => {
   test("mengembalikan fakultas beserta prodinya tanpa perlu login", async () => {
     const res = await req("/api/faculties");
