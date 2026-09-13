@@ -738,6 +738,65 @@ function cpmkView(rows: CpmkRow[]) {
   }));
 }
 
+/**
+ * Cek kelengkapan katalog prodi sebagai syarat penerbitan RPS.
+ *
+ * Dokumen RPS memuat visi, misi, profil lulusan, dan CPL sebagai bagian
+ * sampul. Kalau salah satu kosong, dokumen yang keluar berisi placeholder
+ * ("Visi oleh kaprodi", daftar peran tanpa deskripsi). Menerbitkan dokumen
+ * seperti itu sama saja mempermalukan prodi, jadi diblokir di server dan UI.
+ *
+ * Aturan ini dipisah agar bisa dipakai UI (menunjukkan kekurangan sebelum
+ * terbit) sekaligus endpoint POST /api/rps (mencegah bypass lewat curl).
+ */
+export type ProgramReadinessIssue =
+  | "no_vision"
+  | "no_mission"
+  | "no_profile_with_description"
+  | "no_cpl";
+
+export function auditProgramReadiness(program: {
+  vision: string | null;
+  mission: string;
+  graduateProfile: string;
+  cpl: string;
+}): ProgramReadinessIssue[] {
+  const issues: ProgramReadinessIssue[] = [];
+  if (!(program.vision ?? "").trim()) issues.push("no_vision");
+
+  const missions = parseJsonArray(program.mission).filter((x) => String(x).trim());
+  if (missions.length === 0) issues.push("no_mission");
+
+  // Profil lulusan wajib memuat deskripsi ('Peran: Deskripsi'). Kalau hanya
+  // daftar nama peran, dokumen menjadi tidak informatif.
+  const profiles = parseJsonArray(program.graduateProfile).filter((x) => String(x).trim());
+  const berdeskripsi = profiles.filter((raw) => {
+    const s = String(raw);
+    // Terima format 'nama: deskripsi' atau objek {name, description}
+    if (s.includes(":") && s.split(":").slice(1).join(":").trim().length >= 20) return true;
+    return false;
+  });
+  if (berdeskripsi.length === 0) issues.push("no_profile_with_description");
+
+  const cpls = parseJsonArray(program.cpl).filter(
+    (raw) => raw && typeof raw === "object" && String((raw as { code?: string }).code ?? "").trim(),
+  );
+  if (cpls.length === 0) issues.push("no_cpl");
+
+  return issues;
+}
+
+/** Pesan Bahasa Indonesia untuk setiap penyimpangan katalog prodi. */
+export function programReadinessMessage(issue: ProgramReadinessIssue): string {
+  switch (issue) {
+    case "no_vision": return "Visi program studi belum ditulis di katalog.";
+    case "no_mission": return "Misi program studi belum ditulis di katalog.";
+    case "no_profile_with_description":
+      return "Profil lulusan belum lengkap: butuh format 'Peran: Deskripsi', bukan hanya daftar nama peran.";
+    case "no_cpl": return "CPL program studi belum ditulis di katalog.";
+  }
+}
+
 /** CPL prodi yang ditopang CPMK sebuah mata kuliah, lengkap dengan rumusannya. */
 function chargedCpl(row: {
   cpmks: { cplCode: string | null }[];
@@ -1519,6 +1578,21 @@ app.post("/api/rps", requireAdmin, async (c) => {
         success: false, error: "forbidden",
         message: `Anda tidak berwenang membuat RPS untuk ${program.label}.`,
       }, 403);
+    }
+  }
+
+  // Katalog prodi harus lengkap (visi, misi, profil ber-deskripsi, CPL) supaya
+  // dokumen yang keluar tidak berisi placeholder "Visi oleh kaprodi" atau
+  // daftar peran tanpa deskripsi. Diperiksa di sini agar tidak bisa dibypass
+  // lewat curl walau UI sudah menampilkan tombol terkunci.
+  if (program) {
+    const issues = auditProgramReadiness(program);
+    if (issues.length > 0) {
+      return c.json({
+        success: false, error: "program_not_ready",
+        message: `Katalog ${program.label} belum lengkap. Minta Kaprodi melengkapinya di Admin → Fakultas & Prodi sebelum menerbitkan RPS.`,
+        issues: issues.map((code) => ({ code, message: programReadinessMessage(code) })),
+      }, 422);
     }
   }
 
@@ -2413,6 +2487,32 @@ app.get("/api/university-profile", async (c) => {
     id: row.id, vision: row.vision, mission: parse(row.mission), tujuan: parse(row.tujuan),
     sejarah: row.sejarah, source_url: row.sourceUrl, source_timestamp: row.sourceTimestamp, verified_at: row.verifiedAt,
   }});
+});
+
+/**
+ * Cek kesiapan katalog prodi sebelum penerbitan RPS.
+ *
+ * Wizard memakai endpoint ini di langkah "Tinjau & Terbitkan" untuk
+ * menampilkan daftar kekurangan yang harus dilengkapi Kaprodi terlebih
+ * dahulu. Aturannya sama dengan pemblokiran di POST /api/rps supaya UI
+ * tidak menampilkan tombol yang jelas akan gagal.
+ */
+app.get("/api/programs/:slug/readiness", async (c) => {
+  const slug = c.req.param("slug");
+  const prog = await prisma.studyProgram.findUnique({
+    where: { slug },
+    select: { vision: true, mission: true, graduateProfile: true, cpl: true, label: true, facultyLabel: true },
+  });
+  if (!prog) return c.json({ success: false, error: "not_found", message: "Program studi tidak ditemukan." }, 404);
+  const issues = auditProgramReadiness(prog);
+  return c.json({
+    success: true,
+    data: {
+      slug, label: prog.label, faculty_label: prog.facultyLabel,
+      ready: issues.length === 0,
+      issues: issues.map((code) => ({ code, message: programReadinessMessage(code) })),
+    },
+  });
 });
 
 app.get("/api/programs", async (c) => {

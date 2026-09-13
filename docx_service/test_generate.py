@@ -110,6 +110,44 @@ def test_cover_and_kop_follow_payload():
     assert "Program Studi S1 Ilmu Komputer" in kop
 
 
+def test_course_code_on_cover_has_no_wrapping_spaces():
+    """CONTOH RPS memakai '(IW25ASK105431)' tanpa spasi bungkus.
+
+    Sebelumnya generator menulis '( IK24IK1201 )' yang tidak cocok dengan
+    dokumen resmi kampus.
+    """
+    doc = generate(PAYLOAD)
+    texts = [(p.text or "").strip() for p in doc.paragraphs]
+    assert "(IK24IK1201)" in texts
+    assert "( IK24IK1201 )" not in texts
+
+
+def test_footer_carries_dynamic_koordinator_not_template_name():
+    """Footer template membawa nama koordinator lama Sri Wahyuni.
+
+    Dokumen yang terbit atas nama orang yang bukan pengampu adalah bug yang
+    mempermalukan. Setelah perbaikan, footer harus memuat nama koordinator
+    MK yang dipasok payload.
+    """
+    doc = generate(PAYLOAD)
+    footer_texts = []
+    # python-docx tidak selalu mengekspos footer via API section.footer,
+    # jadi baca langsung dari semua footer part dokumen.
+    for part in doc.part.package.iter_parts():
+        if "footer" not in str(part.partname).lower():
+            continue
+        for t in part.element.iter(qn('w:t')):
+            if t.text:
+                footer_texts.append(t.text)
+    gabung = " ".join(footer_texts)
+    assert "Sri Wahyuni" not in gabung, (
+        f"footer masih membawa nama koordinator template: {gabung!r}"
+    )
+    assert "Dr. Andi Pratama" in gabung, (
+        f"nama koordinator MK dari payload tidak tampil di footer: {gabung!r}"
+    )
+
+
 def test_rtm_appendix_matches_main_table():
     """The RTM page carries its own identity block; it must not contradict the RPS."""
     doc = generate(PAYLOAD)

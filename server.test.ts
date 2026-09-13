@@ -86,6 +86,11 @@ beforeEach(() => {
   __resetLoginRateLimit();
 });
 
+// Snapshot katalog prodi yang dimodifikasi test, supaya bisa dikembalikan
+// setelah semua kasus selesai. Tanpa ini, gate penerbitan akan terus lolos
+// walau data prodi sesungguhnya belum lengkap.
+const _katalogAsli = new Map<string, { vision: string | null; mission: string; graduateProfile: string; cpl: string }>();
+
 beforeAll(async () => {
   const fikom = await prisma.faculty.findUnique({ where: { slug: "fikom" }, include: { programs: true } });
   const farmasi = await prisma.faculty.findUnique({ where: { slug: "farmasi" }, include: { programs: true } });
@@ -99,9 +104,43 @@ beforeAll(async () => {
   await seedUser(FIKOM_NIDN, "faculty_admin", fikom.id);
   await seedUser(OTHER_NIDN, "faculty_admin", farmasi.id);
   await seedUser(INACTIVE_NIDN, "faculty_admin", fikom.id, { isActive: false });
+
+  // Katalog fikom & farmasi bawaan seed hanya punya nama peran tanpa
+  // deskripsi. Gate penerbitan RPS baru (visi+misi+profil-berdeskripsi+CPL)
+  // akan menolak sebagian besar tes kalau data ini dibiarkan. Suntikan
+  // katalog lengkap sekali di awal, dikembalikan di afterAll.
+  for (const slug of [fikomSlug, farmasiSlug]) {
+    const before = await prisma.studyProgram.findUniqueOrThrow({ where: { slug } });
+    _katalogAsli.set(slug, {
+      vision: before.vision, mission: before.mission,
+      graduateProfile: before.graduateProfile, cpl: before.cpl,
+    });
+    await prisma.studyProgram.update({
+      where: { slug },
+      data: {
+        vision: "Menjadi program studi unggul di bidangnya.",
+        mission: JSON.stringify(["Menyelenggarakan pendidikan bermutu"]),
+        graduateProfile: JSON.stringify([
+          "Praktisi: Merancang dan menerapkan solusi profesional sesuai bidangnya.",
+        ]),
+        // Beberapa kasus uji memakai kode CPL2/CPL3 di CPMK; sertakan agar
+        // gate katalog lolos tanpa memaksa test memakai CPL1 saja.
+        cpl: JSON.stringify([
+          { code: "CPL1", description: "Rumusan CPL memadai untuk uji" },
+          { code: "CPL2", description: "Rumusan CPL kedua untuk uji" },
+          { code: "CPL3", description: "Rumusan CPL ketiga untuk uji" },
+        ]),
+      },
+    });
+  }
 });
 
 afterAll(async () => {
+  // Kembalikan katalog prodi ke keadaan sebelum test menyuntikan data lengkap.
+  for (const [slug, snap] of _katalogAsli.entries()) {
+    await prisma.studyProgram.update({ where: { slug }, data: snap });
+  }
+  _katalogAsli.clear();
   // Draft bantu yang dibuat langsung lewat Prisma tidak punya pemilik; kalau
   // tertinggal, ia akan tampak sebagai data produksi yang tak bisa diubah.
   await prisma.rpsDraft.deleteMany({ where: { courseCode: { in: ["TMPX", "TMPY"] } } });
@@ -1682,6 +1721,84 @@ describe("pembuatan RPS sekali kirim", () => {
     expect(JSON.parse(row.weeklyPlans)).toHaveLength(1);
 
     await prisma.rpsDraft.delete({ where: { id } });
+  });
+});
+
+describe("kesiapan katalog prodi (gate penerbitan RPS)", () => {
+  // Katalog test-scope sengaja dikosongkan sementara, lalu dikembalikan
+  // supaya tidak merusak kasus lain yang sudah bergantung katalog lengkap.
+  async function _dengan_katalog_kosong<T>(slug: string, fn: () => Promise<T>): Promise<T> {
+    const before = await prisma.studyProgram.findUniqueOrThrow({ where: { slug } });
+    await prisma.studyProgram.update({
+      where: { slug },
+      data: {
+        vision: "", mission: "[]",
+        graduateProfile: JSON.stringify(["Systems Analyst", "Database Administrator"]),
+        cpl: "[]",
+      },
+    });
+    try { return await fn(); }
+    finally {
+      await prisma.studyProgram.update({
+        where: { slug },
+        data: {
+          vision: before.vision, mission: before.mission,
+          graduateProfile: before.graduateProfile, cpl: before.cpl,
+        },
+      });
+    }
+  }
+
+  test("prodi tanpa visi/misi/profil-berdeskripsi/CPL dilaporkan belum siap", async () => {
+    await _dengan_katalog_kosong(fikomSlug, async () => {
+      const res = await req(`/api/programs/${fikomSlug}/readiness`);
+      expect(res.status).toBe(200);
+      const j = await res.json() as { data: { ready: boolean; issues: { code: string }[] } };
+      expect(j.data.ready).toBe(false);
+      const codes = j.data.issues.map((x) => x.code).sort();
+      expect(codes).toEqual(["no_cpl", "no_mission", "no_profile_with_description", "no_vision"]);
+    });
+  });
+
+  test("POST /api/rps ditolak dengan pesan yang bisa ditindaklanjuti", async () => {
+    const cookie = sessionCookie(await loginAs(SUPER_NIDN))!;
+    const su = await prisma.adminUser.findUniqueOrThrow({ where: { nidn: SUPER_NIDN } });
+    await seedApiKey(su.id);
+    const program = await prisma.studyProgram.findUniqueOrThrow({ where: { slug: fikomSlug } });
+
+    await _dengan_katalog_kosong(fikomSlug, async () => {
+      const res = await req("/api/rps", {
+        method: "POST", cookie,
+        body: JSON.stringify({
+          course_name: "Uji Gate Katalog", course_code: "UJGATE01",
+          faculty: program.facultyLabel, study_program: program.value,
+          semester: "III", sks_theory: 2, sks_practice: 1, sks_total: 3,
+          preparation_date: "2026-03-15",
+          lecturers: [{ name: "Dr. Uji, M.Kom.", nidn: SUPER_NIDN, role: "koordinator_mk" }],
+          description: "Deskripsi cukup panjang untuk memenuhi validasi.",
+          bahan_kajian: ["Topik A"], pustaka_utama: ["Ref A"],
+          cpl: [{ code: "CPL2", description: "Rumusan CPL memadai" }],
+          cpmk: [{ code: "CPMK 1", description: "Rumusan CPMK memadai" }],
+          sub_cpmk: [{ code: "Sub-CPMK-1", description: "Rumusan Sub-CPMK memadai" }],
+          weekly_plans: [{ week: "1", weight: 100, is_merged: false, materi: "Materi" }],
+        }),
+      });
+      expect(res.status).toBe(422);
+      const j = await res.json() as { error: string; message: string; issues?: { code: string }[] };
+      expect(j.error).toBe("program_not_ready");
+      // Pesan menunjuk siapa yang harus melengkapi dan di mana.
+      expect(j.message).toContain("Kaprodi");
+      expect(j.message).toContain("Fakultas & Prodi");
+      expect(j.issues?.some((i) => i.code === "no_profile_with_description")).toBe(true);
+    });
+  });
+
+  test("prodi lengkap dianggap siap", async () => {
+    // Katalog fikom sudah dilengkapi di beforeAll.
+    const res = await req(`/api/programs/${fikomSlug}/readiness`);
+    const j = await res.json() as { data: { ready: boolean; issues: unknown[] } };
+    expect(j.data.ready).toBe(true);
+    expect(j.data.issues).toHaveLength(0);
   });
 });
 

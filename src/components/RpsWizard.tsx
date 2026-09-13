@@ -106,7 +106,27 @@ export function RpsWizard() {
     [effectiveForm],
   );
   const pending = useMemo(() => incompleteSteps(effectiveForm), [effectiveForm]);
-  const ready = isReadyToPublish(effectiveForm);
+  // Slug prodi dipakai memanggil endpoint kesiapan katalog. Wizard menyimpan
+  // value; slug dicari dari data useFaculties agar konsisten dengan dropdown.
+  const prodiSlug = useMemo(() => {
+    const list = prodisForFaculty(effectiveForm.faculty);
+    return list.find((p) => p.value === effectiveForm.study_program)?.slug ?? null;
+  }, [effectiveForm.faculty, effectiveForm.study_program, prodisForFaculty]);
+  const readiness = useQuery({
+    queryKey: ["program-readiness", prodiSlug],
+    queryFn: () => api<ApiOk<{
+      ready: boolean;
+      label: string;
+      issues: { code: string; message: string }[];
+    }>>(`/api/programs/${prodiSlug}/readiness`),
+    enabled: !!prodiSlug,
+    staleTime: 60_000,
+  });
+  const catalogReady = readiness.data?.data.ready ?? true;
+  const catalogIssues = readiness.data?.data.issues ?? [];
+  // Terbit hanya kalau semua langkah wizard lengkap DAN katalog prodi lengkap.
+  // Tombol UI dan server memakai aturan yang sama supaya tidak ada kejutan.
+  const ready = isReadyToPublish(effectiveForm) && catalogReady;
 
   const publish = useMutation({
     mutationFn: () => api<ApiOk<{ id: number }>>("/api/rps", {
@@ -187,7 +207,16 @@ export function RpsWizard() {
           {stepId === "deskripsi" && <DescriptionStep form={effectiveForm} patch={patch} />}
           {stepId === "capaian" && <OutcomeStep form={effectiveForm} patch={patch} />}
           {stepId === "mingguan" && <WeeklyStep form={effectiveForm} patch={patch} />}
-          {stepId === "tinjau" && <ReviewStep form={effectiveForm} pending={pending} onGoTo={(id) => setStepIndex(STEP_IDS.indexOf(id))} />}
+          {stepId === "tinjau" && (
+            <ReviewStep
+              form={effectiveForm}
+              pending={pending}
+              onGoTo={(id) => setStepIndex(STEP_IDS.indexOf(id))}
+              catalogReady={catalogReady}
+              catalogIssues={catalogIssues}
+              catalogLabel={readiness.data?.data.label ?? null}
+            />
+          )}
         </div>
 
         {issuesByStep[stepId].length > 0 && stepId !== "tinjau" && (
@@ -691,11 +720,14 @@ function WeeklyStep({ form, patch }: { form: RpsFormState; patch: (n: Partial<Rp
 }
 
 function ReviewStep({
-  form, pending, onGoTo,
+  form, pending, onGoTo, catalogReady, catalogIssues, catalogLabel,
 }: {
   form: RpsFormState;
   pending: { id: StepId; issues: string[] }[];
   onGoTo: (id: StepId) => void;
+  catalogReady: boolean;
+  catalogIssues: { code: string; message: string }[];
+  catalogLabel: string | null;
 }) {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewError, setPreviewError] = useState<unknown>(null);
@@ -729,11 +761,23 @@ function ReviewStep({
 
   return (
     <div className="grid gap-4">
-      {pending.length === 0 ? (
+      {!catalogReady && catalogIssues.length > 0 && (
+        <Banner status="error" title={`Katalog prodi belum lengkap (${catalogIssues.length})`}>
+          <Text type="supporting">
+            RPS tidak bisa diterbitkan sampai Kaprodi melengkapi katalog {catalogLabel ?? "prodi"} di
+            Admin → Fakultas &amp; Prodi. Dosen tidak perlu menunggu — bagian lain wizard tetap bisa disunting.
+          </Text>
+          <ul className="mt-2 grid gap-0.5 pl-4 text-xs">
+            {catalogIssues.map((it) => <li key={it.code}>{it.message}</li>)}
+          </ul>
+        </Banner>
+      )}
+
+      {pending.length === 0 && catalogReady ? (
         <Banner status="success" title="Semua langkah lengkap">
           Dokumen siap diterbitkan. Setelah terbit, isinya masih bisa disunting dari halaman RPS.
         </Banner>
-      ) : (
+      ) : pending.length === 0 ? null : (
         <Banner status="warning" title={`${pending.length} langkah belum lengkap`}>
           <ul className="grid gap-2">
             {pending.map((p) => (

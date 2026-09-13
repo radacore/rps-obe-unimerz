@@ -4,6 +4,7 @@ from docx import Document
 from docx.shared import Pt, Emu
 from docx.oxml.ns import qn
 from docx.oxml import OxmlElement
+from lxml import etree
 from io import BytesIO
 import copy
 import json
@@ -326,14 +327,125 @@ def _split_by_role(lecturers):
 def _join_all_names(lecturers):
     return "\n".join(l.get("name","") for l in lecturers if l.get("name",""))
 
-def _format_date(raw):
-    if not raw: return "28 Juni 2025"
-    s=str(raw)[:10]
+
+def _clear_penilaian_matrix(doc) -> None:
+    """Kosongkan contoh isi matrix penilaian (baris 22 tabel utama).
+
+    Template membawa contoh baris "CPMK 1 · Sub CPMK 1 · Kuliah, diskusi,
+    case method · Analisa Partisipatif · anatomi digital · 5% ...". Untuk
+    mata kuliah non-keperawatan, contoh ini tampil apa adanya dan mengesankan
+    dokumen belum disunting. Baris 0-1 adalah header dua-baris yang harus
+    dipertahankan; sisanya dikosongkan agar dosen bisa mengisi manual.
+    """
+    from docx.oxml.ns import qn as _qn
     try:
-        from datetime import date
-        d=date.fromisoformat(s)
-        bulan=["","Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"]
-        return f"{d.day} {bulan[d.month]} {d.year}"
+        tbl_utama = doc.tables[0]
+        row22 = tbl_utama.rows[22]
+    except IndexError:
+        return  # struktur tabel tidak terduga; jangan merusak dokumen
+
+    for tc in row22._tr.findall(_qn('w:tc')):
+        for nested_tbl in tc.findall(_qn('w:tbl')):
+            rows = nested_tbl.findall(_qn('w:tr'))
+            if len(rows) < 3:
+                continue
+            # Pertahankan 2 baris header, kosongkan sel di baris berikutnya.
+            for nrow in rows[2:]:
+                for ncell in nrow.findall(_qn('w:tc')):
+                    for t in ncell.iter(_qn('w:t')):
+                        t.text = ""
+
+
+def _rewrite_footer_koordinator(doc, coord_name: str) -> None:
+    """Ganti nama koordinator pada footer template.
+
+    Footer bawaan template ditulis untuk mata kuliah keperawatan
+    (Sri Wahyuni, S.Kep., Ns., M.Kes). Nama itu terpecah 9 run karena
+    editor Word memecah gelar per bagian, jadi tidak bisa diganti dengan
+    replace teks biasa: run yang paling kanan (kadang "Page N of N") harus
+    dipertahankan agar penomoran halaman tetap bekerja.
+
+    Strategi: temukan run pertama yang teksnya berisi "Koordinator", lalu
+    ganti *semua* run berikutnya sampai run "Page " menjadi satu run baru
+    berisi nama koordinator dinamis. Ini memakai XML langsung karena
+    python-docx tidak melihat footer ini (terhubung via section terakhir
+    yang tidak diekspos ke API footer level-atas).
+    """
+    if not coord_name:
+        return
+    W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+
+    from docx.oxml.ns import qn as _qn  # local: hindari ketergantungan global
+
+    def _text_of_run(r):
+        return "".join(t.text or "" for t in r.findall(_qn('w:t')))
+
+    for part in doc.part.package.iter_parts():
+        # Footer part punya content type application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml
+        if not str(part.partname).lower().endswith(".xml"):
+            continue
+        if "footer" not in str(part.partname).lower():
+            continue
+        try:
+            root = part.element  # lxml Element
+        except AttributeError:
+            continue
+
+        for p in root.iter(_qn('w:p')):
+            runs = p.findall(_qn('w:r'))
+            if not runs:
+                continue
+            teks_gabung = "".join(_text_of_run(r) for r in runs)
+            if "Koordinator" not in teks_gabung or "Page" not in teks_gabung:
+                continue
+
+            # Cari batas: run yang berisi "Koordinator" (mulai), dan run yang
+            # membuka "Page " atau spasi besar penutup (akhir).
+            mulai_idx = None
+            akhir_idx = None
+            for i, r in enumerate(runs):
+                t = _text_of_run(r)
+                if mulai_idx is None and "Koordinator" in t:
+                    mulai_idx = i + 1  # setelah 'Koordinator' + ' – '
+                elif mulai_idx is not None and t.startswith("Page"):
+                    akhir_idx = i
+                    break
+
+            if mulai_idx is None or akhir_idx is None:
+                continue
+
+            # Ambil formatting dari run 'Sri Wahyuni' (mulai_idx+1 biasanya) supaya
+            # font/size cocok dengan kop yang berlaku.
+            template_r = runs[mulai_idx + 1] if mulai_idx + 1 < akhir_idx else runs[mulai_idx]
+            template_rPr = template_r.find(_qn('w:rPr'))
+
+            # Bangun satu run pengganti: " – <NAMA>            "
+            new_r = etree.SubElement(p, _qn('w:r'))
+            if template_rPr is not None:
+                new_r.append(etree.fromstring(etree.tostring(template_rPr)))
+            new_t = etree.SubElement(new_r, _qn('w:t'))
+            new_t.text = f" – {coord_name}            "
+            new_t.set(f"{{http://www.w3.org/XML/1998/namespace}}space", "preserve")
+
+            # Sisipkan run baru sebelum run 'Page', lalu buang run lama di
+            # antaranya (kecuali 'Koordinator' pembuka yang tetap dipakai).
+            runs[akhir_idx].addprevious(new_r)
+            for r in runs[mulai_idx:akhir_idx]:
+                r.getparent().remove(r)
+
+def _format_date(raw):
+    """Format tanggal penyusunan sebagai '15 Maret 2026'.
+
+    Bila pemanggil tidak memasok tanggal, dipakai hari ini — bukan tanggal
+    template ("28 Juni 2025") karena itu akan tampak sebagai tanggal usang
+    di setiap dokumen baru yang lupa mengisi.
+    """
+    from datetime import date
+    bulan=["","Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"]
+    def _format(d: date) -> str: return f"{d.day} {bulan[d.month]} {d.year}"
+    if not raw: return _format(date.today())
+    s=str(raw)[:10]
+    try: return _format(date.fromisoformat(s))
     except ValueError: return s
 
 # Canonical 9 variabel 16 minggu (R35-R43)
@@ -639,6 +751,14 @@ async def generate(request: Request):
     set_tc_text(tr05, 1, by_role.get("pengembang") or "")
     set_tc_text(tr05, 2, by_role.get("koordinator_mk") or "")
     set_tc_text(tr05, 3, by_role.get("ketua_prodi") or "")
+    # Footer template membawa nama koordinator lama ("Sri Wahyuni ..."). Diganti
+    # dengan nama koordinator MK dinamis; tanpa ini setiap dokumen terbit atas
+    # nama orang yang bukan pengampu.
+    _rewrite_footer_koordinator(doc, by_role.get("koordinator_mk") or "")
+    # Matrix penilaian (baris 22) membawa contoh "CPMK 1 · anatomi digital"
+    # dari template Keperawatan. Dosen mengisi manual — dokumen tidak boleh
+    # menyertakan contoh yang salah.
+    _clear_penilaian_matrix(doc)
     # Baris "Tim Pengajar" di sampul: nama dosen menyusul satu paragraf di bawahnya.
     tim_idx = next(
         (i for i, pp in enumerate(doc.paragraphs) if (pp.text or "").strip().startswith("Tim Pengajar")),
@@ -798,7 +918,8 @@ async def generate(request: Request):
     if course_code:
         for p in doc.paragraphs:
             if code_pattern.match(_normalise_ws(p.text or "")):
-                _set_para_text(p, f"( {course_code} )", size=11, bold=True)
+                # Contoh dokumen: "(IW25ASK105431)" — tanpa spasi bungkus.
+                _set_para_text(p, f"({course_code})", size=11, bold=True)
                 break
 
     # --------------------------------------------------------------
