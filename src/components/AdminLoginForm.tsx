@@ -2,10 +2,12 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { Button } from "@astryxdesign/core/Button";
-import { Text } from "@astryxdesign/core/Text";
+import { Text, Heading } from "@astryxdesign/core/Text";
 import { TextInput } from "@astryxdesign/core/TextInput";
 import { HStack } from "@astryxdesign/core/HStack";
 import { VStack } from "@astryxdesign/core/VStack";
+import { Center } from "@astryxdesign/core/Center";
+import { Card } from "@astryxdesign/core/Card";
 import { List, ListItem } from "@astryxdesign/core/List";
 import { ApiError } from "@/lib/api";
 import { ADMIN_SESSION_KEY, adminChangePassword, adminLogin, fetchAdminSession } from "@/lib/admin";
@@ -82,51 +84,79 @@ export function AdminLoginForm() {
       ? { type: "error" as const, message: "NIDN harus 10 digit angka" }
       : undefined;
 
+  // Layout mengikuti template resmi Astryx `login-card`: satu kartu
+  // terangkat di tengah halaman, judul + subteks di dalam kartu, input tanpa
+  // label kasat mata (label tetap dibaca screen reader), tombol primer full
+  // width. Tanpa social sign-in dan tanpa self sign-up — akun dosen dibuat
+  // pengelola, jadi tak ada mekanisme pendaftaran mandiri.
   return (
-    <Panel
-      title="Masuk panel admin"
-      description="Gunakan NIDN (10 digit) dan password yang diberikan pengelola sistem."
-    >
-      <div style={{ maxWidth: 420 }}>
-        <VStack gap={3}>
-          <TextInput
-            label="NIDN"
-            value={nidn}
-            onChange={(v) => setNidn(v.replace(/\D/g, "").slice(0, 10))}
-            placeholder="0922038401"
-            description="Nomor Induk Dosen Nasional, 10 digit"
-            status={nidnStatus}
-          />
-          <VStack gap={2}>
-            <TextInput
-              label="Password"
-              type={showPassword ? "text" : "password"}
-              value={password}
-              onChange={setPassword}
-              placeholder="••••••••••••"
-            />
-            <HStack justify="end">
-              <Button
-                label={showPassword ? "Sembunyikan" : "Tampilkan"}
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowPassword((v) => !v)}
+    <Center axis="both" padding={6}>
+      <VStack gap={4} hAlign="center" style={{ width: "100%", maxWidth: 400 }}>
+        <VStack gap={1} hAlign="center">
+          <Text type="body" weight="bold" size="lg">
+            RPS OBE Generator
+          </Text>
+          <Text type="supporting" color="secondary">
+            Universitas Megarezky
+          </Text>
+        </VStack>
+
+        <Card padding={8} width="100%">
+          <VStack gap={4} hAlign="stretch">
+            <VStack gap={1} hAlign="center">
+              <Heading level={2}>Selamat datang kembali</Heading>
+              <Text type="body" color="secondary" size="sm">
+                Masuk memakai NIDN dan password Anda
+              </Text>
+            </VStack>
+
+            <VStack gap={2}>
+              <TextInput
+                label="NIDN"
+                isLabelHidden
+                placeholder="NIDN — 10 digit"
+                value={nidn}
+                onChange={(v) => setNidn(v.replace(/\D/g, "").slice(0, 10))}
+                size="lg"
+                status={nidnStatus}
               />
-            </HStack>
-          </VStack>
-          {error !== null && <Banner status="error">{errorMessage(error)}</Banner>}
-          <HStack>
+              <TextInput
+                label="Password"
+                isLabelHidden
+                type={showPassword ? "text" : "password"}
+                placeholder="Password"
+                value={password}
+                onChange={setPassword}
+                size="lg"
+              />
+              <HStack justify="end">
+                <Button
+                  label={showPassword ? "Sembunyikan password" : "Tampilkan password"}
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowPassword((v) => !v)}
+                />
+              </HStack>
+            </VStack>
+
+            {error !== null && <Banner status="error">{errorMessage(error)}</Banner>}
+
             <Button
               label={login.isPending ? "Memeriksa…" : "Masuk"}
               variant="primary"
+              size="lg"
               isLoading={login.isPending}
               isDisabled={!canSubmit}
               onClick={() => login.mutate()}
             />
-          </HStack>
-        </VStack>
-      </div>
-    </Panel>
+          </VStack>
+        </Card>
+
+        <Text type="supporting" color="secondary">
+          Belum punya akun? Hubungi pengelola sistem.
+        </Text>
+      </VStack>
+    </Center>
   );
 }
 

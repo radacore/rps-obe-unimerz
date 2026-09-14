@@ -1,13 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Heading } from "@astryxdesign/core/Heading";
-import { VStack } from "@astryxdesign/core/VStack";
 import { AdminLoginForm } from "@/components/AdminLoginForm";
 
+// Halaman login memakai layout `Center` bawaan Astryx yang menempatkan
+// kartunya di tengah viewport. Heading halaman ("Login Admin") dihilangkan
+// karena kartu sudah punya judul "Selamat datang kembali" di dalamnya.
 export const Route = createFileRoute("/admin/login")({
-  component: () => (
-    <VStack gap={4}>
-      <Heading level={1}>Login Admin</Heading>
-      <AdminLoginForm />
-    </VStack>
-  ),
+  component: AdminLoginForm,
 });
