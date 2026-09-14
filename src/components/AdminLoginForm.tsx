@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, type CSSProperties } from "react";
 import { Button } from "@astryxdesign/core/Button";
 import { Text, Heading } from "@astryxdesign/core/Text";
 import { TextInput } from "@astryxdesign/core/TextInput";
@@ -8,11 +8,42 @@ import { HStack } from "@astryxdesign/core/HStack";
 import { VStack } from "@astryxdesign/core/VStack";
 import { Center } from "@astryxdesign/core/Center";
 import { Card } from "@astryxdesign/core/Card";
+import { Icon } from "@astryxdesign/core/Icon";
 import { List, ListItem } from "@astryxdesign/core/List";
 import { ApiError } from "@/lib/api";
 import { ADMIN_SESSION_KEY, adminChangePassword, adminLogin, fetchAdminSession } from "@/lib/admin";
 import { Banner } from "./ui/Banner";
 import { Panel } from "./ui/Panel";
+
+/**
+ * Mark ikon universitas untuk brand di atas kartu login.
+ *
+ * Astryx tidak menyediakan ikon "graduation cap" bawaan (registry berisi
+ * ikon utilitas seperti chevron/warning) dan proyek belum memakai heroicons,
+ * jadi mark ini digambar langsung — mengikuti pola template resmi Astryx
+ * `login-card` yang juga menyertakan SVG brand langsung di file.
+ */
+function GraduationCapIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" {...props}>
+      <path d="M12 3 1 9l11 6 9-4.91V17h2V9L12 3zM5 13.18v4L12 21l7-3.82v-4L12 17l-7-3.82z" />
+    </svg>
+  );
+}
+
+// Halaman auth berdiri sendiri: mem-paint latar body-nya sendiri (mengikuti
+// pola template `login-card` Astryx). AppShell menyembunyikan TopNav pada
+// rute ini sehingga area ini benar-benar viewport-full.
+const pageStyle: CSSProperties = {
+  minHeight: "100%",
+  backgroundColor: "var(--color-background-body)",
+};
+// Kolom kartu di-cap 400px tapi tetap boleh menyusut di layar sempit —
+// Stack tidak punya `maxWidth`, jadi dipasang lewat style.
+const contentStyle: CSSProperties = {
+  width: "100%",
+  maxWidth: 400,
+};
 
 /** Aturan ini mencerminkan `adminChangePasswordSchema` di server. */
 const PASSWORD_RULES: { test: (v: string) => boolean; label: string }[] = [
@@ -44,7 +75,6 @@ export function AdminLoginForm() {
 
   const [nidn, setNidn] = useState("");
   const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<unknown>(null);
 
   const nidnLooksValid = /^\d{10}$/.test(nidn.trim());
@@ -84,32 +114,34 @@ export function AdminLoginForm() {
       ? { type: "error" as const, message: "NIDN harus 10 digit angka" }
       : undefined;
 
-  // Layout mengikuti template resmi Astryx `login-card`: satu kartu
-  // terangkat di tengah halaman, judul + subteks di dalam kartu, input tanpa
-  // label kasat mata (label tetap dibaca screen reader), tombol primer full
-  // width. Tanpa social sign-in dan tanpa self sign-up — akun dosen dibuat
-  // pengelola, jadi tak ada mekanisme pendaftaran mandiri.
+  // Layout mengikuti template resmi Astryx `login-card` — satu kartu
+  // terangkat di tengah viewport dengan brand di atasnya, input tanpa label
+  // kasat mata, dan tombol primer full-width lg. Blok social sign-in +
+  // Sign up + Terms dihilangkan karena aplikasi ini tak punya jalur itu:
+  // akun dibuat pengelola dan sudah tunduk pada regulasi internal kampus.
   return (
-    <Center axis="both" padding={6}>
-      <VStack gap={4} hAlign="center" style={{ width: "100%", maxWidth: 400 }}>
-        <VStack gap={1} hAlign="center">
+    <Center axis="both" padding={6} style={pageStyle}>
+      <VStack gap={4} hAlign="center" style={contentStyle}>
+        {/* Logo */}
+        <VStack gap={2} hAlign="center">
+          <Icon icon={GraduationCapIcon} size="lg" />
           <Text type="body" weight="bold" size="lg">
             RPS OBE Generator
           </Text>
-          <Text type="supporting" color="secondary">
-            Universitas Megarezky
-          </Text>
         </VStack>
 
+        {/* Card */}
         <Card padding={8} width="100%">
           <VStack gap={4} hAlign="stretch">
+            {/* Header */}
             <VStack gap={1} hAlign="center">
               <Heading level={2}>Selamat datang kembali</Heading>
               <Text type="body" color="secondary" size="sm">
-                Masuk memakai NIDN dan password Anda
+                Masuk ke akun dosen Anda
               </Text>
             </VStack>
 
+            {/* Form fields */}
             <VStack gap={2}>
               <TextInput
                 label="NIDN"
@@ -123,24 +155,17 @@ export function AdminLoginForm() {
               <TextInput
                 label="Password"
                 isLabelHidden
-                type={showPassword ? "text" : "password"}
+                type="password"
                 placeholder="Password"
                 value={password}
                 onChange={setPassword}
                 size="lg"
               />
-              <HStack justify="end">
-                <Button
-                  label={showPassword ? "Sembunyikan password" : "Tampilkan password"}
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setShowPassword((v) => !v)}
-                />
-              </HStack>
             </VStack>
 
             {error !== null && <Banner status="error">{errorMessage(error)}</Banner>}
 
+            {/* Login button */}
             <Button
               label={login.isPending ? "Memeriksa…" : "Masuk"}
               variant="primary"
@@ -152,9 +177,12 @@ export function AdminLoginForm() {
           </VStack>
         </Card>
 
-        <Text type="supporting" color="secondary">
-          Belum punya akun? Hubungi pengelola sistem.
-        </Text>
+        {/* Info kontak — pengganti "Sign up" karena akun dibuat pengelola */}
+        <VStack hAlign="center">
+          <Text type="supporting" color="secondary">
+            Belum punya akun? Hubungi pengelola sistem.
+          </Text>
+        </VStack>
       </VStack>
     </Center>
   );

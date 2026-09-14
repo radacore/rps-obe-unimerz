@@ -39,6 +39,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   // wizard `/rps/baru`) dibatasi lebih sempit supaya fokus terasa di tengah.
   const isRpsDetail = /^\/rps\/[^/]+$/.test(pathname) && pathname !== "/rps/baru";
 
+  // Halaman autentikasi dirancang berdiri sendiri: tanpa TopNav dan tanpa
+  // container terbatas, latar body diserahkan ke halaman/komponen (mengikuti
+  // pola template `login-card` Astryx yang mem-paint latarnya sendiri).
+  const isAuthPage = pathname === "/admin/login";
+
   // Sesi dipakai hanya untuk memilih tujuan tautan Admin. 401 adalah jawaban
   // yang sah ("belum login"), jadi jangan diperlakukan sebagai kegagalan.
   const session = useQuery({
@@ -91,15 +96,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <AstryxAppShell variant="elevated" topNav={topNav}>
-      <div className={isRpsDetail ? "mx-auto box-border w-full min-w-0 max-w-6xl px-4 py-6 xl:px-6" : "mx-auto box-border w-full min-w-0 max-w-4xl px-4 py-8 sm:px-6"}>
-        <div className="min-w-0 w-full max-w-full">{children}</div>
-        <div className="py-8 text-center">
-          <Text type="supporting" color="secondary">
-            Universitas Megarezky · 8 Fakultas + Pascasarjana · 37 Prodi (S1/S2/D3/D4/Profesi) · Kop surat dinamis per Fakultas/Prodi · Academic Navy #1E3A5F
-          </Text>
+    <AstryxAppShell variant="elevated" topNav={isAuthPage ? undefined : topNav}>
+      {isAuthPage ? (
+        // Halaman auth mem-paint latarnya sendiri dan tidak butuh container
+        // maupun footer meta — kartu Center Astryx sudah menempati viewport.
+        children
+      ) : (
+        <div className={isRpsDetail ? "mx-auto box-border w-full min-w-0 max-w-6xl px-4 py-6 xl:px-6" : "mx-auto box-border w-full min-w-0 max-w-4xl px-4 py-8 sm:px-6"}>
+          <div className="min-w-0 w-full max-w-full">{children}</div>
+          <div className="py-8 text-center">
+            <Text type="supporting" color="secondary">
+              Universitas Megarezky · 8 Fakultas + Pascasarjana · 37 Prodi (S1/S2/D3/D4/Profesi) · Kop surat dinamis per Fakultas/Prodi · Academic Navy #1E3A5F
+            </Text>
+          </div>
         </div>
-      </div>
+      )}
     </AstryxAppShell>
   );
 }
