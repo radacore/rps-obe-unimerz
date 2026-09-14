@@ -4,6 +4,9 @@ import { Button } from "@astryxdesign/core/Button";
 import { Selector } from "@astryxdesign/core/Selector";
 import { Text } from "@astryxdesign/core/Text";
 import { TextInput } from "@astryxdesign/core/TextInput";
+import { HStack } from "@astryxdesign/core/HStack";
+import { VStack } from "@astryxdesign/core/VStack";
+import { Grid } from "@astryxdesign/core/Grid";
 import { ApiError } from "@/lib/api";
 import {
   CPL_CATEGORY_OPTIONS, updateProgramCpl,
@@ -11,7 +14,7 @@ import {
 } from "@/lib/admin";
 import { Badge } from "./ui/Badge";
 import { Banner } from "./ui/Banner";
-import { Card } from "./ui/Card";
+import { Panel } from "./ui/Panel";
 
 function errorMessage(e: unknown): string {
   if (e instanceof ApiError) {
@@ -84,19 +87,12 @@ export function CplEditor({
   });
 
   return (
-    <Card>
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div className="min-w-0">
-          <Text weight="semibold">CPL — {label}</Text>
-          <Text type="supporting">
-            Capaian Pembelajaran Lulusan program studi. Tercetak di sampul RPS dan dipakai AI
-            sebagai acuan saat menurunkan CPMK.
-          </Text>
-        </div>
-        {dirty && <Badge variant="warning">Belum disimpan</Badge>}
-      </div>
-
-      <div className="mt-4 grid gap-3">
+    <Panel
+      title={`CPL — ${label}`}
+      description="Capaian Pembelajaran Lulusan program studi. Tercetak di sampul RPS dan dipakai AI sebagai acuan saat menurunkan CPMK."
+      actions={dirty ? <Badge variant="warning">Belum disimpan</Badge> : undefined}
+    >
+      <VStack gap={3}>
         {rows.length === 0 && (
           <Text type="supporting">Belum ada CPL. Tambahkan minimal satu butir.</Text>
         )}
@@ -105,38 +101,37 @@ export function CplEditor({
           const codeDuplicate = row.code.trim() !== ""
             && codes.filter((c) => c === row.code.trim().toUpperCase()).length > 1;
           return (
-            <div
-              key={`cpl-row-${i}`}
-              className="grid gap-2 rounded-lg border border-border bg-muted/20 p-3 md:grid-cols-[130px_1fr_190px_auto] md:items-start"
-            >
-              <TextInput
-                label="Kode"
-                value={row.code}
-                onChange={(v) => set(i, "code", v)}
-                placeholder="CPL1"
-                status={codeDuplicate ? { type: "error", message: "Kode ganda" } : undefined}
-              />
-              <TextInput
-                label="Deskripsi"
-                value={row.description}
-                onChange={(v) => set(i, "description", v)}
-                placeholder="Mampu menerapkan …"
-                status={
-                  row.description.trim().length > 0 && row.description.trim().length < 10
-                    ? { type: "error", message: "Minimal 10 karakter" }
-                    : undefined
-                }
-              />
-              <Selector
-                label="Kategori SN-Dikti"
-                value={row.category ?? ""}
-                onChange={(v) => set(i, "category", v)}
-                options={CPL_CATEGORY_OPTIONS}
-              />
-              <div className="flex items-end md:pt-6">
-                <Button label="Hapus" variant="secondary" size="sm" onClick={() => remove(i)} />
-              </div>
-            </div>
+            <Panel key={`cpl-row-${i}-${row.code || "baru"}`} padding={3}>
+              <Grid columns={{ minWidth: 180 }} gap={2} align="start">
+                <TextInput
+                  label="Kode"
+                  value={row.code}
+                  onChange={(v) => set(i, "code", v)}
+                  placeholder="CPL1"
+                  status={codeDuplicate ? { type: "error", message: "Kode ganda" } : undefined}
+                />
+                <TextInput
+                  label="Deskripsi"
+                  value={row.description}
+                  onChange={(v) => set(i, "description", v)}
+                  placeholder="Mampu menerapkan …"
+                  status={
+                    row.description.trim().length > 0 && row.description.trim().length < 10
+                      ? { type: "error", message: "Minimal 10 karakter" }
+                      : undefined
+                  }
+                />
+                <Selector
+                  label="Kategori SN-Dikti"
+                  value={row.category ?? ""}
+                  onChange={(v) => set(i, "category", v)}
+                  options={CPL_CATEGORY_OPTIONS}
+                />
+                <HStack justify="end" align="end">
+                  <Button label="Hapus" variant="secondary" size="sm" onClick={() => remove(i)} />
+                </HStack>
+              </Grid>
+            </Panel>
           );
         })}
 
@@ -144,7 +139,7 @@ export function CplEditor({
         {msg && <Banner status="success">{msg}</Banner>}
         {error !== null && <Banner status="error">{errorMessage(error)}</Banner>}
 
-        <div className="flex flex-wrap gap-2">
+        <HStack gap={2} wrap="wrap">
           <Button label="Tambah CPL" variant="secondary" size="sm" onClick={add} />
           <Button
             label={save.isPending ? "Menyimpan…" : "Simpan CPL"}
@@ -159,8 +154,8 @@ export function CplEditor({
             isDisabled={!dirty}
             onClick={() => setRows(baseline)}
           />
-        </div>
-      </div>
-    </Card>
+        </HStack>
+      </VStack>
+    </Panel>
   );
 }

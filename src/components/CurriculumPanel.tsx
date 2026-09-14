@@ -4,6 +4,9 @@ import { Button } from "@astryxdesign/core/Button";
 import { Selector } from "@astryxdesign/core/Selector";
 import { Text } from "@astryxdesign/core/Text";
 import { TextInput } from "@astryxdesign/core/TextInput";
+import { HStack } from "@astryxdesign/core/HStack";
+import { VStack } from "@astryxdesign/core/VStack";
+import { Grid } from "@astryxdesign/core/Grid";
 import { ApiError } from "@/lib/api";
 import {
   TAXONOMY_OPTIONS, createCourse, deleteCourse, fetchCourses, updateCourse, updateCourseCpmk,
@@ -11,7 +14,8 @@ import {
 } from "@/lib/admin";
 import { Badge } from "./ui/Badge";
 import { Banner } from "./ui/Banner";
-import { Card } from "./ui/Card";
+import { Panel } from "./ui/Panel";
+import { Textarea } from "./ui/Textarea";
 import { LinesEditor } from "./ui/LinesEditor";
 
 function errorMessage(e: unknown): string {
@@ -93,52 +97,50 @@ export function CurriculumPanel({ program }: { program: AdminProgram }) {
   const totalSks = rows.reduce((n, r) => n + r.sks_total, 0);
 
   return (
-    <div className="grid gap-4">
-      <Card>
-        <Text weight="semibold">Tambah mata kuliah — {program.label}</Text>
-        <Text type="supporting">
-          Kode mata kuliah unik di dalam prodi ini. CPMK diisi setelah mata kuliah dibuat.
-        </Text>
-        <div className="mt-3 grid gap-3 md:grid-cols-[160px_1fr_110px_110px_110px_auto] md:items-end">
-          <TextInput label="Kode" value={draft.code} onChange={(v) => setDraft({ ...draft, code: v })} placeholder="IK24IK1201" />
-          <TextInput label="Nama mata kuliah" value={draft.name} onChange={(v) => setDraft({ ...draft, name: v })} placeholder="Algoritma dan Struktur Data" />
-          <Selector
-            label="Semester"
-            value={String(draft.semester)}
-            onChange={(v) => setDraft({ ...draft, semester: Number(v) })}
-            options={Array.from({ length: 14 }, (_, i) => ({ value: String(i + 1), label: String(i + 1) }))}
-          />
-          <NumberInput label="SKS Teori" value={draft.sks_theory} onChange={(n) => setDraft({ ...draft, sks_theory: n })} />
-          <NumberInput label="SKS Praktik" value={draft.sks_practice} onChange={(n) => setDraft({ ...draft, sks_practice: n })} />
-          <Button
-            label={create.isPending ? "Menambah…" : "Tambah"}
-            variant="primary"
-            isLoading={create.isPending}
-            isDisabled={!canCreate}
-            onClick={() => create.mutate()}
-          />
-        </div>
-        {createError !== null && <div className="mt-3"><Banner status="error">{errorMessage(createError)}</Banner></div>}
-      </Card>
+    <VStack gap={4}>
+      <Panel
+        title={`Tambah mata kuliah — ${program.label}`}
+        description="Kode mata kuliah unik di dalam prodi ini. CPMK diisi setelah mata kuliah dibuat."
+      >
+        <VStack gap={3}>
+          <Grid columns={{ minWidth: 180 }} gap={3} align="end">
+            <TextInput label="Kode" value={draft.code} onChange={(v) => setDraft({ ...draft, code: v })} placeholder="IK24IK1201" />
+            <TextInput label="Nama mata kuliah" value={draft.name} onChange={(v) => setDraft({ ...draft, name: v })} placeholder="Algoritma dan Struktur Data" />
+            <Selector
+              label="Semester"
+              value={String(draft.semester)}
+              onChange={(v) => setDraft({ ...draft, semester: Number(v) })}
+              options={Array.from({ length: 14 }, (_, i) => ({ value: String(i + 1), label: String(i + 1) }))}
+            />
+            <NumberInput label="SKS Teori" value={draft.sks_theory} onChange={(n) => setDraft({ ...draft, sks_theory: n })} />
+            <NumberInput label="SKS Praktik" value={draft.sks_practice} onChange={(n) => setDraft({ ...draft, sks_practice: n })} />
+            <HStack justify="end">
+              <Button
+                label={create.isPending ? "Menambah…" : "Tambah"}
+                variant="primary"
+                isLoading={create.isPending}
+                isDisabled={!canCreate}
+                onClick={() => create.mutate()}
+              />
+            </HStack>
+          </Grid>
+          {createError !== null && <Banner status="error">{errorMessage(createError)}</Banner>}
+        </VStack>
+      </Panel>
 
-      <Card>
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <Text weight="semibold">Kurikulum {program.label}</Text>
-          <Text type="supporting">{rows.length} mata kuliah · {totalSks} SKS</Text>
-        </div>
-
-        {courses.isLoading && <Text type="supporting">Memuat kurikulum…</Text>}
-        {courses.isError && <Banner status="error">{errorMessage(courses.error)}</Banner>}
-        {!courses.isLoading && rows.length === 0 && (
-          <div className="mt-3">
+      <Panel
+        title={`Kurikulum ${program.label}`}
+        actions={<Text type="supporting">{`${rows.length} mata kuliah · ${totalSks} SKS`}</Text>}
+      >
+        <VStack gap={2}>
+          {courses.isLoading && <Text type="supporting">Memuat kurikulum…</Text>}
+          {courses.isError && <Banner status="error">{errorMessage(courses.error)}</Banner>}
+          {!courses.isLoading && rows.length === 0 && (
             <Text type="supporting">
               Belum ada mata kuliah. Tambahkan dari formulir di atas — setelah itu CPMK bisa disusun
               dan dipakai ulang oleh setiap RPS mata kuliah tersebut.
             </Text>
-          </div>
-        )}
-
-        <div className="mt-3 grid gap-2">
+          )}
           {rows.map((course) => (
             <CourseRow
               key={course.id}
@@ -149,9 +151,9 @@ export function CurriculumPanel({ program }: { program: AdminProgram }) {
               onToggle={() => setOpenId(openId === course.id ? null : course.id)}
             />
           ))}
-        </div>
-      </Card>
-    </div>
+        </VStack>
+      </Panel>
+    </VStack>
   );
 }
 
@@ -188,50 +190,52 @@ function CourseRow({
   });
 
   return (
-    <div className="grid gap-2 rounded-lg border border-border bg-muted/20 p-3">
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div className="min-w-0">
-          <Text weight="semibold">{course.code} — {course.name}</Text>
+    <Panel padding={3}>
+      <VStack gap={2}>
+        <HStack justify="between" align="start" gap={2} wrap="wrap">
+          <VStack gap={0}>
+            <Text weight="semibold">{course.code} — {course.name}</Text>
+            <Text type="supporting">
+              Semester {course.semester} · T{course.sks_theory}/P{course.sks_practice} ({course.sks_total} SKS)
+              {course.is_elective ? " · pilihan" : ""}
+            </Text>
+          </VStack>
+          <HStack align="center" gap={1} wrap="wrap">
+            <Badge variant={course.cpmk_count > 0 ? "success" : "warning"}>
+              {`${course.cpmk_count} CPMK`}
+            </Badge>
+            <Badge variant="default">{`${course.sub_cpmk_count} Sub-CPMK`}</Badge>
+            <Button label={isOpen ? "Tutup" : "Kelola CPMK"} variant="secondary" size="sm" onClick={onToggle} />
+            {confirmDelete ? (
+              <>
+                <Button label="Ya, hapus" variant="destructive" size="sm" isLoading={remove.isPending} onClick={() => remove.mutate()} />
+                <Button label="Batal" variant="ghost" size="sm" onClick={() => setConfirmDelete(false)} />
+              </>
+            ) : (
+              <Button label="Hapus" variant="ghost" size="sm" onClick={() => setConfirmDelete(true)} />
+            )}
+          </HStack>
+        </HStack>
+
+        {course.cpmk_count === 0 && (
           <Text type="supporting">
-            Semester {course.semester} · T{course.sks_theory}/P{course.sks_practice} ({course.sks_total} SKS)
-            {course.is_elective ? " · pilihan" : ""}
+            Belum ada CPMK. Tanpa CPMK, mata kuliah ini tidak menopang CPL mana pun di matriks.
           </Text>
-        </div>
-        <div className="flex flex-wrap items-center gap-1">
-          <Badge variant={course.cpmk_count > 0 ? "success" : "warning"}>
-            {course.cpmk_count} CPMK
-          </Badge>
-          <Badge variant="default">{course.sub_cpmk_count} Sub-CPMK</Badge>
-          <Button label={isOpen ? "Tutup" : "Kelola CPMK"} variant="secondary" size="sm" onClick={onToggle} />
-          {confirmDelete ? (
-            <>
-              <Button label="Ya, hapus" variant="destructive" size="sm" isLoading={remove.isPending} onClick={() => remove.mutate()} />
-              <Button label="Batal" variant="ghost" size="sm" onClick={() => setConfirmDelete(false)} />
-            </>
-          ) : (
-            <Button label="Hapus" variant="ghost" size="sm" onClick={() => setConfirmDelete(true)} />
-          )}
-        </div>
-      </div>
+        )}
+        {msg && <Banner status="success">{msg}</Banner>}
+        {error !== null && <Banner status="error">{errorMessage(error)}</Banner>}
 
-      {course.cpmk_count === 0 && (
-        <Text type="supporting">
-          Belum ada CPMK. Tanpa CPMK, mata kuliah ini tidak menopang CPL mana pun di matriks.
-        </Text>
-      )}
-      {msg && <Banner status="success">{msg}</Banner>}
-      {error !== null && <Banner status="error">{errorMessage(error)}</Banner>}
-
-      {isOpen && (
-        <CpmkEditor
-          key={`cpmk-${course.id}-${course.updated_at}`}
-          course={course}
-          programSlug={programSlug}
-          programCplCodes={programCplCodes}
-        />
-      )}
-      {isOpen && <CourseDetailEditor key={`detail-${course.id}`} course={course} programSlug={programSlug} />}
-    </div>
+        {isOpen && (
+          <CpmkEditor
+            key={`cpmk-${course.id}-${course.updated_at}`}
+            course={course}
+            programSlug={programSlug}
+            programCplCodes={programCplCodes}
+          />
+        )}
+        {isOpen && <CourseDetailEditor key={`detail-${course.id}`} course={course} programSlug={programSlug} />}
+      </VStack>
+    </Panel>
   );
 }
 
@@ -286,44 +290,42 @@ function CourseDetailEditor({ course, programSlug }: { course: Course; programSl
   });
 
   return (
-    <div className="mt-2 grid gap-3 rounded-lg border border-border bg-surface p-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <Text weight="semibold">Deskripsi & pustaka</Text>
-        {dirty && <Badge variant="warning">Belum disimpan</Badge>}
-      </div>
-      <Text type="supporting">
-        Isi ini yang dipakai saat sebuah RPS diisi dari kurikulum.
-      </Text>
+    <Panel
+      title="Deskripsi & pustaka"
+      headingLevel={4}
+      padding={3}
+      actions={dirty ? <Badge variant="warning">Belum disimpan</Badge> : undefined}
+    >
+      <VStack gap={3}>
+        <Text type="supporting">Isi ini yang dipakai saat sebuah RPS diisi dari kurikulum.</Text>
 
-      <div className="grid gap-1">
-        <Text weight="semibold">Deskripsi singkat MK</Text>
-        <textarea
-          className="min-h-[80px] w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm leading-relaxed text-primary placeholder:text-secondary focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
-          rows={3}
+        <Textarea
+          label="Deskripsi singkat MK"
           value={description}
-          onChange={(e) => setDescription(e.target.value)}
+          onChange={setDescription}
           placeholder="Mata kuliah ini membahas …"
+          minRows={3}
         />
-      </div>
 
-      <LinesEditor label="Bahan kajian" hint="Satu topik per baris" value={bahan} onChange={setBahan} />
-      <LinesEditor label="Pustaka utama" hint="Satu referensi per baris" value={utama} onChange={setUtama} />
-      <LinesEditor label="Pustaka pendukung" hint="Satu referensi per baris" value={pendukung} onChange={setPendukung} />
+        <LinesEditor label="Bahan kajian" hint="Satu topik per baris" value={bahan} onChange={setBahan} />
+        <LinesEditor label="Pustaka utama" hint="Satu referensi per baris" value={utama} onChange={setUtama} />
+        <LinesEditor label="Pustaka pendukung" hint="Satu referensi per baris" value={pendukung} onChange={setPendukung} />
 
-      {msg && <Banner status="success">{msg}</Banner>}
-      {error !== null && <Banner status="error">{errorMessage(error)}</Banner>}
+        {msg && <Banner status="success">{msg}</Banner>}
+        {error !== null && <Banner status="error">{errorMessage(error)}</Banner>}
 
-      <div>
-        <Button
-          label={save.isPending ? "Menyimpan…" : "Simpan deskripsi & pustaka"}
-          variant="primary"
-          size="sm"
-          isLoading={save.isPending}
-          isDisabled={!dirty}
-          onClick={() => save.mutate()}
-        />
-      </div>
-    </div>
+        <HStack>
+          <Button
+            label={save.isPending ? "Menyimpan…" : "Simpan deskripsi & pustaka"}
+            variant="primary"
+            size="sm"
+            isLoading={save.isPending}
+            isDisabled={!dirty}
+            onClick={() => save.mutate()}
+          />
+        </HStack>
+      </VStack>
+    </Panel>
   );
 }
 
@@ -387,85 +389,90 @@ function CpmkEditor({
   });
 
   return (
-    <div className="mt-2 grid gap-3 rounded-lg border border-border bg-surface p-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <Text weight="semibold">CPMK — {course.code}</Text>
-        {dirty && <Badge variant="warning">Belum disimpan</Badge>}
-      </div>
-      {programCplCodes.length === 0 && (
-        <Banner status="warning">
-          Prodi ini belum punya CPL. Isi tab CPL Prodi lebih dulu agar CPMK bisa dipetakan.
-        </Banner>
-      )}
+    <Panel
+      title={`CPMK — ${course.code}`}
+      headingLevel={4}
+      padding={3}
+      actions={dirty ? <Badge variant="warning">Belum disimpan</Badge> : undefined}
+    >
+      <VStack gap={3}>
+        {programCplCodes.length === 0 && (
+          <Banner status="warning">
+            Prodi ini belum punya CPL. Isi tab CPL Prodi lebih dulu agar CPMK bisa dipetakan.
+          </Banner>
+        )}
 
-      {rows.map((cpmk, i) => (
-        <div key={`cpmk-${i}-${cpmk.code || "baru"}`} className="grid gap-2 rounded-lg border border-border bg-muted/20 p-3">
-          <div className="grid gap-2 md:grid-cols-[130px_1fr_120px_150px_auto] md:items-start">
-            <TextInput label="Kode CPMK" value={cpmk.code} onChange={(v) => setCpmk(i, { code: v })} placeholder="CPMK 1" />
-            <TextInput label={`Rumusan ${cpmk.code || "CPMK"}`} value={cpmk.description} onChange={(v) => setCpmk(i, { description: v })} placeholder="Mampu menganalisis …" />
-            <Selector label="Taksonomi" value={cpmk.taxonomy ?? ""} onChange={(v) => setCpmk(i, { taxonomy: v || null })} options={TAXONOMY_OPTIONS} />
-            <Selector label="Menopang CPL" value={cpmk.cpl_code ?? ""} onChange={(v) => setCpmk(i, { cpl_code: v || null })} options={cplOptions} />
-            <div className="flex items-end md:pt-6">
-              <Button label="Hapus" variant="secondary" size="sm" onClick={() => setRows((prev) => prev.filter((_, idx) => idx !== i))} />
-            </div>
-          </div>
+        {rows.map((cpmk, i) => (
+          <Panel key={`cpmk-${i}-${cpmk.code || "baru"}`} padding={3}>
+            <VStack gap={2}>
+              <Grid columns={{ minWidth: 160 }} gap={2} align="start">
+                <TextInput label="Kode CPMK" value={cpmk.code} onChange={(v) => setCpmk(i, { code: v })} placeholder="CPMK 1" />
+                <TextInput label={`Rumusan ${cpmk.code || "CPMK"}`} value={cpmk.description} onChange={(v) => setCpmk(i, { description: v })} placeholder="Mampu menganalisis …" />
+                <Selector label="Taksonomi" value={cpmk.taxonomy ?? ""} onChange={(v) => setCpmk(i, { taxonomy: v || null })} options={TAXONOMY_OPTIONS} />
+                <Selector label="Menopang CPL" value={cpmk.cpl_code ?? ""} onChange={(v) => setCpmk(i, { cpl_code: v || null })} options={cplOptions} />
+                <HStack justify="end" align="end">
+                  <Button label="Hapus" variant="secondary" size="sm" onClick={() => setRows((prev) => prev.filter((_, idx) => idx !== i))} />
+                </HStack>
+              </Grid>
 
-          <div className="grid gap-2 pl-0 md:pl-4">
-            <Text type="supporting">Sub-CPMK — tahapan kemampuan per pertemuan</Text>
-            {cpmk.sub_cpmk.map((sub, j) => (
-              <div key={`sub-${i}-${j}-${sub.code || "baru"}`} className="grid gap-2 md:grid-cols-[150px_1fr_120px_auto] md:items-start">
-                <TextInput label="Kode Sub-CPMK" value={sub.code} onChange={(v) => setSub(i, j, { code: v })} placeholder="Sub-CPMK-1" />
-                <TextInput label={`Rumusan ${sub.code || "Sub-CPMK"}`} value={sub.description} onChange={(v) => setSub(i, j, { description: v })} placeholder="Mahasiswa mampu …" />
-                <Selector label="Taksonomi" value={sub.taxonomy ?? ""} onChange={(v) => setSub(i, j, { taxonomy: v || null })} options={TAXONOMY_OPTIONS} />
-                <div className="flex items-end md:pt-6">
+              <VStack gap={2}>
+                <Text type="supporting">Sub-CPMK — tahapan kemampuan per pertemuan</Text>
+                {cpmk.sub_cpmk.map((sub, j) => (
+                  <Grid key={`sub-${i}-${j}-${sub.code || "baru"}`} columns={{ minWidth: 160 }} gap={2} align="start">
+                    <TextInput label="Kode Sub-CPMK" value={sub.code} onChange={(v) => setSub(i, j, { code: v })} placeholder="Sub-CPMK-1" />
+                    <TextInput label={`Rumusan ${sub.code || "Sub-CPMK"}`} value={sub.description} onChange={(v) => setSub(i, j, { description: v })} placeholder="Mahasiswa mampu …" />
+                    <Selector label="Taksonomi" value={sub.taxonomy ?? ""} onChange={(v) => setSub(i, j, { taxonomy: v || null })} options={TAXONOMY_OPTIONS} />
+                    <HStack justify="end" align="end">
+                      <Button
+                        label="Hapus"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setCpmk(i, { sub_cpmk: cpmk.sub_cpmk.filter((_, sIdx) => sIdx !== j) })}
+                      />
+                    </HStack>
+                  </Grid>
+                ))}
+                <HStack>
                   <Button
-                    label="Hapus"
+                    label="Tambah Sub-CPMK"
                     variant="ghost"
                     size="sm"
-                    onClick={() => setCpmk(i, { sub_cpmk: cpmk.sub_cpmk.filter((_, sIdx) => sIdx !== j) })}
+                    onClick={() => setCpmk(i, {
+                      sub_cpmk: [...cpmk.sub_cpmk, {
+                        code: `Sub-CPMK-${cpmk.sub_cpmk.length + 1}`, description: "", taxonomy: null,
+                      }],
+                    })}
                   />
-                </div>
-              </div>
-            ))}
-            <div>
-              <Button
-                label="Tambah Sub-CPMK"
-                variant="ghost"
-                size="sm"
-                onClick={() => setCpmk(i, {
-                  sub_cpmk: [...cpmk.sub_cpmk, {
-                    code: `Sub-CPMK-${cpmk.sub_cpmk.length + 1}`, description: "", taxonomy: null,
-                  }],
-                })}
-              />
-            </div>
-          </div>
-        </div>
-      ))}
+                </HStack>
+              </VStack>
+            </VStack>
+          </Panel>
+        ))}
 
-      {duplicate && <Banner status="error">Kode CPMK tidak boleh duplikat.</Banner>}
-      {msg && <Banner status="success">{msg}</Banner>}
-      {error !== null && <Banner status="error">{errorMessage(error)}</Banner>}
+        {duplicate && <Banner status="error">Kode CPMK tidak boleh duplikat.</Banner>}
+        {msg && <Banner status="success">{msg}</Banner>}
+        {error !== null && <Banner status="error">{errorMessage(error)}</Banner>}
 
-      <div className="flex flex-wrap gap-2">
-        <Button
-          label="Tambah CPMK"
-          variant="secondary"
-          size="sm"
-          onClick={() => setRows((prev) => [...prev, {
-            code: `CPMK ${prev.length + 1}`, description: "", taxonomy: null, cpl_code: null, sub_cpmk: [],
-          }])}
-        />
-        <Button
-          label={save.isPending ? "Menyimpan…" : "Simpan CPMK"}
-          variant="primary"
-          size="sm"
-          isLoading={save.isPending}
-          isDisabled={!dirty || duplicate || incomplete}
-          onClick={() => save.mutate()}
-        />
-        <Button label="Batalkan perubahan" variant="ghost" size="sm" isDisabled={!dirty} onClick={() => setRows(baseline)} />
-      </div>
-    </div>
+        <HStack gap={2} wrap="wrap">
+          <Button
+            label="Tambah CPMK"
+            variant="secondary"
+            size="sm"
+            onClick={() => setRows((prev) => [...prev, {
+              code: `CPMK ${prev.length + 1}`, description: "", taxonomy: null, cpl_code: null, sub_cpmk: [],
+            }])}
+          />
+          <Button
+            label={save.isPending ? "Menyimpan…" : "Simpan CPMK"}
+            variant="primary"
+            size="sm"
+            isLoading={save.isPending}
+            isDisabled={!dirty || duplicate || incomplete}
+            onClick={() => save.mutate()}
+          />
+          <Button label="Batalkan perubahan" variant="ghost" size="sm" isDisabled={!dirty} onClick={() => setRows(baseline)} />
+        </HStack>
+      </VStack>
+    </Panel>
   );
 }

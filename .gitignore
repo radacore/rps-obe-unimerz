@@ -12,3 +12,6 @@ __pycache__/
 venv/
 *.pyc
 .playwright-mcp/
+
+# screenshots kerja lokal, tidak untuk repo
+*.png

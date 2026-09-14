@@ -1,9 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
 import { Text } from "@astryxdesign/core/Text";
+import { HStack } from "@astryxdesign/core/HStack";
+import { VStack } from "@astryxdesign/core/VStack";
+import { List, ListItem } from "@astryxdesign/core/List";
 import { fetchProgramMatrix, type AdminProgram } from "@/lib/admin";
 import { Badge } from "./ui/Badge";
 import { Banner } from "./ui/Banner";
-import { Card } from "./ui/Card";
+import { Panel } from "./ui/Panel";
+import { DataTable } from "./ui/DataTable";
 
 const CATEGORY_LABEL: Record<string, string> = {
   sikap: "Sikap",
@@ -32,116 +36,100 @@ export function MatrixPanel({ program }: { program: AdminProgram }) {
   if (matrix.isError || !data) return <Banner status="error">Gagal memuat matriks.</Banner>;
 
   return (
-    <div className="grid gap-4">
-      <Card>
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="min-w-0">
-            <Text weight="semibold">Matriks CPL — {data.study_program.label}</Text>
-            <Text type="supporting">
-              {data.cpl.length} CPL · {data.course_count} mata kuliah · {data.cpmk_count} CPMK ·
-              {" "}{data.graduate_profile.length} profil lulusan
-            </Text>
-          </div>
+    <VStack gap={4}>
+      <Panel
+        title={`Matriks CPL — ${data.study_program.label}`}
+        description={
+          `${data.cpl.length} CPL · ${data.course_count} mata kuliah · ${data.cpmk_count} CPMK · ` +
+          `${data.graduate_profile.length} profil lulusan`
+        }
+        actions={
           <Badge variant={data.uncovered_cpl.length === 0 ? "success" : "warning"}>
             {data.uncovered_cpl.length === 0
               ? "Semua CPL ditopang"
               : `${data.uncovered_cpl.length} CPL belum ditopang`}
           </Badge>
-        </div>
-
-        {data.cpl.length === 0 && (
-          <div className="mt-3">
+        }
+      >
+        <VStack gap={2}>
+          {data.cpl.length === 0 && (
             <Banner status="warning">
-              Prodi ini belum punya CPL. Isi tab CPL Prodi lebih dulu — tanpa CPL, matriks tidak bisa disusun.
+              Prodi ini belum punya CPL. Isi tab CPL Prodi lebih dulu — tanpa CPL, matriks tidak
+              bisa disusun.
             </Banner>
-          </div>
-        )}
-
-        {data.uncovered_cpl.length > 0 && (
-          <div className="mt-3">
+          )}
+          {data.uncovered_cpl.length > 0 && (
             <Banner status="warning" title="CPL belum ditopang mata kuliah">
-              {data.uncovered_cpl.join(", ")} belum punya CPMK yang memetakan ke sana. Tambahkan CPMK
-              di tab Kurikulum, atau tinjau ulang rumusan CPL-nya.
+              {`${data.uncovered_cpl.join(", ")} belum punya CPMK yang memetakan ke sana. Tambahkan CPMK di tab Kurikulum, atau tinjau ulang rumusan CPL-nya.`}
             </Banner>
-          </div>
-        )}
-
-        {data.orphan_cpmk.length > 0 && (
-          <div className="mt-3">
+          )}
+          {data.orphan_cpmk.length > 0 && (
             <Banner status="warning" title="CPMK belum dipetakan ke CPL">
-              <ul className="grid gap-1">
+              <List density="compact">
                 {data.orphan_cpmk.map((o) => (
-                  <li key={`${o.course_code}-${o.cpmk_code}`} className="text-xs">
-                    {o.course_code} · {o.cpmk_code}
-                    {o.cpl_code ? ` menunjuk ${o.cpl_code} yang tidak ada` : " belum menunjuk CPL"}
-                  </li>
+                  <ListItem
+                    key={`${o.course_code}-${o.cpmk_code}`}
+                    label={
+                      `${o.course_code} · ${o.cpmk_code}` +
+                      (o.cpl_code ? ` menunjuk ${o.cpl_code} yang tidak ada` : " belum menunjuk CPL")
+                    }
+                  />
                 ))}
-              </ul>
+              </List>
             </Banner>
-          </div>
-        )}
-      </Card>
+          )}
+        </VStack>
+      </Panel>
 
       {data.cpl.map((cpl) => (
-        <Card key={cpl.code}>
-          <div className="flex flex-wrap items-start justify-between gap-2">
-            <div className="min-w-0">
-              <Text weight="semibold">{cpl.code}</Text>
-              <Text type="supporting">{cpl.description}</Text>
-            </div>
-            <div className="flex flex-wrap items-center gap-1">
+        <Panel
+          key={cpl.code}
+          title={cpl.code}
+          description={cpl.description}
+          actions={
+            <HStack align="center" gap={1} wrap="wrap">
               {cpl.category && <Badge variant="default">{CATEGORY_LABEL[cpl.category] ?? cpl.category}</Badge>}
               <Badge variant={cpl.is_covered ? "success" : "warning"}>
                 {cpl.is_covered ? `${cpl.supporting.length} CPMK` : "belum ditopang"}
               </Badge>
-            </div>
-          </div>
-
+            </HStack>
+          }
+        >
           {cpl.supporting.length > 0 && (
-            <div className="mt-3 overflow-x-auto">
-              <table className="w-full min-w-[560px] border-collapse text-left text-xs">
-                <thead>
-                  <tr className="border-b border-border">
-                    <th className="py-2 pr-3 font-medium text-secondary">Mata kuliah</th>
-                    <th className="py-2 pr-3 font-medium text-secondary">Smt</th>
-                    <th className="py-2 pr-3 font-medium text-secondary">CPMK</th>
-                    <th className="py-2 pr-3 font-medium text-secondary">Rumusan</th>
-                    <th className="py-2 font-medium text-secondary">Sub</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {cpl.supporting.map((s) => (
-                    <tr key={`${s.course_code}-${s.cpmk_code}`} className="border-b border-border/60 align-top">
-                      <td className="py-2 pr-3 font-mono">{s.course_code}</td>
-                      <td className="py-2 pr-3">{s.semester}</td>
-                      <td className="py-2 pr-3">
-                        {s.cpmk_code}
-                        {s.taxonomy ? ` (${s.taxonomy})` : ""}
-                      </td>
-                      <td className="py-2 pr-3 leading-relaxed text-secondary">{s.cpmk_description}</td>
-                      <td className="py-2">{s.sub_cpmk_count}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <DataTable
+              minWidth={560}
+              rows={cpl.supporting}
+              rowKey={(s) => `${s.course_code}-${s.cpmk_code}`}
+              columns={[
+                { header: "Mata kuliah", cell: (s) => <span className="font-mono">{s.course_code}</span> },
+                { header: "Smt", cell: (s) => s.semester, align: "center", width: 60 },
+                {
+                  header: "CPMK",
+                  cell: (s) => `${s.cpmk_code}${s.taxonomy ? ` (${s.taxonomy})` : ""}`,
+                },
+                {
+                  header: "Rumusan",
+                  cell: (s) => <span className="text-secondary">{s.cpmk_description}</span>,
+                },
+                { header: "Sub", cell: (s) => s.sub_cpmk_count, align: "center", width: 60 },
+              ]}
+            />
           )}
-        </Card>
+        </Panel>
       ))}
 
       {data.graduate_profile.length > 0 && (
-        <Card>
-          <Text weight="semibold">Profil lulusan</Text>
-          <Text type="supporting">
-            CPL di atas adalah penjabaran profil lulusan berikut.
-          </Text>
-          <ol className="mt-2 grid list-decimal gap-1 pl-5">
+        <Panel
+          title="Profil lulusan"
+          description="CPL di atas adalah penjabaran profil lulusan berikut."
+        >
+          <List density="compact">
             {data.graduate_profile.map((profile) => (
-              <li key={profile} className="text-xs leading-relaxed text-secondary">{profile}</li>
+              <ListItem key={profile} label={profile} />
             ))}
-          </ol>
-        </Card>
+          </List>
+        </Panel>
       )}
-    </div>
+    </VStack>
   );
 }

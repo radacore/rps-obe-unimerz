@@ -3,11 +3,14 @@ import { useEffect, useMemo, useState } from "react";
 import { Button } from "@astryxdesign/core/Button";
 import { Selector } from "@astryxdesign/core/Selector";
 import { Text } from "@astryxdesign/core/Text";
+import { HStack } from "@astryxdesign/core/HStack";
+import { VStack } from "@astryxdesign/core/VStack";
 import { ApiError } from "@/lib/api";
 import { fetchAdminFaculties, updateFacultyProfile, type AdminFaculty } from "@/lib/admin";
 import { Badge } from "./ui/Badge";
 import { Banner } from "./ui/Banner";
-import { Card } from "./ui/Card";
+import { Panel } from "./ui/Panel";
+import { Textarea } from "./ui/Textarea";
 import { LinesEditor } from "./ui/LinesEditor";
 
 function errorMessage(e: unknown): string {
@@ -36,12 +39,13 @@ export function FacultyProfilePanel({ enabled }: { enabled: boolean }) {
   if (!rows.length) return null;
 
   return (
-    <div className="grid gap-4">
+    <VStack gap={4}>
       {rows.length > 1 && (
-        <Card>
-          <Text weight="semibold">Profil fakultas</Text>
-          <Text type="supporting">{rows.length} fakultas dalam wewenang Anda</Text>
-          <div className="mt-3 max-w-xl">
+        <Panel
+          title="Profil fakultas"
+          description={`${rows.length} fakultas dalam wewenang Anda`}
+        >
+          <div style={{ maxWidth: 640 }}>
             <Selector
               label="Pilih fakultas"
               value={selected?.slug ?? ""}
@@ -52,10 +56,10 @@ export function FacultyProfilePanel({ enabled }: { enabled: boolean }) {
               }))}
             />
           </div>
-        </Card>
+        </Panel>
       )}
       {selected && <FacultyForm key={selected.slug} faculty={selected} />}
-    </div>
+    </VStack>
   );
 }
 
@@ -110,38 +114,26 @@ function FacultyForm({ faculty }: { faculty: AdminFaculty }) {
   const isEmpty = !faculty.vision && faculty.mission.length === 0;
 
   return (
-    <Card>
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div className="min-w-0">
-          <Text weight="semibold">{faculty.label}</Text>
-          <Text type="supporting">
-            {faculty.program_count} program studi
-            {faculty.href ? ` · ${faculty.href}` : ""}
-          </Text>
-        </div>
-        {dirty && <Badge variant="warning">Belum disimpan</Badge>}
-      </div>
-
-      {isEmpty && (
-        <div className="mt-2">
+    <Panel
+      title={faculty.label}
+      description={`${faculty.program_count} program studi${faculty.href ? ` · ${faculty.href}` : ""}`}
+      actions={dirty ? <Badge variant="warning">Belum disimpan</Badge> : undefined}
+    >
+      <VStack gap={4}>
+        {isEmpty && (
           <Banner status="info">
             Visi dan misi fakultas belum pernah diisi. Data ini tidak tersedia dari hasil penelusuran
             situs, jadi perlu dimasukkan dari dokumen resmi fakultas.
           </Banner>
-        </div>
-      )}
+        )}
 
-      <div className="mt-4 grid gap-4">
-        <div className="grid gap-1">
-          <Text weight="semibold">Visi</Text>
-          <textarea
-            className="min-h-[80px] w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm leading-relaxed text-primary placeholder:text-secondary focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
-            rows={3}
-            value={vision}
-            onChange={(e) => setVision(e.target.value)}
-            placeholder="Menjadi fakultas …"
-          />
-        </div>
+        <Textarea
+          label="Visi"
+          value={vision}
+          onChange={setVision}
+          placeholder="Menjadi fakultas …"
+          minRows={3}
+        />
 
         <LinesEditor label="Misi" hint="Satu misi per baris" value={mission} onChange={setMission} />
         <LinesEditor label="Tujuan" hint="Satu tujuan per baris" value={objective} onChange={setObjective} />
@@ -149,7 +141,7 @@ function FacultyForm({ faculty }: { faculty: AdminFaculty }) {
         {msg && <Banner status="success">{msg}</Banner>}
         {error !== null && <Banner status="error">{errorMessage(error)}</Banner>}
 
-        <div className="flex flex-wrap gap-2">
+        <HStack gap={2}>
           <Button
             label={save.isPending ? "Menyimpan…" : "Simpan profil fakultas"}
             variant="primary"
@@ -167,8 +159,8 @@ function FacultyForm({ faculty }: { faculty: AdminFaculty }) {
               setObjective(baseline.objective);
             }}
           />
-        </div>
-      </div>
-    </Card>
+        </HStack>
+      </VStack>
+    </Panel>
   );
 }

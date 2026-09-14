@@ -1,5 +1,16 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useMemo, useState } from "react";
+import { Button } from "@astryxdesign/core/Button";
+import { Text } from "@astryxdesign/core/Text";
+import { Heading } from "@astryxdesign/core/Heading";
+import { Selector } from "@astryxdesign/core/Selector";
+import { TextInput } from "@astryxdesign/core/TextInput";
+import { DateInput } from "@astryxdesign/core/DateInput";
+import { Grid } from "@astryxdesign/core/Grid";
+import { HStack } from "@astryxdesign/core/HStack";
+import { VStack } from "@astryxdesign/core/VStack";
+import type { ISODateString } from "@astryxdesign/core/Calendar";
 import { api, type ApiOk } from "@/lib/api";
 import { fetchProgram, type Program } from "@/lib/programs";
 import { WeeklyTable, type WeeklyRow } from "@/components/WeeklyTable";
@@ -9,16 +20,10 @@ import { TemplateEditor } from "@/components/TemplateEditor";
 import { ApplyCoursePanel } from "@/components/ApplyCoursePanel";
 import { CONTOH_BAHAN_KAJIAN, CONTOH_CPL, CONTOH_CPMK, CONTOH_DESCRIPTION, CONTOH_PUSTAKA_PENDUKUNG, CONTOH_PUSTAKA_UTAMA, CONTOH_SUB_CPMK } from "@/lib/contoh";
 import { useFaculties } from "@/lib/useFaculties";
-import { Card } from "@/components/ui/Card";
+import { Panel } from "@/components/ui/Panel";
 import { Banner } from "@/components/ui/Banner";
-import { Button } from "@astryxdesign/core/Button";
-import { Text } from "@astryxdesign/core/Text";
-import { Selector } from "@astryxdesign/core/Selector";
-import { TextInput } from "@astryxdesign/core/TextInput";
-import { DateInput } from "@astryxdesign/core/DateInput";
-import { Field } from "@astryxdesign/core/Field";
-import { useEffect, useMemo, useState } from "react";
-import type { ISODateString } from "@astryxdesign/core/Calendar";
+import { Textarea } from "@/components/ui/Textarea";
+import { Badge } from "@/components/ui/Badge";
 
 type Cp = { code: string; description: string };
 type Detail = {
@@ -60,6 +65,13 @@ function isoDate(v: string | Date): string {
   try { return new Date(v).toISOString().slice(0, 10); } catch { return String(v).slice(0, 10); }
 }
 
+/**
+ * Detail RPS dua-kolom: kiri panel penyuntingan, kanan pratinjau DOCX yang
+ * lengket. Sebelumnya header ditulis dengan `Text` yang inline-flow, sehingga
+ * baris "Fakultas" dan "Program studi" mendempet tanpa spasi di viewport
+ * lebar. Setiap panel sekarang memakai wrapper `Panel` supaya padding,
+ * heading, dan aksi konsisten dengan halaman lain.
+ */
 function RpsDetail() {
   const { id } = Route.useParams();
   const qc = useQueryClient();
@@ -74,14 +86,14 @@ function RpsDetail() {
   const q = useQuery({ queryKey: ["rps", Number(id)], queryFn: () => api<ApiOk<Detail>>(`/api/rps/${id}`) });
   const d = q.data?.data;
 
-  // preview rows: live before save
   const [previewRows, setPreviewRows] = useState<WeeklyRow[] | null>(null);
   const effectiveRows: WeeklyRow[] = previewRows ?? d?.weekly_plans ?? [];
   const weeklyKey = d?.weekly_plans ? JSON.stringify(d.weekly_plans) : "";
   useEffect(() => {
     if (!d?.weekly_plans?.length) return;
     if (previewRows === null) setPreviewRows(d.weekly_plans);
-  }, [weeklyKey]);
+    // Sengaja pakai serialisasi manual: kami peduli isi, bukan referensi.
+  }, [weeklyKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const localSum = useMemo(() => effectiveRows.filter((p) => !p.is_merged).reduce((s, p) => s + (p.weight ?? 0), 0), [effectiveRows]);
   const readyToGenerate = effectiveRows.length > 0 && localSum === 100;
@@ -93,17 +105,22 @@ function RpsDetail() {
   const [cplLive, setCplLive] = useState<Cp[] | null>(null);
   const [cpmkLive, setCpmkLive] = useState<Cp[] | null>(null);
   const [subCpmkLive, setSubCpmkLive] = useState<Cp[] | null>(null);
+  // Override lokal dibuang saat data server berubah supaya editan tidak
+  // menutupi hasil applyCourse atau perubahan tab lain.
+  const serverStamp = [
+    d?.description ?? "",
+    JSON.stringify(d?.bahan_kajian ?? []),
+    JSON.stringify(d?.pustaka_utama ?? []),
+    JSON.stringify(d?.pustaka_pendukung ?? []),
+    JSON.stringify(d?.cpl ?? []),
+    JSON.stringify(d?.cpmk ?? []),
+    JSON.stringify(d?.sub_cpmk ?? []),
+  ].join("|");
   useEffect(() => {
-    setDescLive(null);
-    setBahanKajianLive(null);
-    setPustakaUtamaLive(null);
-    setPustakaPendLive(null);
-    setCplLive(null);
-    setCpmkLive(null);
-    setSubCpmkLive(null);
-  }, [d?.description, d?.bahan_kajian ? JSON.stringify(d.bahan_kajian) : "", d?.pustaka_utama ? JSON.stringify(d.pustaka_utama) : "", d?.pustaka_pendukung ? JSON.stringify(d.pustaka_pendukung) : "", d?.cpl ? JSON.stringify(d.cpl) : "", d?.cpmk ? JSON.stringify(d.cpmk) : "", d?.sub_cpmk ? JSON.stringify(d.sub_cpmk) : ""]);
-  // effective values: live override > DB. CONTOH tidak lagi fallback otomatis (agar tidak bocor Keperawatan ke prodi lain).
-  // Pratinjau kosong = isi via "Isi CONTOH 100%" (manual) atau AI Generate.
+    setDescLive(null); setBahanKajianLive(null); setPustakaUtamaLive(null);
+    setPustakaPendLive(null); setCplLive(null); setCpmkLive(null); setSubCpmkLive(null);
+  }, [serverStamp]);
+
   const dbHasBahan = Array.isArray(d?.bahan_kajian) && (d!.bahan_kajian!.length > 0);
   const dbHasPustaka = Array.isArray(d?.pustaka_utama) && (d!.pustaka_utama!.length > 0);
   const dbHasPustakaPend = Array.isArray(d?.pustaka_pendukung) && (d!.pustaka_pendukung!.length > 0);
@@ -118,6 +135,7 @@ function RpsDetail() {
   const effectiveCpl = cplLive ?? (dbHasCpl ? d!.cpl! : []);
   const effectiveCpmk = cpmkLive ?? (dbHasCpmk ? d!.cpmk! : []);
   const effectiveSub = subCpmkLive ?? (dbHasSub ? d!.sub_cpmk! : []);
+
   const saveDesc = useMutation({
     mutationFn: (description: string) => api<{ success: boolean }>(`/api/rps/${id}`, { method: "PUT", body: JSON.stringify({ description }) }),
     onSuccess: () => { setMsg("Deskripsi tersimpan."); qc.invalidateQueries({ queryKey: ["rps", Number(id)] }); },
@@ -135,27 +153,23 @@ function RpsDetail() {
     onError: (e: unknown) => setErr(e instanceof Error ? e.message : String(e)),
   });
   const fillContoh = () => {
-    setDescLive(CONTOH_DESCRIPTION);
-    setBahanKajianLive(CONTOH_BAHAN_KAJIAN);
-    setPustakaUtamaLive(CONTOH_PUSTAKA_UTAMA);
-    setPustakaPendLive(CONTOH_PUSTAKA_PENDUKUNG);
-    setCplLive(CONTOH_CPL);
-    setCpmkLive(CONTOH_CPMK);
-    setSubCpmkLive(CONTOH_SUB_CPMK);
-    setMsg("Terisi dari CONTOH 100% (Biomedik Keperawatan — verbatim) — pratinjau update live, klik Simpan template untuk persist.");
+    setDescLive(CONTOH_DESCRIPTION); setBahanKajianLive(CONTOH_BAHAN_KAJIAN);
+    setPustakaUtamaLive(CONTOH_PUSTAKA_UTAMA); setPustakaPendLive(CONTOH_PUSTAKA_PENDUKUNG);
+    setCplLive(CONTOH_CPL); setCpmkLive(CONTOH_CPMK); setSubCpmkLive(CONTOH_SUB_CPMK);
+    setMsg("Terisi dari CONTOH 100% (Biomedik Keperawatan — verbatim). Klik Simpan template untuk persist.");
   };
 
-  // identitas
-  const [identFaculty, setIdentFaculty] = useState(d?.faculty ?? "Fakultas Keperawatan dan Kebidanan");
-  const [identProdi, setIdentProdi] = useState(d?.study_program ?? "S1 Ilmu Keperawatan");
-  const [identSksT, setIdentSksT] = useState(String(d?.sks_theory ?? 3));
+  // Identitas — nilai default hanya dipakai sebelum data pertama diterima.
+  const [identFaculty, setIdentFaculty] = useState(d?.faculty ?? "");
+  const [identProdi, setIdentProdi] = useState(d?.study_program ?? "");
+  const [identSksT, setIdentSksT] = useState(String(d?.sks_theory ?? 2));
   const [identSksP, setIdentSksP] = useState(String(d?.sks_practice ?? 1));
-  const [identSksTotal, setIdentSksTotal] = useState(String(d?.sks_total ?? 4));
-  const [identDate, setIdentDate] = useState(d ? isoDate(d.preparation_date) : "2025-06-28");
+  const [identSksTotal, setIdentSksTotal] = useState(String(d?.sks_total ?? 3));
+  const [identDate, setIdentDate] = useState(d ? isoDate(d.preparation_date) : isoDate(new Date().toISOString()));
   useEffect(() => {
     if (!d) return;
-    setIdentFaculty(d.faculty ?? "Fakultas Keperawatan dan Kebidanan");
-    setIdentProdi(d.study_program ?? "S1 Ilmu Keperawatan");
+    setIdentFaculty(d.faculty ?? "");
+    setIdentProdi(d.study_program ?? "");
     setIdentSksT(String(d.sks_theory));
     setIdentSksP(String(d.sks_practice));
     setIdentSksTotal(String(d.sks_total));
@@ -171,7 +185,12 @@ function RpsDetail() {
   const identSksOk = Number(identSksTotal) === Number(identSksT) + Number(identSksP);
   const saveIdent = useMutation({
     mutationFn: () => api<{ success: boolean }>(`/api/rps/${id}`, {
-      method: "PUT", body: JSON.stringify({ faculty: identFaculty, study_program: identProdi, sks_theory: Number(identSksT) || 0, sks_practice: Number(identSksP) || 0, sks_total: Number(identSksTotal) || 0, preparation_date: identDate }),
+      method: "PUT",
+      body: JSON.stringify({
+        faculty: identFaculty, study_program: identProdi,
+        sks_theory: Number(identSksT) || 0, sks_practice: Number(identSksP) || 0, sks_total: Number(identSksTotal) || 0,
+        preparation_date: identDate,
+      }),
     }),
     onSuccess: () => { setMsg("Identitas tersimpan."); qc.invalidateQueries({ queryKey: ["rps", Number(id)] }); },
     onError: (e: unknown) => setErr(e instanceof Error ? e.message : String(e)),
@@ -183,23 +202,37 @@ function RpsDetail() {
     onError: (e: unknown) => setErr(e instanceof Error ? e.message : String(e)),
   });
 
-  if (q.isLoading) return <div className="text-sm text-secondary">Memuat…</div>;
+  if (q.isLoading) return <Text type="supporting">Memuat…</Text>;
   if (!d) return <Banner status="error">RPS tidak ditemukan.</Banner>;
 
-
   return (
-    <div className="grid gap-4">
-      {/* Header */}
-      <Card>
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <Text weight="semibold">{d.course_name} <span className="font-mono text-xs text-secondary">({d.course_code})</span></Text>
-            <Text type="supporting">{d.sks_theory}/{d.sks_practice} SKS · Semester {d.semester} · {d.course_cluster ?? ""}</Text>
-            <Text type="supporting">{d.faculty} · {d.study_program}</Text>
-          </div>
-          <Text type="supporting">{d.lecturers.map((l) => l.name).join(" · ")}</Text>
-        </div>
-      </Card>
+    <VStack gap={4}>
+      {/*
+        Header: judul + identitas ringkas + koordinator. VStack menjamin baris
+        Fakultas/Prodi tidak mendempet baris SKS/Semester seperti sebelumnya.
+      */}
+      <Panel
+        actions={
+          <VStack gap={1} align="end">
+            <Badge variant={d.status === "generated" ? "success" : "default"}>{d.status}</Badge>
+            {d.lecturers[0]?.name && <Text type="supporting">{d.lecturers.map((l) => l.name).join(" · ")}</Text>}
+          </VStack>
+        }
+      >
+        <VStack gap={1}>
+          <Heading level={2}>
+            {d.course_name}{" "}
+            <span className="font-mono text-sm font-normal text-secondary">({d.course_code})</span>
+          </Heading>
+          <Text type="supporting">
+            {d.sks_theory}/{d.sks_practice} SKS · Semester {d.semester}
+            {d.course_cluster ? ` · ${d.course_cluster}` : ""}
+          </Text>
+          <Text type="supporting">
+            {[d.faculty, d.study_program].filter(Boolean).join(" · ") || "—"}
+          </Text>
+        </VStack>
+      </Panel>
 
       {msg && <Banner status="success">{msg}</Banner>}
       {err && <Banner status="error">{err}</Banner>}
@@ -212,66 +245,115 @@ function RpsDetail() {
         </Banner>
       )}
 
-      {/* Detail — 50/50 split, kanan pratinjau full */}
-      <div className="grid gap-4 xl:grid-cols-2 xl:items-start">
-        <div className="grid gap-4 min-w-0 xl:max-h-[calc(100vh-2rem)] xl:overflow-y-auto xl:pr-1">
-          <Card>
-            <Text weight="semibold">Identitas</Text>
-            <div className="mt-3 grid gap-3">
-              <div className="grid gap-3 md:grid-cols-2">
-                <Selector label="Fakultas" value={identFaculty} onChange={(v) => { const prodis = prodisForFaculty(v); setIdentFaculty(v); if (!prodis.some((p) => p.value === identProdi) && prodis[0]) setIdentProdi(prodis[0].value); }} options={facultyOptions} />
-                <Selector label="Program studi" value={identProdi} onChange={setIdentProdi} options={prodiOptions.length ? prodiOptions : [{ value: identProdi, label: identProdi }]} />
-              </div>
+      <Grid columns={{ minWidth: 480 }} gap={4} align="start">
+        <VStack gap={4}>
+          <Panel title="Identitas">
+            <VStack gap={3}>
+              <Grid columns={2} gap={3}>
+                <Selector
+                  label="Fakultas"
+                  value={identFaculty}
+                  onChange={(v) => {
+                    const prodis = prodisForFaculty(v);
+                    setIdentFaculty(v);
+                    if (!prodis.some((p) => p.value === identProdi) && prodis[0]) setIdentProdi(prodis[0].value);
+                  }}
+                  options={facultyOptions}
+                />
+                <Selector
+                  label="Program studi"
+                  value={identProdi}
+                  onChange={setIdentProdi}
+                  options={prodiOptions.length ? prodiOptions : [{ value: identProdi, label: identProdi }]}
+                />
+              </Grid>
               {prodiMeta?.vision && <Text type="supporting">{prodiMeta.vision}</Text>}
-              <Field label="SKS (Teori / Praktik / Total)" inputID="sks-field">
-                <div className="flex gap-2">
+              <VStack gap={2}>
+                <Text weight="semibold">SKS (Teori / Praktik / Total)</Text>
+                <HStack gap={2}>
                   <TextInput label="Teori" isLabelHidden value={identSksT} onChange={setIdentSksT} />
                   <TextInput label="Praktik" isLabelHidden value={identSksP} onChange={setIdentSksP} />
-                  <TextInput label="Total" isLabelHidden value={identSksTotal} onChange={setIdentSksTotal} status={!identSksOk ? { type: "error", message: "Harus = Teori + Praktik" } : undefined} />
-                </div>
-                <div className="mt-2 flex gap-1.5">
-                  <Button label="2" variant="secondary" size="sm" onClick={() => { setIdentSksT("1"); setIdentSksP("1"); setIdentSksTotal("2"); }} />
-                  <Button label="3" variant="secondary" size="sm" onClick={() => { setIdentSksT("2"); setIdentSksP("1"); setIdentSksTotal("3"); }} />
-                  <Button label="4" variant="secondary" size="sm" onClick={() => { setIdentSksT("3"); setIdentSksP("1"); setIdentSksTotal("4"); }} />
-                </div>
-              </Field>
-              <div className="grid gap-3 md:grid-cols-2">
-                <DateInput label="Tanggal penyusunan" value={identDate as ISODateString} onChange={(v) => setIdentDate(v ?? isoDate(new Date().toISOString()))} format="system_date" />
-                <div className="flex items-end"><Button label="Hari ini" variant="secondary" size="sm" onClick={() => setIdentDate(isoDate(new Date().toISOString()))} /></div>
-              </div>
-              <div className="flex gap-2">
-                <Button label={saveIdent.isPending ? "Menyimpan…" : "Simpan"} variant="primary" size="sm" isLoading={saveIdent.isPending} isDisabled={!identSksOk || !d.can_edit} onClick={() => saveIdent.mutate()} />
-              </div>
-            </div>
-          </Card>
+                  <TextInput
+                    label="Total"
+                    isLabelHidden
+                    value={identSksTotal}
+                    onChange={setIdentSksTotal}
+                    status={!identSksOk ? { type: "error", message: "Harus = Teori + Praktik" } : undefined}
+                  />
+                </HStack>
+                <HStack gap={1}>
+                  <Button label="2 SKS" variant="secondary" size="sm" onClick={() => { setIdentSksT("1"); setIdentSksP("1"); setIdentSksTotal("2"); }} />
+                  <Button label="3 SKS" variant="secondary" size="sm" onClick={() => { setIdentSksT("2"); setIdentSksP("1"); setIdentSksTotal("3"); }} />
+                  <Button label="4 SKS" variant="secondary" size="sm" onClick={() => { setIdentSksT("3"); setIdentSksP("1"); setIdentSksTotal("4"); }} />
+                </HStack>
+              </VStack>
+              <Grid columns={2} gap={3}>
+                <DateInput
+                  label="Tanggal penyusunan"
+                  value={identDate as ISODateString}
+                  onChange={(v) => setIdentDate(v ?? isoDate(new Date().toISOString()))}
+                  format="system_date"
+                />
+                <HStack align="end">
+                  <Button label="Hari ini" variant="secondary" size="sm" onClick={() => setIdentDate(isoDate(new Date().toISOString()))} />
+                </HStack>
+              </Grid>
+              <HStack>
+                <Button
+                  label={saveIdent.isPending ? "Menyimpan…" : "Simpan identitas"}
+                  variant="primary"
+                  size="sm"
+                  isLoading={saveIdent.isPending}
+                  isDisabled={!identSksOk || !d.can_edit}
+                  onClick={() => saveIdent.mutate()}
+                />
+              </HStack>
+            </VStack>
+          </Panel>
 
-          <Card>
-            <Text weight="semibold">Deskripsi mata kuliah</Text>
-            <textarea
-              className="mt-3 min-h-[96px] w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm leading-relaxed text-primary placeholder:text-secondary focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
-              rows={4}
-              placeholder="Ringkasan singkat mata kuliah (3–5 baris)."
-              value={effectiveDescription}
-              onChange={(e) => setDescLive(e.target.value)}
+          <Panel title="Deskripsi mata kuliah">
+            <VStack gap={2}>
+              <Textarea
+                label="Deskripsi"
+                value={effectiveDescription}
+                onChange={(v) => setDescLive(v)}
+                placeholder="Ringkasan singkat mata kuliah (3–5 baris)."
+                minRows={4}
+              />
+              <HStack gap={2}>
+                <Button
+                  label={genDesc.isPending ? "Memuat…" : "Buat otomatis dengan AI"}
+                  variant="secondary" size="sm"
+                  isLoading={genDesc.isPending} isDisabled={!d.can_edit}
+                  onClick={() => genDesc.mutate()}
+                />
+                <Button
+                  label={saveDesc.isPending ? "Menyimpan…" : "Simpan deskripsi"}
+                  variant="primary" size="sm"
+                  isLoading={saveDesc.isPending} isDisabled={!d.can_edit}
+                  onClick={() => saveDesc.mutate(effectiveDescription.trim())}
+                />
+                <Button
+                  label="Isi CONTOH 100%"
+                  variant="secondary" size="sm"
+                  isDisabled={!d.can_edit}
+                  onClick={fillContoh}
+                />
+              </HStack>
+            </VStack>
+          </Panel>
+
+          {d.can_edit && (
+            <ApplyCoursePanel
+              draftId={Number(id)}
+              studyProgram={identProdi}
+              onApplied={() => {
+                setDescLive(null); setBahanKajianLive(null); setPustakaUtamaLive(null); setPustakaPendLive(null);
+                setCplLive(null); setCpmkLive(null); setSubCpmkLive(null);
+                setMsg("Draft terisi dari kurikulum prodi.");
+              }}
             />
-            <div className="mt-2 flex gap-2">
-              <Button label={genDesc.isPending ? "Memuat…" : "Buat otomatis"} variant="secondary" size="sm" isLoading={genDesc.isPending} isDisabled={!d.can_edit} onClick={() => genDesc.mutate()} />
-              <Button label={saveDesc.isPending ? "Menyimpan…" : "Simpan"} variant="primary" size="sm" isLoading={saveDesc.isPending} isDisabled={!d.can_edit} onClick={() => saveDesc.mutate(effectiveDescription.trim())} />
-              <Button label="Isi CONTOH 100%" variant="secondary" size="sm" isDisabled={!d.can_edit} onClick={fillContoh} />
-            </div>
-          </Card>
-
-          {d.can_edit && <ApplyCoursePanel
-            draftId={Number(id)}
-            studyProgram={identProdi}
-            onApplied={() => {
-              // Buang override lokal supaya nilai dari kurikulum yang tampil,
-              // bukan editan sebelumnya.
-              setDescLive(null); setBahanKajianLive(null); setPustakaUtamaLive(null); setPustakaPendLive(null);
-              setCplLive(null); setCpmkLive(null); setSubCpmkLive(null);
-              setMsg("Draft terisi dari kurikulum prodi.");
-            }}
-          />}
+          )}
 
           <TemplateEditor
             description={effectiveDescription}
@@ -294,13 +376,29 @@ function RpsDetail() {
           />
 
           {d.can_edit && <AiGeneratePanel id={Number(id)} />}
-          <WeeklyTable value={d.weekly_plans} onChange={(rows) => setPreviewRows(rows)} onSave={(rows) => saveWeekly.mutate(rows)} />
-        </div>
+          <WeeklyTable
+            value={d.weekly_plans}
+            onChange={(rows) => setPreviewRows(rows)}
+            onSave={(rows) => saveWeekly.mutate(rows)}
+          />
+        </VStack>
 
-        <div className="grid gap-3 min-w-0 xl:sticky xl:top-4 xl:max-h-[calc(100vh-1rem)] xl:overflow-y-auto">
+        <VStack gap={3}>
           <DocxPreview
             id={Number(id)}
-            draft={{ ...d, faculty: identFaculty, study_program: identProdi, preparation_date: identDate, description: effectiveDescription, bahan_kajian: effectiveBahan, pustaka_utama: effectivePustakaUtama, pustaka_pendukung: effectivePustakaPend, cpl: effectiveCpl, cpmk: effectiveCpmk, sub_cpmk: effectiveSub }}
+            draft={{
+              ...d,
+              faculty: identFaculty,
+              study_program: identProdi,
+              preparation_date: identDate,
+              description: effectiveDescription,
+              bahan_kajian: effectiveBahan,
+              pustaka_utama: effectivePustakaUtama,
+              pustaka_pendukung: effectivePustakaPend,
+              cpl: effectiveCpl,
+              cpmk: effectiveCpmk,
+              sub_cpmk: effectiveSub,
+            }}
             weeklyPlans={effectiveRows}
             description={effectiveDescription}
             bahanKajian={effectiveBahan}
@@ -314,8 +412,8 @@ function RpsDetail() {
           {!readyToGenerate && effectiveRows.length > 0 && (
             <Banner status="warning">Total bobot harus 100 untuk menghasilkan dokumen yang valid.</Banner>
           )}
-        </div>
-      </div>
-    </div>
+        </VStack>
+      </Grid>
+    </VStack>
   );
 }

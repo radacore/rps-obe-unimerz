@@ -4,6 +4,10 @@ import { Button } from "@astryxdesign/core/Button";
 import { Selector } from "@astryxdesign/core/Selector";
 import { Text } from "@astryxdesign/core/Text";
 import { TextInput } from "@astryxdesign/core/TextInput";
+import { HStack } from "@astryxdesign/core/HStack";
+import { VStack } from "@astryxdesign/core/VStack";
+import { Grid } from "@astryxdesign/core/Grid";
+import { Code } from "@astryxdesign/core/Code";
 import { ApiError } from "@/lib/api";
 import {
   ROLE_LABEL, ROLE_OPTIONS, createAccount, fetchAccounts, resetAccountPassword, updateAccount,
@@ -12,7 +16,7 @@ import {
 import { useFaculties } from "@/lib/useFaculties";
 import { Badge } from "./ui/Badge";
 import { Banner } from "./ui/Banner";
-import { Card } from "./ui/Card";
+import { Panel } from "./ui/Panel";
 
 function errorMessage(e: unknown): string {
   if (e instanceof ApiError) {
@@ -88,114 +92,114 @@ export function AccountManagerPanel() {
   });
 
   return (
-    <div className="grid gap-4">
-      <Card>
-        <Text weight="semibold">Buat akun pengelola</Text>
-        <Text type="supporting">
-          Sistem menerbitkan password sementara dan menampilkannya satu kali. Serahkan lewat kanal
-          pribadi; pemilik akun wajib menggantinya saat login pertama.
-        </Text>
-
-        <div className="mt-4 grid gap-3 md:grid-cols-2">
-          <TextInput
-            label="NIDN"
-            value={form.nidn}
-            onChange={(v) => setForm({ ...form, nidn: v.replace(/\D/g, "").slice(0, 10) })}
-            placeholder="0922038401"
-            description="10 digit, sesuai PDDikti"
-            status={
-              fieldError(createError, "nidn")
-                ? { type: "error", message: fieldError(createError, "nidn")! }
-                : form.nidn.length > 0 && !nidnValid
-                  ? { type: "error", message: "NIDN harus 10 digit angka" }
-                  : undefined
-            }
-          />
-          <TextInput
-            label="Nama lengkap"
-            value={form.name}
-            onChange={(v) => setForm({ ...form, name: v })}
-            placeholder="Dr. Nama Lengkap, M.Kom."
-          />
-          <Selector
-            label="Peran"
-            value={form.role}
-            onChange={(v) => setForm({
-              nidn: form.nidn, name: form.name, role: v as AdminRole,
-              faculty_slug: "", study_program_slug: "",
-            })}
-            options={ROLE_OPTIONS}
-          />
-          {form.role === "kaprodi" && (
-            <Selector
-              label="Program studi"
-              value={form.study_program_slug ?? ""}
-              onChange={(v) => setForm({ ...form, study_program_slug: v })}
-              options={[{ value: "", label: "— pilih program studi —" }, ...programOptions]}
+    <VStack gap={4}>
+      <Panel
+        title="Buat akun pengelola"
+        description="Sistem menerbitkan password sementara dan menampilkannya satu kali. Serahkan lewat kanal pribadi; pemilik akun wajib menggantinya saat login pertama."
+      >
+        <VStack gap={3}>
+          <Grid columns={2} gap={3}>
+            <TextInput
+              label="NIDN"
+              value={form.nidn}
+              onChange={(v) => setForm({ ...form, nidn: v.replace(/\D/g, "").slice(0, 10) })}
+              placeholder="0922038401"
+              description="10 digit, sesuai PDDikti"
               status={
-                fieldError(createError, "study_program_slug")
-                  ? { type: "error", message: fieldError(createError, "study_program_slug")! }
-                  : undefined
+                fieldError(createError, "nidn")
+                  ? { type: "error", message: fieldError(createError, "nidn")! }
+                  : form.nidn.length > 0 && !nidnValid
+                    ? { type: "error", message: "NIDN harus 10 digit angka" }
+                    : undefined
               }
             />
-          )}
-          {form.role === "faculty_admin" && (
-            <Selector
-              label="Fakultas"
-              value={form.faculty_slug ?? ""}
-              onChange={(v) => setForm({ ...form, faculty_slug: v })}
-              options={[{ value: "", label: "— pilih fakultas —" }, ...facultyOptions]}
-              status={
-                fieldError(createError, "faculty_slug")
-                  ? { type: "error", message: fieldError(createError, "faculty_slug")! }
-                  : undefined
-              }
+            <TextInput
+              label="Nama lengkap"
+              value={form.name}
+              onChange={(v) => setForm({ ...form, name: v })}
+              placeholder="Dr. Nama Lengkap, M.Kom."
             />
-          )}
-        </div>
+            <Selector
+              label="Peran"
+              value={form.role}
+              onChange={(v) => setForm({
+                nidn: form.nidn, name: form.name, role: v as AdminRole,
+                faculty_slug: "", study_program_slug: "",
+              })}
+              options={ROLE_OPTIONS}
+            />
+            {form.role === "kaprodi" && (
+              <Selector
+                label="Program studi"
+                value={form.study_program_slug ?? ""}
+                onChange={(v) => setForm({ ...form, study_program_slug: v })}
+                options={[{ value: "", label: "— pilih program studi —" }, ...programOptions]}
+                status={
+                  fieldError(createError, "study_program_slug")
+                    ? { type: "error", message: fieldError(createError, "study_program_slug")! }
+                    : undefined
+                }
+              />
+            )}
+            {form.role === "faculty_admin" && (
+              <Selector
+                label="Fakultas"
+                value={form.faculty_slug ?? ""}
+                onChange={(v) => setForm({ ...form, faculty_slug: v })}
+                options={[{ value: "", label: "— pilih fakultas —" }, ...facultyOptions]}
+                status={
+                  fieldError(createError, "faculty_slug")
+                    ? { type: "error", message: fieldError(createError, "faculty_slug")! }
+                    : undefined
+                }
+              />
+            )}
+          </Grid>
 
-        {createError !== null && (
-          <div className="mt-3"><Banner status="error">{errorMessage(createError)}</Banner></div>
-        )}
+          {createError !== null && <Banner status="error">{errorMessage(createError)}</Banner>}
 
-        <div className="mt-3">
-          <Button
-            label={create.isPending ? "Membuat…" : "Buat akun"}
-            variant="primary"
-            isLoading={create.isPending}
-            isDisabled={!canCreate}
-            onClick={() => create.mutate()}
-          />
-        </div>
-      </Card>
+          <HStack>
+            <Button
+              label={create.isPending ? "Membuat…" : "Buat akun"}
+              variant="primary"
+              isLoading={create.isPending}
+              isDisabled={!canCreate}
+              onClick={() => create.mutate()}
+            />
+          </HStack>
+        </VStack>
+      </Panel>
 
       {issued && (
-        <Card>
-          <Banner status="success" title="Password sementara — tampil sekali">
-            <div className="grid gap-1">
-              <span>{issued.name} · NIDN {issued.nidn}</span>
-              <code className="rounded bg-muted px-2 py-1 font-mono text-sm">{issued.password}</code>
-              <span>Catat sekarang. Setelah panel ini ditutup, password tidak bisa dilihat lagi —
-                yang tersimpan hanya hash-nya. Bila hilang, lakukan reset password.</span>
-            </div>
-          </Banner>
-          <div className="mt-3">
-            <Button label="Saya sudah mencatatnya" variant="secondary" size="sm" onClick={() => setIssued(null)} />
-          </div>
-        </Card>
+        <Panel>
+          <VStack gap={3}>
+            <Banner status="success" title="Password sementara — tampil sekali">
+              <VStack gap={1}>
+                <Text>{`${issued.name} · NIDN ${issued.nidn}`}</Text>
+                <Code>{issued.password}</Code>
+                <Text type="supporting">
+                  Catat sekarang. Setelah panel ini ditutup, password tidak bisa dilihat lagi —
+                  yang tersimpan hanya hash-nya. Bila hilang, lakukan reset password.
+                </Text>
+              </VStack>
+            </Banner>
+            <HStack>
+              <Button label="Saya sudah mencatatnya" variant="secondary" size="sm" onClick={() => setIssued(null)} />
+            </HStack>
+          </VStack>
+        </Panel>
       )}
 
-      <Card>
-        <Text weight="semibold">Daftar akun</Text>
-        {accounts.isLoading && <Text type="supporting">Memuat akun…</Text>}
-        {accounts.isError && <Banner status="error">{errorMessage(accounts.error)}</Banner>}
-        <div className="mt-3 grid gap-2">
+      <Panel title="Daftar akun">
+        <VStack gap={2}>
+          {accounts.isLoading && <Text type="supporting">Memuat akun…</Text>}
+          {accounts.isError && <Banner status="error">{errorMessage(accounts.error)}</Banner>}
           {rows.map((row) => (
             <AccountRow key={row.nidn} account={row} />
           ))}
-        </div>
-      </Card>
-    </div>
+        </VStack>
+      </Panel>
+    </VStack>
   );
 }
 
@@ -234,58 +238,60 @@ function AccountRow({ account }: { account: AdminAccount }) {
     : account.study_program_label ?? account.faculty_label ?? "—";
 
   return (
-    <div className="grid gap-2 rounded-lg border border-border bg-muted/20 p-3">
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div className="min-w-0">
-          <Text weight="semibold">{account.name}</Text>
-          <Text type="supporting">NIDN {account.nidn} · {scope}</Text>
-        </div>
-        <div className="flex flex-wrap items-center gap-1">
-          <Badge variant={account.role === "super_admin" ? "success" : "default"}>
-            {ROLE_LABEL[account.role]}
-          </Badge>
-          {!account.is_active && <Badge variant="danger">Nonaktif</Badge>}
-          {account.is_locked && <Badge variant="warning">Terkunci</Badge>}
-          {account.must_change_password && <Badge variant="warning">Belum ganti password</Badge>}
-        </div>
-      </div>
+    <Panel padding={3}>
+      <VStack gap={2}>
+        <HStack justify="between" align="start" gap={2} wrap="wrap">
+          <VStack gap={0}>
+            <Text weight="semibold">{account.name}</Text>
+            <Text type="supporting">{`NIDN ${account.nidn} · ${scope}`}</Text>
+          </VStack>
+          <HStack align="center" gap={1} wrap="wrap">
+            <Badge variant={account.role === "super_admin" ? "success" : "default"}>
+              {ROLE_LABEL[account.role]}
+            </Badge>
+            {!account.is_active && <Badge variant="danger">Nonaktif</Badge>}
+            {account.is_locked && <Badge variant="warning">Terkunci</Badge>}
+            {account.must_change_password && <Badge variant="warning">Belum ganti password</Badge>}
+          </HStack>
+        </HStack>
 
-      {issued && (
-        <Banner status="success" title="Password sementara — tampil sekali">
-          <code className="font-mono text-sm">{issued}</code>
-        </Banner>
-      )}
-      {msg && <Banner status="success">{msg}</Banner>}
-      {error !== null && <Banner status="error">{errorMessage(error)}</Banner>}
-
-      <div className="flex flex-wrap gap-2">
-        <Button
-          label={reset.isPending ? "Mereset…" : "Reset password"}
-          variant="secondary"
-          size="sm"
-          isLoading={reset.isPending}
-          onClick={() => reset.mutate()}
-        />
-        {confirmToggle ? (
-          <>
-            <Button
-              label={account.is_active ? "Ya, nonaktifkan" : "Ya, aktifkan"}
-              variant={account.is_active ? "destructive" : "primary"}
-              size="sm"
-              isLoading={toggleActive.isPending}
-              onClick={() => toggleActive.mutate()}
-            />
-            <Button label="Batal" variant="ghost" size="sm" onClick={() => setConfirmToggle(false)} />
-          </>
-        ) : (
-          <Button
-            label={account.is_active ? "Nonaktifkan" : "Aktifkan"}
-            variant="ghost"
-            size="sm"
-            onClick={() => setConfirmToggle(true)}
-          />
+        {issued && (
+          <Banner status="success" title="Password sementara — tampil sekali">
+            <Code>{issued}</Code>
+          </Banner>
         )}
-      </div>
-    </div>
+        {msg && <Banner status="success">{msg}</Banner>}
+        {error !== null && <Banner status="error">{errorMessage(error)}</Banner>}
+
+        <HStack gap={2} wrap="wrap">
+          <Button
+            label={reset.isPending ? "Mereset…" : "Reset password"}
+            variant="secondary"
+            size="sm"
+            isLoading={reset.isPending}
+            onClick={() => reset.mutate()}
+          />
+          {confirmToggle ? (
+            <>
+              <Button
+                label={account.is_active ? "Ya, nonaktifkan" : "Ya, aktifkan"}
+                variant={account.is_active ? "destructive" : "primary"}
+                size="sm"
+                isLoading={toggleActive.isPending}
+                onClick={() => toggleActive.mutate()}
+              />
+              <Button label="Batal" variant="ghost" size="sm" onClick={() => setConfirmToggle(false)} />
+            </>
+          ) : (
+            <Button
+              label={account.is_active ? "Nonaktifkan" : "Aktifkan"}
+              variant="ghost"
+              size="sm"
+              onClick={() => setConfirmToggle(true)}
+            />
+          )}
+        </HStack>
+      </VStack>
+    </Panel>
   );
 }

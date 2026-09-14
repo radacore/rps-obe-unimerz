@@ -1,15 +1,18 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { ADMIN_SESSION_KEY, fetchAdminSession } from "@/lib/admin";
-import { api, type ApiOk } from "@/lib/api";
 import { useState } from "react";
-import { Card } from "./ui/Card";
-import { Badge } from "./ui/Badge";
-import { Banner } from "./ui/Banner";
 import { Button } from "@astryxdesign/core/Button";
 import { TextInput } from "@astryxdesign/core/TextInput";
 import { Text } from "@astryxdesign/core/Text";
 import { Grid } from "@astryxdesign/core/Grid";
+import { HStack } from "@astryxdesign/core/HStack";
+import { VStack } from "@astryxdesign/core/VStack";
+import { Link as AstryxLink } from "@astryxdesign/core/Link";
+import { ADMIN_SESSION_KEY, fetchAdminSession } from "@/lib/admin";
+import { api, type ApiOk } from "@/lib/api";
+import { Panel } from "./ui/Panel";
+import { Badge } from "./ui/Badge";
+import { Banner } from "./ui/Banner";
 
 type KeysRow = { provider: string; keyHint: string | null; isActive: boolean };
 
@@ -18,6 +21,14 @@ function maskHint(hint: string | null) {
   return hint;
 }
 
+/**
+ * Halaman Settings BYOK: dua kartu provider (OpenAI & Gemini).
+ *
+ * Sebelumnya susunan kartu memakai `<Card>` bersarang + `<div className=
+ * "grid gap-...">`. Sekarang memakai `Panel` (kartu berjudul), `Grid`
+ * responsif Astryx, dan `HStack`/`VStack` supaya jarak antar tombol dan
+ * penyusunan status seragam dengan halaman lain.
+ */
 export function SettingsPanel() {
   const qc = useQueryClient();
   const session = useQuery({ queryKey: ADMIN_SESSION_KEY, queryFn: fetchAdminSession, retry: false });
@@ -25,7 +36,6 @@ export function SettingsPanel() {
   const q = useQuery({
     queryKey: ["api-keys"],
     queryFn: () => api<ApiOk<KeysRow[]>>("/api/settings/api-keys"),
-    // Kunci milik akun, jadi tidak ada yang bisa dimuat sebelum login.
     enabled: !!identity,
   });
 
@@ -33,7 +43,6 @@ export function SettingsPanel() {
   const [geminiKey, setGeminiKey] = useState("");
   const [showOpenai, setShowOpenai] = useState(false);
   const [showGemini, setShowGemini] = useState(false);
-  // per-provider test feedback — tampil cukup di bawah field (TextInput status), tidak duplikat Banner global
   const [testRes, setTestRes] = useState<Record<string, { valid: boolean; message: string; models?: string[]; loading?: boolean }>>({});
 
   const save = useMutation({
@@ -64,20 +73,21 @@ export function SettingsPanel() {
           body: JSON.stringify({ provider }),
         });
         const valid = !!r.data?.valid;
-        // filter testimoni models hanya yang support generateContent untuk rps/2 dropdown (hindari aqa/tts/embedding/veo di default)
         const rawModels: string[] = r.data?.models ?? [];
+        // Hanya model generateContent yang berguna untuk RPS; sisanya (tts,
+        // embedding, dst.) memenuhi dropdown dan menyesatkan pengguna.
         const preferred = rawModels.filter(
           (m) => /^(gemini-|gemma-)/.test(m) && !/(tts|embedding|veo|transcribe|native-audio|aqa|lyria|robotics|antigravity|deep-research)/i.test(m),
         );
         const modelsForCache = (preferred.length ? preferred : rawModels).slice(0, 50);
-        const message = r.message ?? (valid ? `Valid — ${rawModels.length} model(s): ${modelsForCache.slice(0, 3).join(", ")}` : "Key invalid");
+        const message = r.message ?? (valid ? `Valid — ${rawModels.length} model tersedia: ${modelsForCache.slice(0, 3).join(", ")}` : "Key invalid");
         setTestRes((s) => ({ ...s, [provider]: { valid, message, models: modelsForCache } }));
         try {
           if (valid && modelsForCache.length) {
             window.localStorage.setItem(`models:${provider}`, JSON.stringify(modelsForCache));
             window.dispatchEvent(new StorageEvent("storage", { key: `models:${provider}`, newValue: JSON.stringify(modelsForCache) }));
           }
-        } catch {}
+        } catch { /* localStorage tak tersedia — abaikan */ }
         qc.invalidateQueries({ queryKey: ["api-keys"] });
         return r;
       } catch (e) {
@@ -96,145 +106,164 @@ export function SettingsPanel() {
   const isSavingOpenai = save.isPending && (save.variables as { provider?: string } | undefined)?.provider === "openai";
   const isSavingGemini = save.isPending && (save.variables as { provider?: string } | undefined)?.provider === "gemini";
 
-  // helper for TextInput status (inline feedback)
-  const openaiFieldStatus = (() => {
-    if (testRes.openai && !testRes.openai.loading) {
-      if (testRes.openai.valid) return { type: "success" as const, message: testRes.openai.message };
-      return { type: "error" as const, message: testRes.openai.message };
-    }
-    return undefined;
-  })();
-  const geminiFieldStatus = (() => {
-    if (testRes.gemini && !testRes.gemini.loading) {
-      if (testRes.gemini.valid) return { type: "success" as const, message: testRes.gemini.message };
-      return { type: "error" as const, message: testRes.gemini.message };
-    }
-    return undefined;
-  })();
+  const statusFor = (p: "openai" | "gemini") => {
+    const r = testRes[p];
+    if (!r || r.loading) return undefined;
+    return r.valid
+      ? ({ type: "success" as const, message: r.message } as const)
+      : ({ type: "error" as const, message: r.message } as const);
+  };
 
   if (session.isLoading) return <Text type="supporting">Memuat sesi…</Text>;
 
   if (!identity) {
     return (
-      <Card>
-        <Text weight="semibold">Masuk untuk mengatur API key</Text>
-        <Text type="supporting">
-          API key melekat pada akun Anda sendiri, jadi pengaturannya memerlukan login.
-        </Text>
-        <div className="mt-3">
-          <Link to="/admin/login" className="text-sm text-accent">Ke halaman masuk →</Link>
-        </div>
-      </Card>
+      <Panel title="Masuk untuk mengatur API key" description="API key melekat pada akun Anda sendiri, jadi pengaturannya memerlukan login.">
+        <Link to="/admin/login"><Button label="Ke halaman masuk" variant="primary" size="sm" /></Link>
+      </Panel>
     );
   }
 
   return (
-    <div className="grid gap-4">
-      <Card>
-        <Text weight="semibold">API Key Anda — {identity.name}</Text>
-        <Text type="supporting">
-          Kunci ini milik akun Anda sendiri: biaya dan kuota AI melekat pada pemakainya, dan pengguna
-          lain tidak bisa melihat maupun memakainya. Disimpan terenkripsi AES-256-GCM; yang
-          ditampilkan hanya 4 karakter terakhir — plaintext tidak pernah dikembalikan server.
-        </Text>
+    <Panel
+      title={`API Key Anda — ${identity.name}`}
+      description="Kunci ini milik akun Anda sendiri: biaya dan kuota AI melekat pada pemakainya, dan pengguna lain tidak bisa melihat maupun memakainya. Disimpan terenkripsi AES-256-GCM; yang ditampilkan hanya 4 karakter terakhir — plaintext tidak pernah dikembalikan server."
+    >
+      <VStack gap={4}>
         {!hasAnyKey && (
-          <div className="mt-3">
-            <Banner status="warning" title="Belum ada API key">
-              Simpan minimal satu kunci sebelum membuat RPS. Institusi tidak menyediakan kunci
-              bersama, sehingga setiap penulis memakai kuncinya sendiri.
-            </Banner>
-          </div>
+          <Banner status="warning" title="Belum ada API key">
+            Simpan minimal satu kunci sebelum membuat RPS. Institusi tidak menyediakan kunci
+            bersama, sehingga setiap penulis memakai kuncinya sendiri.
+          </Banner>
         )}
-        {q.isFetching && !q.data && <div className="mt-2"><Text type="supporting">Memuat keys…</Text></div>}
+        {q.isFetching && !q.data && <Text type="supporting">Memuat keys…</Text>}
 
-        <Grid columns={{ minWidth: 320 }} gap={4} className="mt-4">
-          {/* OpenAI */}
-          <Card>
-            <div className="flex items-center justify-between gap-2">
-              <Text weight="semibold">OpenAI</Text>
-              <Badge variant={hasOpenai ? "success" : "default"}>{maskHint(hint("openai"))}</Badge>
-            </div>
-            <Text type="supporting">Format sk-... / sk-proj-... · <a className="underline text-accent" href="https://platform.openai.com/api-keys" target="_blank" rel="noreferrer">platform.openai.com/api-keys</a></Text>
-            <div className="mt-3">
-              <TextInput
-                label="API Key"
-                description={hasOpenai ? `Tersimpan ${maskHint(hint("openai"))} — refresh tetap tampil (masked) di placeholder. Ketik ulang untuk ganti.` : "Belum tersimpan — kunci Anda sendiri, wajib ada sebelum membuat RPS"}
-                type={showOpenai ? "text" : "password"}
-                value={openaiKey}
-                onChange={setOpenaiKey}
-                placeholder={hasOpenai ? maskHint(hint("openai")) : "sk-proj-..."}
-                status={openaiFieldStatus}
-              />
-            </div>
-            <div className="mt-2 flex flex-wrap gap-2">
-              <Button label={showOpenai ? "Hide" : "Show"} variant="secondary" size="sm" onClick={() => setShowOpenai((v) => !v)} />
-              <Button
-                label={isSavingOpenai ? "Saving…" : "Save"}
-                variant="primary"
-                size="sm"
-                isDisabled={!openaiKey.trim() || openaiKey.trim().length < 10}
-                isLoading={isSavingOpenai}
-                onClick={() => save.mutate({ provider: "openai", apiKey: openaiKey.trim() })}
-              />
-              <Button
-                label={testRes.openai?.loading ? "Testing…" : "Test"}
-                variant="secondary"
-                size="sm"
-                isDisabled={!hasOpenai}
-                isLoading={!!testRes.openai?.loading}
-                tooltip={!hasOpenai ? "Simpan key dulu" : "Test via GET /v1/models"}
-                onClick={() => test.mutate("openai")}
-              />
-            </div>
-
-            {!hasOpenai && <div className="mt-2"><Text type="supporting">Belum ada key — Generate AI akan 422 sampai key disimpan.</Text></div>}
-          </Card>
-
-          {/* Gemini */}
-          <Card>
-            <div className="flex items-center justify-between gap-2">
-              <Text weight="semibold">Gemini</Text>
-              <Badge variant={hasGemini ? "success" : "default"}>{maskHint(hint("gemini"))}</Badge>
-            </div>
-            <Text type="supporting">Format AIza... atau AQ... (Vertex) — min 20 char · <a className="underline text-accent" href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer">aistudio.google.com/app/apikey</a></Text>
-            <div className="mt-3">
-              <TextInput
-                label="API Key"
-                description={hasGemini ? `Tersimpan ${maskHint(hint("gemini"))} — refresh tetap tampil (masked) di placeholder. Ketik ulang untuk ganti.` : "Opsional — cukup salah satu provider untuk demo; AQ... tetap valid"}
-                type={showGemini ? "text" : "password"}
-                value={geminiKey}
-                onChange={setGeminiKey}
-                placeholder={hasGemini ? maskHint(hint("gemini")) : "AQ..."}
-                status={geminiFieldStatus}
-              />
-            </div>
-            <div className="mt-2 flex flex-wrap gap-2">
-              <Button label={showGemini ? "Hide" : "Show"} variant="secondary" size="sm" onClick={() => setShowGemini((v) => !v)} />
-              <Button
-                label={isSavingGemini ? "Saving…" : "Save"}
-                variant="primary"
-                size="sm"
-                isDisabled={!geminiKey.trim() || geminiKey.trim().length < 20}
-                isLoading={isSavingGemini}
-                onClick={() => save.mutate({ provider: "gemini", apiKey: geminiKey.trim() })}
-              />
-              <Button
-                label={testRes.gemini?.loading ? "Testing…" : "Test"}
-                variant="secondary"
-                size="sm"
-                isDisabled={!hasGemini}
-                isLoading={!!testRes.gemini?.loading}
-                tooltip={!hasGemini ? "Simpan key dulu" : "Test via GET /v1beta/models"}
-                onClick={() => test.mutate("gemini")}
-              />
-            </div>
-            {!hasGemini && <div className="mt-2"><Text type="supporting">Opsional — cukup salah satu provider untuk demo. Jika sudah simpan, refresh tetap tampil sebagai {maskHint(hint("gemini"))} di field.</Text></div>}
-          </Card>
+        <Grid columns={{ minWidth: 320 }} gap={4}>
+          <ProviderCard
+            title="OpenAI"
+            hint={hint("openai")}
+            hasKey={hasOpenai}
+            docsLabel="platform.openai.com/api-keys"
+            docsHref="https://platform.openai.com/api-keys"
+            format="Format sk-... / sk-proj-..."
+            value={openaiKey}
+            onChangeValue={setOpenaiKey}
+            show={showOpenai}
+            onToggleShow={() => setShowOpenai((v) => !v)}
+            placeholder="sk-proj-..."
+            fieldStatus={statusFor("openai")}
+            minLength={10}
+            isSaving={isSavingOpenai}
+            isTesting={!!testRes.openai?.loading}
+            onSave={() => save.mutate({ provider: "openai", apiKey: openaiKey.trim() })}
+            onTest={() => test.mutate("openai")}
+            emptyMessage="Belum ada key — Generate AI akan 422 sampai key disimpan."
+          />
+          <ProviderCard
+            title="Gemini"
+            hint={hint("gemini")}
+            hasKey={hasGemini}
+            docsLabel="aistudio.google.com/app/apikey"
+            docsHref="https://aistudio.google.com/app/apikey"
+            format="Format AIza... atau AQ... (Vertex) — min 20 karakter"
+            value={geminiKey}
+            onChangeValue={setGeminiKey}
+            show={showGemini}
+            onToggleShow={() => setShowGemini((v) => !v)}
+            placeholder="AQ..."
+            fieldStatus={statusFor("gemini")}
+            minLength={20}
+            isSaving={isSavingGemini}
+            isTesting={!!testRes.gemini?.loading}
+            onSave={() => save.mutate({ provider: "gemini", apiKey: geminiKey.trim() })}
+            onTest={() => test.mutate("gemini")}
+            emptyMessage={`Opsional — cukup salah satu provider. Jika sudah simpan, refresh tetap tampil ${maskHint(hint("gemini"))} di field.`}
+          />
         </Grid>
-        <div className="mt-4">
-          <Text type="supporting">Enter untuk save · Test butuh key tersimpan (decrypt ephemeral ke provider) · key tidak pernah dikembalikan plaintext — hanya mask yang tampil setelah refresh.</Text>
-        </div>
-      </Card>
-    </div>
+
+        <Text type="supporting">
+          Enter untuk save · Test butuh key tersimpan (dekripsi sesaat ke provider) · key tidak
+          pernah dikembalikan plaintext — hanya mask yang tampil setelah refresh.
+        </Text>
+      </VStack>
+    </Panel>
+  );
+}
+
+/**
+ * Sub-panel per provider: sengaja diekstrak supaya tidak menduplikat 40 baris
+ * dua kali dan agar perilaku (save/test/show, disabled state) konsisten.
+ */
+function ProviderCard({
+  title, hint, hasKey, docsLabel, docsHref, format,
+  value, onChangeValue, show, onToggleShow, placeholder, fieldStatus,
+  minLength, isSaving, isTesting, onSave, onTest, emptyMessage,
+}: {
+  title: string;
+  hint: string;
+  hasKey: boolean;
+  docsLabel: string;
+  docsHref: string;
+  format: string;
+  value: string;
+  onChangeValue: (v: string) => void;
+  show: boolean;
+  onToggleShow: () => void;
+  placeholder: string;
+  fieldStatus?: { type: "success" | "error"; message: string };
+  minLength: number;
+  isSaving: boolean;
+  isTesting: boolean;
+  onSave: () => void;
+  onTest: () => void;
+  emptyMessage: string;
+}) {
+  return (
+    <Panel
+      title={title}
+      description={format}
+      headingLevel={4}
+      actions={<Badge variant={hasKey ? "success" : "default"}>{maskHint(hint)}</Badge>}
+    >
+      <VStack gap={3}>
+        <Text type="supporting">
+          <AstryxLink href={docsHref} rel="noreferrer" target="_blank">{docsLabel}</AstryxLink>
+        </Text>
+        <TextInput
+          label="API Key"
+          description={
+            hasKey
+              ? `Tersimpan ${maskHint(hint)} — refresh tetap tampil (masked) di placeholder. Ketik ulang untuk ganti.`
+              : `Belum tersimpan — kunci Anda sendiri, wajib ada sebelum membuat RPS`
+          }
+          type={show ? "text" : "password"}
+          value={value}
+          onChange={onChangeValue}
+          placeholder={hasKey ? maskHint(hint) : placeholder}
+          status={fieldStatus}
+        />
+        <HStack gap={2}>
+          <Button label={show ? "Sembunyikan" : "Tampilkan"} variant="secondary" size="sm" onClick={onToggleShow} />
+          <Button
+            label={isSaving ? "Menyimpan…" : "Simpan"}
+            variant="primary"
+            size="sm"
+            isDisabled={!value.trim() || value.trim().length < minLength}
+            isLoading={isSaving}
+            onClick={onSave}
+          />
+          <Button
+            label={isTesting ? "Menguji…" : "Test"}
+            variant="secondary"
+            size="sm"
+            isDisabled={!hasKey}
+            isLoading={isTesting}
+            tooltip={!hasKey ? "Simpan key dulu" : "Uji langsung ke penyedia"}
+            onClick={onTest}
+          />
+        </HStack>
+        {!hasKey && <Text type="supporting">{emptyMessage}</Text>}
+      </VStack>
+    </Panel>
   );
 }

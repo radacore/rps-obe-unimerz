@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { createColumnHelper, flexRender, getCoreRowModel, useReactTable } from "@tanstack/react-table";
+import { Button } from "@astryxdesign/core/Button";
+import { Text } from "@astryxdesign/core/Text";
+import { HStack } from "@astryxdesign/core/HStack";
+import { VStack } from "@astryxdesign/core/VStack";
 import { Banner } from "./ui/Banner";
 import { Badge } from "./ui/Badge";
 import { ProgressBar } from "./ui/ProgressBar";
-import { Card } from "./ui/Card";
-import { Button } from "@astryxdesign/core/Button";
-import { Text } from "@astryxdesign/core/Text";
+import { Panel } from "./ui/Panel";
 
 export type WeeklyRow = {
   week: string;
@@ -186,16 +188,14 @@ export function WeeklyTable({ value, onChange, onSave }: { value?: WeeklyRow[]; 
   const table = useReactTable({ data: rows, columns: cols as never, getCoreRowModel: getCoreRowModel() });
 
   return (
-    <Card className="min-w-0 max-w-full overflow-hidden">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <Text weight="semibold">Rencana Mingguan</Text>
-          <Text type="supporting">Atur capaian, materi, dan bobot tiap pertemuan.</Text>
-        </div>
-        <Badge variant={ok ? "success" : "danger"}>{warn}</Badge>
-      </div>
-      <div className="mt-2"><ProgressBar value={sum} max={100} /></div>
-      {!ok && <div className="mt-3"><Banner status="error">{warn}. Baris UTS/UAS bobot 0.</Banner></div>}
+    <Panel
+      title="Rencana Mingguan"
+      description="Atur capaian, materi, dan bobot tiap pertemuan."
+      actions={<Badge variant={ok ? "success" : "danger"}>{warn}</Badge>}
+    >
+      <VStack gap={3}>
+        <ProgressBar value={sum} max={100} />
+        {!ok && <Banner status="error">{`${warn}. Baris UTS/UAS bobot 0.`}</Banner>}
 
       {/* Scroll container — horizontal scroll, sticky first col (clamped to card) */}
       <div className="mt-3 max-w-full overflow-x-auto overflow-y-auto rounded-lg border border-border" style={{ maxHeight: "65vh" }}>
@@ -245,11 +245,12 @@ export function WeeklyTable({ value, onChange, onSave }: { value?: WeeklyRow[]; 
         </table>
       </div>
 
-      <div className="mt-3 flex flex-wrap gap-2">
-        <Button label="Reset" variant="secondary" size="sm" onClick={() => emit(default9.map(normalizeRow))} />
-        {onSave && <Button label={ok ? "Simpan" : "Perbaiki bobot dulu"} variant="primary" size="sm" isDisabled={!ok} tooltip={!ok ? "Total bobot harus 100" : undefined} onClick={() => onSave(rows)} />}
-      </div>
-    </Card>
+        <HStack gap={2} wrap="wrap">
+          <Button label="Reset" variant="secondary" size="sm" onClick={() => emit(default9.map(normalizeRow))} />
+          {onSave && <Button label={ok ? "Simpan" : "Perbaiki bobot dulu"} variant="primary" size="sm" isDisabled={!ok} tooltip={!ok ? "Total bobot harus 100" : undefined} onClick={() => onSave(rows)} />}
+        </HStack>
+      </VStack>
+    </Panel>
   );
 }
 

@@ -4,10 +4,13 @@ import { useState } from "react";
 import { Button } from "@astryxdesign/core/Button";
 import { Text } from "@astryxdesign/core/Text";
 import { TextInput } from "@astryxdesign/core/TextInput";
+import { HStack } from "@astryxdesign/core/HStack";
+import { VStack } from "@astryxdesign/core/VStack";
+import { List, ListItem } from "@astryxdesign/core/List";
 import { ApiError } from "@/lib/api";
 import { ADMIN_SESSION_KEY, adminChangePassword, adminLogin, fetchAdminSession } from "@/lib/admin";
 import { Banner } from "./ui/Banner";
-import { Card } from "./ui/Card";
+import { Panel } from "./ui/Panel";
 
 /** Aturan ini mencerminkan `adminChangePasswordSchema` di server. */
 const PASSWORD_RULES: { test: (v: string) => boolean; label: string }[] = [
@@ -61,12 +64,14 @@ export function AdminLoginForm() {
     return identity.mustChangePassword
       ? <ForcedPasswordChange name={identity.name} />
       : (
-        <Card>
-          <Text weight="semibold">Sudah login sebagai {identity.name}</Text>
-          <div className="mt-3">
-            <Button label="Buka panel admin" variant="primary" onClick={() => nav({ to: "/admin" })} />
-          </div>
-        </Card>
+        <Panel>
+          <VStack gap={3}>
+            <Text weight="semibold">{`Sudah login sebagai ${identity.name}`}</Text>
+            <HStack>
+              <Button label="Buka panel admin" variant="primary" onClick={() => nav({ to: "/admin" })} />
+            </HStack>
+          </VStack>
+        </Panel>
       );
   }
 
@@ -78,52 +83,50 @@ export function AdminLoginForm() {
       : undefined;
 
   return (
-    <Card>
-      <Text weight="semibold">Masuk panel admin</Text>
-      <Text type="supporting">
-        Gunakan NIDN (10 digit) dan password yang diberikan pengelola sistem.
-      </Text>
-
-      <div className="mt-4 grid max-w-md gap-3">
-        <TextInput
-          label="NIDN"
-          value={nidn}
-          onChange={(v) => setNidn(v.replace(/\D/g, "").slice(0, 10))}
-          placeholder="0922038401"
-          description="Nomor Induk Dosen Nasional, 10 digit"
-          status={nidnStatus}
-        />
-        <div className="grid gap-2">
+    <Panel
+      title="Masuk panel admin"
+      description="Gunakan NIDN (10 digit) dan password yang diberikan pengelola sistem."
+    >
+      <div style={{ maxWidth: 420 }}>
+        <VStack gap={3}>
           <TextInput
-            label="Password"
-            type={showPassword ? "text" : "password"}
-            value={password}
-            onChange={setPassword}
-            placeholder="••••••••••••"
+            label="NIDN"
+            value={nidn}
+            onChange={(v) => setNidn(v.replace(/\D/g, "").slice(0, 10))}
+            placeholder="0922038401"
+            description="Nomor Induk Dosen Nasional, 10 digit"
+            status={nidnStatus}
           />
-          <div className="flex justify-end">
-            <Button
-              label={showPassword ? "Sembunyikan" : "Tampilkan"}
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowPassword((v) => !v)}
+          <VStack gap={2}>
+            <TextInput
+              label="Password"
+              type={showPassword ? "text" : "password"}
+              value={password}
+              onChange={setPassword}
+              placeholder="••••••••••••"
             />
-          </div>
-        </div>
-
-        {error !== null && <Banner status="error">{errorMessage(error)}</Banner>}
-
-        <div>
-          <Button
-            label={login.isPending ? "Memeriksa…" : "Masuk"}
-            variant="primary"
-            isLoading={login.isPending}
-            isDisabled={!canSubmit}
-            onClick={() => login.mutate()}
-          />
-        </div>
+            <HStack justify="end">
+              <Button
+                label={showPassword ? "Sembunyikan" : "Tampilkan"}
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowPassword((v) => !v)}
+              />
+            </HStack>
+          </VStack>
+          {error !== null && <Banner status="error">{errorMessage(error)}</Banner>}
+          <HStack>
+            <Button
+              label={login.isPending ? "Memeriksa…" : "Masuk"}
+              variant="primary"
+              isLoading={login.isPending}
+              isDisabled={!canSubmit}
+              onClick={() => login.mutate()}
+            />
+          </HStack>
+        </VStack>
       </div>
-    </Card>
+    </Panel>
   );
 }
 
@@ -149,8 +152,6 @@ export function ForcedPasswordChange({ name }: { name: string }) {
     onSuccess: () => {
       setError(null);
       setDone(true);
-      // Server mencabut semua sesi termasuk yang sedang dipakai, jadi cache
-      // sesi lokal harus ikut dibuang.
       qc.setQueryData(ADMIN_SESSION_KEY, null);
       qc.removeQueries({ queryKey: ["admin-programs"] });
     },
@@ -159,61 +160,66 @@ export function ForcedPasswordChange({ name }: { name: string }) {
 
   if (done) {
     return (
-      <Card>
-        <Banner status="success" title="Password diganti">
-          Semua sesi lama sudah diakhiri. Silakan masuk kembali dengan password baru.
-        </Banner>
-        <div className="mt-3">
-          <Button label="Ke halaman login" variant="primary" onClick={() => window.location.assign("/admin/login")} />
-        </div>
-      </Card>
+      <Panel>
+        <VStack gap={3}>
+          <Banner status="success" title="Password diganti">
+            Semua sesi lama sudah diakhiri. Silakan masuk kembali dengan password baru.
+          </Banner>
+          <HStack>
+            <Button label="Ke halaman login" variant="primary" onClick={() => window.location.assign("/admin/login")} />
+          </HStack>
+        </VStack>
+      </Panel>
     );
   }
 
   return (
-    <Card>
-      <Text weight="semibold">Ganti password dulu, {name}</Text>
-      <Text type="supporting">
-        Akun ini masih memakai password bawaan. Pengelolaan data baru terbuka setelah password diganti.
-      </Text>
-
-      <div className="mt-4 grid max-w-md gap-3">
-        <TextInput label="Password saat ini" type="password" value={currentPassword} onChange={setCurrentPassword} />
-        <TextInput label="Password baru" type="password" value={newPassword} onChange={setNewPassword} />
-        <TextInput
-          label="Ulangi password baru"
-          type="password"
-          value={confirm}
-          onChange={setConfirm}
-          status={mismatch ? { type: "error", message: "Belum sama dengan password baru" } : undefined}
-        />
-
-        <div className="rounded-lg border border-border bg-muted px-3 py-2">
-          <Text type="supporting">Syarat password</Text>
-          <ul className="mt-1 grid gap-1">
-            {PASSWORD_RULES.map((rule) => {
-              const ok = rule.test(newPassword);
-              return (
-                <li key={rule.label} className={`text-xs ${ok ? "text-accent" : "text-secondary"}`}>
-                  {ok ? "✓" : "•"} {rule.label}
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-
-        {error !== null && <Banner status="error">{errorMessage(error)}</Banner>}
-
-        <div>
-          <Button
-            label={change.isPending ? "Menyimpan…" : "Ganti password"}
-            variant="primary"
-            isLoading={change.isPending}
-            isDisabled={!canSubmit}
-            onClick={() => change.mutate()}
+    <Panel
+      title={`Ganti password dulu, ${name}`}
+      description="Akun ini masih memakai password bawaan. Pengelolaan data baru terbuka setelah password diganti."
+    >
+      <div style={{ maxWidth: 420 }}>
+        <VStack gap={3}>
+          <TextInput label="Password saat ini" type="password" value={currentPassword} onChange={setCurrentPassword} />
+          <TextInput label="Password baru" type="password" value={newPassword} onChange={setNewPassword} />
+          <TextInput
+            label="Ulangi password baru"
+            type="password"
+            value={confirm}
+            onChange={setConfirm}
+            status={mismatch ? { type: "error", message: "Belum sama dengan password baru" } : undefined}
           />
-        </div>
+
+          <Panel padding={3}>
+            <VStack gap={1}>
+              <Text type="supporting">Syarat password</Text>
+              <List density="compact">
+                {PASSWORD_RULES.map((rule) => {
+                  const ok = rule.test(newPassword);
+                  return (
+                    <ListItem
+                      key={rule.label}
+                      label={`${ok ? "✓" : "•"} ${rule.label}`}
+                    />
+                  );
+                })}
+              </List>
+            </VStack>
+          </Panel>
+
+          {error !== null && <Banner status="error">{errorMessage(error)}</Banner>}
+
+          <HStack>
+            <Button
+              label={change.isPending ? "Menyimpan…" : "Ganti password"}
+              variant="primary"
+              isLoading={change.isPending}
+              isDisabled={!canSubmit}
+              onClick={() => change.mutate()}
+            />
+          </HStack>
+        </VStack>
       </div>
-    </Card>
+    </Panel>
   );
 }

@@ -6,6 +6,15 @@ import { DateInput } from "@astryxdesign/core/DateInput";
 import { Selector } from "@astryxdesign/core/Selector";
 import { Text } from "@astryxdesign/core/Text";
 import { TextInput } from "@astryxdesign/core/TextInput";
+import { HStack } from "@astryxdesign/core/HStack";
+import { VStack } from "@astryxdesign/core/VStack";
+import { Grid } from "@astryxdesign/core/Grid";
+import { Heading } from "@astryxdesign/core/Heading";
+import { List } from "@astryxdesign/core/List";
+import { ListItem } from "@astryxdesign/core/List";
+import { Link as AstryxLink } from "@astryxdesign/core/Link";
+import { SelectableCard } from "@astryxdesign/core/SelectableCard";
+import type { ISODateString } from "@astryxdesign/core/Calendar";
 import { api, ApiError, type ApiOk } from "@/lib/api";
 import {
   ADMIN_SESSION_KEY, fetchAdminSession, fetchPublicCourses,
@@ -21,7 +30,8 @@ import {
 } from "@/lib/rps-wizard";
 import { Badge } from "./ui/Badge";
 import { Banner } from "./ui/Banner";
-import { Card } from "./ui/Card";
+import { Panel } from "./ui/Panel";
+import { Textarea } from "./ui/Textarea";
 import { LinesEditor } from "./ui/LinesEditor";
 
 const LECTURER_ROLES: { value: LecturerRole; label: string }[] = [
@@ -62,10 +72,11 @@ function NumberField({
 /**
  * Wizard pembuatan RPS.
  *
- * Sebelumnya isian terpecah dua halaman: identitas di formulir awal, sisanya di
- * halaman detail bersama enam panel sejajar tanpa urutan. Sekarang seluruh isi
- * disusun berurutan di satu tempat, dan dokumen baru diterbitkan setelah semua
- * langkah lengkap.
+ * Sebelumnya isian terpecah dua halaman: identitas di formulir awal, sisanya
+ * di halaman detail bersama enam panel sejajar tanpa urutan. Sekarang seluruh
+ * isi disusun berurutan di satu tempat, dan dokumen baru diterbitkan setelah
+ * semua langkah lengkap. UI memakai `Panel`/`VStack`/`HStack` Astryx supaya
+ * ritme spacing sama dengan halaman lain.
  */
 export function RpsWizard() {
   const qc = useQueryClient();
@@ -144,11 +155,9 @@ export function RpsWizard() {
 
   if (!identity) {
     return (
-      <Card>
-        <Text weight="semibold">Masuk untuk membuat RPS</Text>
-        <Text type="supporting">Menulis RPS memerlukan akun dosen atau pengelola.</Text>
-        <div className="mt-3"><Link to="/admin/login" className="text-sm text-accent">Ke halaman masuk →</Link></div>
-      </Card>
+      <Panel title="Masuk untuk membuat RPS" description="Menulis RPS memerlukan akun dosen atau pengelola.">
+        <Link to="/admin/login"><Button label="Ke halaman masuk" variant="primary" size="sm" /></Link>
+      </Panel>
     );
   }
 
@@ -156,38 +165,32 @@ export function RpsWizard() {
   // sekali di sini; setelah kunci ada, tidak diungkit lagi di langkah mana pun.
   if (identity.has_api_key === false) {
     return (
-      <Card>
-        <Text weight="semibold">Simpan API key Anda dulu</Text>
-        <Text type="supporting">
-          Setiap penulis RPS memakai kunci AI miliknya sendiri, sehingga biaya dan kuota melekat
-          pada pemakainya.
-        </Text>
-        <div className="mt-3">
-          <Link to="/settings" className="text-sm text-accent">Buka Settings untuk menyimpan API key →</Link>
-        </div>
-      </Card>
+      <Panel
+        title="Simpan API key Anda dulu"
+        description="Setiap penulis RPS memakai kunci AI miliknya sendiri, sehingga biaya dan kuota melekat pada pemakainya."
+      >
+        <Link to="/settings"><Button label="Buka Settings untuk menyimpan API key" variant="primary" size="sm" /></Link>
+      </Panel>
     );
   }
 
   return (
-    <div className="grid gap-4">
+    <VStack gap={4}>
       <StepNav
         stepIndex={stepIndex}
         onStep={setStepIndex}
         issuesByStep={issuesByStep}
       />
 
-      <Card>
-        <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <Text weight="semibold">
-            Langkah {stepIndex + 1} dari {STEP_IDS.length} — {STEP_LABELS[stepId]}
-          </Text>
-          {issuesByStep[stepId].length === 0
+      <Panel
+        title={`Langkah ${stepIndex + 1} dari ${STEP_IDS.length} — ${STEP_LABELS[stepId]}`}
+        actions={
+          issuesByStep[stepId].length === 0
             ? <Badge variant="success">Lengkap</Badge>
-            : <Badge variant="warning">{issuesByStep[stepId].length} perlu diisi</Badge>}
-        </div>
-
-        <div className="mt-4">
+            : <Badge variant="warning">{`${issuesByStep[stepId].length} perlu diisi`}</Badge>
+        }
+      >
+        <VStack gap={4}>
           {stepId === "identitas" && (
             <IdentityStep
               form={effectiveForm} patch={patch}
@@ -217,90 +220,88 @@ export function RpsWizard() {
               catalogLabel={readiness.data?.data.label ?? null}
             />
           )}
-        </div>
 
-        {issuesByStep[stepId].length > 0 && stepId !== "tinjau" && (
-          <div className="mt-4">
+          {issuesByStep[stepId].length > 0 && stepId !== "tinjau" && (
             <Banner status="info" title="Yang masih perlu diisi di langkah ini">
-              <ul className="grid gap-1">
+              <List density="compact">
                 {issuesByStep[stepId].map((issue) => (
-                  <li key={issue} className="text-xs">{issue}</li>
+                  <ListItem key={issue} label={issue} />
                 ))}
-              </ul>
+              </List>
             </Banner>
-          </div>
-        )}
-
-        {error !== null && <div className="mt-3"><Banner status="error">{errorMessage(error)}</Banner></div>}
-
-        <div className="mt-4 flex flex-wrap items-center gap-2">
-          <Button
-            label="Sebelumnya"
-            variant="secondary"
-            isDisabled={stepIndex === 0}
-            onClick={() => setStepIndex((i) => Math.max(0, i - 1))}
-          />
-          {stepIndex < STEP_IDS.length - 1 ? (
-            <Button
-              label="Berikutnya"
-              variant="primary"
-              onClick={() => setStepIndex((i) => Math.min(STEP_IDS.length - 1, i + 1))}
-            />
-          ) : (
-            <Button
-              label={publish.isPending ? "Menerbitkan…" : "Terbitkan RPS"}
-              variant="primary"
-              isLoading={publish.isPending}
-              isDisabled={!ready}
-              onClick={() => publish.mutate()}
-            />
           )}
-          <Text type="supporting">
-            {ready
-              ? "Semua langkah lengkap — dokumen siap diterbitkan."
-              : `${pending.length} langkah belum lengkap.`}
-          </Text>
-        </div>
-      </Card>
-    </div>
+
+          {error !== null && <Banner status="error">{errorMessage(error)}</Banner>}
+
+          <HStack gap={2} align="center">
+            <Button
+              label="Sebelumnya"
+              variant="secondary"
+              isDisabled={stepIndex === 0}
+              onClick={() => setStepIndex((i) => Math.max(0, i - 1))}
+            />
+            {stepIndex < STEP_IDS.length - 1 ? (
+              <Button
+                label="Berikutnya"
+                variant="primary"
+                onClick={() => setStepIndex((i) => Math.min(STEP_IDS.length - 1, i + 1))}
+              />
+            ) : (
+              <Button
+                label={publish.isPending ? "Menerbitkan…" : "Terbitkan RPS"}
+                variant="primary"
+                isLoading={publish.isPending}
+                isDisabled={!ready}
+                onClick={() => publish.mutate()}
+              />
+            )}
+            <Text type="supporting">
+              {ready
+                ? "Semua langkah lengkap — dokumen siap diterbitkan."
+                : `${pending.length} langkah belum lengkap.`}
+            </Text>
+          </HStack>
+        </VStack>
+      </Panel>
+    </VStack>
   );
 }
 
-/** Penanda langkah dengan status lengkap/belum, bisa diklik bebas. */
+/**
+ * Penanda langkah dengan status lengkap/belum, bisa diklik bebas.
+ *
+ * Tombol memakai `SelectableCard` Astryx supaya keadaan aktif/lengkap
+ * dinyatakan lewat token warna resmi (aksen, sukses) alih-alih kelas Tailwind
+ * yang harus dijaga sinkron dengan tema.
+ */
 function StepNav({
   stepIndex, onStep, issuesByStep,
 }: { stepIndex: number; onStep: (i: number) => void; issuesByStep: Record<StepId, string[]> }) {
   return (
-    <Card>
-      <div className="flex flex-wrap gap-2">
+    <Panel padding={3}>
+      <HStack gap={2} wrap="wrap">
         {STEP_IDS.map((id, i) => {
           const done = issuesByStep[id].length === 0;
           const active = i === stepIndex;
           return (
-            <button
+            <SelectableCard
               key={id}
-              type="button"
-              onClick={() => onStep(i)}
-              aria-current={active ? "step" : undefined}
-              className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-left text-xs transition-colors ${
-                active
-                  ? "border-accent bg-accent-muted text-primary"
-                  : "border-border bg-surface text-secondary hover:border-strong"
-              }`}
+              label={`Langkah ${i + 1}: ${STEP_LABELS[id]}${done ? " (lengkap)" : ""}`}
+              isSelected={active}
+              onChange={() => onStep(i)}
+              padding={2}
             >
-              <span
-                className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold ${
-                  done ? "bg-success text-white" : active ? "bg-accent text-white" : "bg-muted text-secondary"
-                }`}
-              >
-                {done ? "✓" : i + 1}
-              </span>
-              <span className="whitespace-nowrap">{STEP_LABELS[id]}</span>
-            </button>
+              <HStack gap={2} align="center">
+                <Badge variant={done ? "success" : "default"}>
+                  {done ? "✓" : String(i + 1)}
+                </Badge>
+                <Text weight={active ? "semibold" : undefined}>{STEP_LABELS[id]}</Text>
+              </HStack>
+            </SelectableCard>
           );
         })}
-      </div>
-    </Card>
+      </HStack>
+    </Panel>
   );
 }
 
@@ -318,8 +319,8 @@ function IdentityStep({
     patch({ lecturers: form.lecturers.map((l, idx) => (idx === i ? { ...l, ...next } : l)) });
 
   return (
-    <div className="grid gap-4">
-      <div className="grid gap-3 md:grid-cols-2">
+    <VStack gap={4}>
+      <Grid columns={2} gap={3}>
         <TextInput label="Nama mata kuliah" value={form.course_name} onChange={(v) => patch({ course_name: v })} placeholder="Algoritma dan Struktur Data" />
         <TextInput label="Kode mata kuliah" value={form.course_code} onChange={(v) => patch({ course_code: v })} placeholder="IK24IK1201" />
         <Selector label="Fakultas" value={form.faculty} onChange={onFacultyChange} options={[{ value: "", label: "— pilih fakultas —" }, ...facultyOptions]} />
@@ -331,56 +332,62 @@ function IdentityStep({
         />
         <Selector label="Semester" value={form.semester} onChange={(v) => patch({ semester: v })} options={[{ value: "", label: "— pilih semester —" }, ...SEMESTER_OPTIONS]} />
         <TextInput label="Rumpun mata kuliah" value={form.course_cluster} onChange={(v) => patch({ course_cluster: v })} description="Kosongkan untuk memakai nama program studi" />
-      </div>
+      </Grid>
 
-      <div className="grid gap-3 md:grid-cols-[140px_140px_1fr] md:items-end">
+      <HStack gap={3} align="end">
         <NumberField label="SKS Teori" value={form.sks_theory} onChange={(n) => patch({ sks_theory: n })} />
         <NumberField label="SKS Praktik" value={form.sks_practice} onChange={(n) => patch({ sks_practice: n })} />
         <Text type="supporting">Total {sksTotal} SKS</Text>
-      </div>
+      </HStack>
 
       <DateInput
         label="Tanggal penyusunan"
-        value={form.preparation_date as import("@astryxdesign/core/Calendar").ISODateString}
+        value={form.preparation_date as ISODateString}
         onChange={(v) => patch({ preparation_date: v ?? form.preparation_date })}
         format="system_date"
       />
 
-      <div className="grid gap-2">
-        <Text weight="semibold">Dosen pengampu</Text>
+      <VStack gap={2}>
+        <Heading level={4}>Dosen pengampu</Heading>
         <Text type="supporting">
           Wajib ada satu Koordinator MK. Nama dan peran tercetak di kolom Otorisasi dokumen.
         </Text>
-        {form.lecturers.map((l, i) => (
-          <div key={`lecturer-${i}-${l.nidn}`} className="grid gap-2 rounded-lg border border-border bg-muted/20 p-3 md:grid-cols-[1fr_150px_180px_auto] md:items-end">
-            <TextInput label={`Nama dosen ${i + 1}`} value={l.name} onChange={(v) => setLecturer(i, { name: v })} placeholder="Dr. Nama Lengkap, M.Kom." />
-            <TextInput
-              label="NIDN"
-              value={l.nidn}
-              onChange={(v) => setLecturer(i, { nidn: v.replace(/\D/g, "").slice(0, 10) })}
-              placeholder="0922038401"
-              status={l.nidn.length > 0 && l.nidn.length !== 10 ? { type: "error", message: "10 digit" } : undefined}
-            />
-            <Selector label="Peran" value={l.role} onChange={(v) => setLecturer(i, { role: v as LecturerRole })} options={LECTURER_ROLES} />
-            <Button
-              label="Hapus"
-              variant="secondary"
-              size="sm"
-              isDisabled={form.lecturers.length === 1}
-              onClick={() => patch({ lecturers: form.lecturers.filter((_, idx) => idx !== i) })}
-            />
-          </div>
-        ))}
-        <div>
+        <VStack gap={3}>
+          {form.lecturers.map((l, i) => (
+            <Panel key={`lecturer-${i}-${l.nidn}`} padding={3}>
+              <Grid columns={{ minWidth: 180 }} gap={2} align="end">
+                <TextInput label={`Nama dosen ${i + 1}`} value={l.name} onChange={(v) => setLecturer(i, { name: v })} placeholder="Dr. Nama Lengkap, M.Kom." />
+                <TextInput
+                  label="NIDN"
+                  value={l.nidn}
+                  onChange={(v) => setLecturer(i, { nidn: v.replace(/\D/g, "").slice(0, 10) })}
+                  placeholder="0922038401"
+                  status={l.nidn.length > 0 && l.nidn.length !== 10 ? { type: "error", message: "10 digit" } : undefined}
+                />
+                <Selector label="Peran" value={l.role} onChange={(v) => setLecturer(i, { role: v as LecturerRole })} options={LECTURER_ROLES} />
+                <HStack justify="end">
+                  <Button
+                    label="Hapus"
+                    variant="secondary"
+                    size="sm"
+                    isDisabled={form.lecturers.length === 1}
+                    onClick={() => patch({ lecturers: form.lecturers.filter((_, idx) => idx !== i) })}
+                  />
+                </HStack>
+              </Grid>
+            </Panel>
+          ))}
+        </VStack>
+        <HStack>
           <Button
             label="Tambah dosen"
             variant="secondary"
             size="sm"
             onClick={() => patch({ lecturers: [...form.lecturers, { name: "", nidn: "", role: "anggota" }] })}
           />
-        </div>
-      </div>
-    </div>
+        </HStack>
+      </VStack>
+    </VStack>
   );
 }
 
@@ -473,87 +480,87 @@ function SourceStep({ form, patch }: { form: RpsFormState; patch: (n: Partial<Rp
   ];
 
   return (
-    <div className="grid gap-3">
+    <VStack gap={3}>
       <Text type="supporting">
         Pilihan ini menentukan seberapa banyak langkah berikutnya terisi otomatis. Apa pun pilihannya,
         semua isi tetap bisa Anda sunting.
       </Text>
 
       {OPTIONS.map((opt) => (
-        <button
+        <SelectableCard
           key={opt.id}
-          type="button"
-          onClick={() => choose(opt.id)}
-          className={`rounded-lg border p-3 text-left transition-colors ${
-            form.source === opt.id ? "border-accent bg-accent-muted" : "border-border bg-surface hover:border-strong"
-          }`}
+          label={opt.title}
+          isSelected={form.source === opt.id}
+          onChange={() => choose(opt.id)}
+          padding={3}
         >
-          <div className="flex items-center gap-2">
-            <span className={`flex h-4 w-4 items-center justify-center rounded-full border ${form.source === opt.id ? "border-accent bg-accent" : "border-strong"}`}>
-              {form.source === opt.id && <span className="h-1.5 w-1.5 rounded-full bg-white" />}
-            </span>
-            <span className="text-sm font-medium">{opt.title}</span>
-          </div>
-          <div className="mt-1 pl-6 text-xs leading-relaxed text-secondary">{opt.body}</div>
-        </button>
+          <VStack gap={1}>
+            <Text weight="semibold">{opt.title}</Text>
+            <Text type="supporting">{opt.body}</Text>
+          </VStack>
+        </SelectableCard>
       ))}
 
       {form.source === "curriculum" && (
-        <div className="grid gap-2 rounded-lg border border-border bg-muted/20 p-3">
-          {!form.study_program && <Banner status="warning">Pilih program studi di langkah 1 lebih dulu.</Banner>}
-          {courses.isLoading && <Text type="supporting">Memuat kurikulum…</Text>}
-          {!!form.study_program && !courses.isLoading && rows.length === 0 && (
-            <Banner status="info">
-              Bank kurikulum {form.study_program} masih kosong. Minta Kaprodi menyusunnya di
-              Admin → Kurikulum &amp; CPMK, atau pilih sumber lain.
-            </Banner>
-          )}
-          {rows.length > 0 && (
-            <>
-              <Selector
-                label="Mata kuliah dari kurikulum"
-                value={form.source_course_id ? String(form.source_course_id) : ""}
-                onChange={(v) => {
-                  const course = rows.find((r) => String(r.id) === v);
-                  if (course) applyCourse(course);
-                }}
-                options={[
-                  { value: "", label: "— pilih mata kuliah —" },
-                  ...rows.map((r) => ({ value: String(r.id), label: `${r.code} — ${r.name} (${r.cpmk_count} CPMK)` })),
-                ]}
-              />
-              {applied && <Banner status="success">{applied}</Banner>}
-            </>
-          )}
-        </div>
+        <Panel padding={3}>
+          <VStack gap={2}>
+            {!form.study_program && <Banner status="warning">Pilih program studi di langkah 1 lebih dulu.</Banner>}
+            {courses.isLoading && <Text type="supporting">Memuat kurikulum…</Text>}
+            {!!form.study_program && !courses.isLoading && rows.length === 0 && (
+              <Banner status="info">
+                Bank kurikulum {form.study_program} masih kosong. Minta Kaprodi menyusunnya di
+                Admin → Kurikulum &amp; CPMK, atau pilih sumber lain.
+              </Banner>
+            )}
+            {rows.length > 0 && (
+              <>
+                <Selector
+                  label="Mata kuliah dari kurikulum"
+                  value={form.source_course_id ? String(form.source_course_id) : ""}
+                  onChange={(v) => {
+                    const course = rows.find((r) => String(r.id) === v);
+                    if (course) applyCourse(course);
+                  }}
+                  options={[
+                    { value: "", label: "— pilih mata kuliah —" },
+                    ...rows.map((r) => ({ value: String(r.id), label: `${r.code} — ${r.name} (${r.cpmk_count} CPMK)` })),
+                  ]}
+                />
+                {applied && <Banner status="success">{applied}</Banner>}
+              </>
+            )}
+          </VStack>
+        </Panel>
       )}
 
       {form.source === "ai" && (
-        <div className="grid gap-2 rounded-lg border border-border bg-muted/20 p-3">
-          {!identityReady && (
-            <Banner status="warning">
-              Lengkapi nama, kode, dan program studi di langkah 1 supaya AI punya konteks.
-            </Banner>
-          )}
-          <Text type="supporting">
-            AI menyusun deskripsi, bahan kajian, pustaka, CPL, CPMK, Sub-CPMK, dan rencana 16 minggu
-            sekaligus. Hasilnya draf: periksa dan sunting sebelum diterbitkan.
-          </Text>
-          <div>
-            <Button
-              label={aiDraft.isPending ? "Menyusun isi RPS…" : "Susun isi RPS dengan AI"}
-              variant="secondary"
-              size="sm"
-              isLoading={aiDraft.isPending}
-              isDisabled={!identityReady || aiDraft.isPending}
-              onClick={() => aiDraft.mutate()}
-            />
-          </div>
-          {aiError !== null && <Banner status="error">{errorMessage(aiError)}</Banner>}
-          {aiApplied && <Banner status="success">{aiApplied}</Banner>}
-        </div>
+        <Panel padding={3}>
+          <VStack gap={2}>
+            {!identityReady && (
+              <Banner status="warning">
+                Lengkapi nama, kode, dan program studi di langkah 1 supaya AI punya konteks.
+              </Banner>
+            )}
+            <Text type="supporting">
+              AI menyusun deskripsi, bahan kajian, pustaka, CPL, CPMK, Sub-CPMK, dan rencana 16 minggu
+              sekaligus. Hasilnya draf: periksa dan sunting sebelum diterbitkan.
+            </Text>
+            <HStack>
+              <Button
+                label={aiDraft.isPending ? "Menyusun isi RPS…" : "Susun isi RPS dengan AI"}
+                variant="secondary"
+                size="sm"
+                isLoading={aiDraft.isPending}
+                isDisabled={!identityReady || aiDraft.isPending}
+                onClick={() => aiDraft.mutate()}
+              />
+            </HStack>
+            {aiError !== null && <Banner status="error">{errorMessage(aiError)}</Banner>}
+            {aiApplied && <Banner status="success">{aiApplied}</Banner>}
+          </VStack>
+        </Panel>
       )}
-    </div>
+    </VStack>
   );
 }
 
@@ -580,18 +587,17 @@ function DescriptionStep({ form, patch }: { form: RpsFormState; patch: (n: Parti
   });
 
   return (
-    <div className="grid gap-4">
-      <div className="grid gap-1">
-        <Text weight="semibold">Deskripsi singkat mata kuliah</Text>
-        <Text type="supporting">Tercetak pada baris Deskripsi Singkat MK di dokumen.</Text>
-        <textarea
-          className="min-h-[110px] w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm leading-relaxed text-primary placeholder:text-secondary focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
-          rows={4}
+    <VStack gap={4}>
+      <VStack gap={2}>
+        <Textarea
+          label="Deskripsi singkat mata kuliah"
+          hint="Tercetak pada baris Deskripsi Singkat MK di dokumen."
           value={form.description}
-          onChange={(e) => patch({ description: e.target.value })}
+          onChange={(v) => patch({ description: v })}
           placeholder="Mata kuliah ini membahas …"
+          minRows={4}
         />
-        <div className="flex flex-wrap items-center gap-2">
+        <HStack gap={2} align="center">
           <Button
             label={generate.isPending ? "Menyusun…" : "Bantu susun dengan AI"}
             variant="secondary"
@@ -601,20 +607,20 @@ function DescriptionStep({ form, patch }: { form: RpsFormState; patch: (n: Parti
             onClick={() => generate.mutate()}
           />
           <Text type="supporting">{form.description.trim().length} karakter</Text>
-        </div>
+        </HStack>
         {aiError !== null && <Banner status="error">{errorMessage(aiError)}</Banner>}
-      </div>
+      </VStack>
 
       <LinesEditor label="Bahan kajian" hint="Satu topik per baris" value={form.bahan_kajian} onChange={(v) => patch({ bahan_kajian: v })} />
       <LinesEditor label="Pustaka utama" hint="Satu referensi per baris" value={form.pustaka_utama} onChange={(v) => patch({ pustaka_utama: v })} />
       <LinesEditor label="Pustaka pendukung" hint="Opsional" value={form.pustaka_pendukung} onChange={(v) => patch({ pustaka_pendukung: v })} />
-    </div>
+    </VStack>
   );
 }
 
 function OutcomeStep({ form, patch }: { form: RpsFormState; patch: (n: Partial<RpsFormState>) => void }) {
   return (
-    <div className="grid gap-4">
+    <VStack gap={4}>
       <Text type="supporting">
         CPL adalah capaian program studi yang dibebankan pada mata kuliah ini; CPMK adalah
         turunannya, dan Sub-CPMK adalah tahapan per pertemuan.
@@ -622,7 +628,7 @@ function OutcomeStep({ form, patch }: { form: RpsFormState; patch: (n: Partial<R
       <CpTable title="CPL yang dibebankan" codeLabel="Kode CPL" rows={form.cpl} onChange={(v) => patch({ cpl: v })} defaultCode={(i) => `CPL${i + 1}`} />
       <CpTable title="CPMK" codeLabel="Kode CPMK" rows={form.cpmk} onChange={(v) => patch({ cpmk: v })} defaultCode={(i) => `CPMK ${i + 1}`} />
       <CpTable title="Sub-CPMK" codeLabel="Kode Sub-CPMK" rows={form.sub_cpmk} onChange={(v) => patch({ sub_cpmk: v })} defaultCode={(i) => `Sub-CPMK-${i + 1}`} />
-    </div>
+    </VStack>
   );
 }
 
@@ -639,33 +645,38 @@ function CpTable({
     onChange(rows.map((r, idx) => (idx === i ? { ...r, ...next } : r)));
 
   return (
-    <div className="grid gap-2 rounded-lg border border-border bg-muted/20 p-3">
-      <div className="flex items-center justify-between gap-2">
-        <Text weight="semibold">{title}</Text>
-        <Badge variant={rows.length > 0 ? "success" : "warning"}>{rows.length} butir</Badge>
-      </div>
-      {rows.map((row, i) => (
-        <div key={`${title}-${i}-${row.code}`} className="grid gap-2 md:grid-cols-[150px_1fr_auto] md:items-end">
-          <TextInput label={codeLabel} value={row.code} onChange={(v) => set(i, { code: v })} placeholder={defaultCode(i)} />
-          <TextInput
-            label={`Rumusan ${row.code || defaultCode(i)}`}
-            value={row.description}
-            onChange={(v) => set(i, { description: v })}
-            placeholder="Mampu …"
-            status={row.description.trim().length > 0 && row.description.trim().length < 10 ? { type: "error", message: "Minimal 10 karakter" } : undefined}
+    <Panel
+      title={title}
+      headingLevel={4}
+      padding={3}
+      actions={<Badge variant={rows.length > 0 ? "success" : "warning"}>{`${rows.length} butir`}</Badge>}
+    >
+      <VStack gap={2}>
+        {rows.map((row, i) => (
+          <Grid key={`${title}-${i}-${row.code}`} columns={{ minWidth: 180 }} gap={2} align="end">
+            <TextInput label={codeLabel} value={row.code} onChange={(v) => set(i, { code: v })} placeholder={defaultCode(i)} />
+            <TextInput
+              label={`Rumusan ${row.code || defaultCode(i)}`}
+              value={row.description}
+              onChange={(v) => set(i, { description: v })}
+              placeholder="Mampu …"
+              status={row.description.trim().length > 0 && row.description.trim().length < 10 ? { type: "error", message: "Minimal 10 karakter" } : undefined}
+            />
+            <HStack justify="end">
+              <Button label="Hapus" variant="secondary" size="sm" onClick={() => onChange(rows.filter((_, idx) => idx !== i))} />
+            </HStack>
+          </Grid>
+        ))}
+        <HStack>
+          <Button
+            label="Tambah butir"
+            variant="secondary"
+            size="sm"
+            onClick={() => onChange([...rows, { code: defaultCode(rows.length), description: "" }])}
           />
-          <Button label="Hapus" variant="secondary" size="sm" onClick={() => onChange(rows.filter((_, idx) => idx !== i))} />
-        </div>
-      ))}
-      <div>
-        <Button
-          label="Tambah butir"
-          variant="secondary"
-          size="sm"
-          onClick={() => onChange([...rows, { code: defaultCode(rows.length), description: "" }])}
-        />
-      </div>
-    </div>
+        </HStack>
+      </VStack>
+    </Panel>
   );
 }
 
@@ -677,45 +688,49 @@ function WeeklyStep({ form, patch }: { form: RpsFormState; patch: (n: Partial<Rp
     patch({ weekly_plans: rows.map((r, idx) => (idx === i ? { ...r, ...next } : r)) });
 
   return (
-    <div className="grid gap-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
+    <VStack gap={3}>
+      <HStack justify="between" align="center" wrap="wrap">
         <Text type="supporting">
           Sembilan baris mewakili 16 pertemuan; baris ujian mengikuti struktur template dan tidak
           diberi bobot.
         </Text>
-        <Badge variant={total === 100 ? "success" : "warning"}>Total bobot {total}%</Badge>
-      </div>
+        <Badge variant={total === 100 ? "success" : "warning"}>{`Total bobot ${total}%`}</Badge>
+      </HStack>
 
       {rows.map((row, i) => {
         const canonical = CANONICAL_WEEKS[i];
         if (row.is_merged) {
           return (
-            <div key={`week-${i}`} className="rounded-lg border border-border bg-muted px-3 py-2">
-              <Text weight="semibold">Pertemuan {row.week} — {canonical?.label ?? "Ujian"}</Text>
-              <Text type="supporting">Baris ujian, tanpa bobot dan tanpa isian materi.</Text>
-            </div>
+            <Panel key={`week-${i}`} padding={3}>
+              <VStack gap={1}>
+                <Text weight="semibold">Pertemuan {row.week} — {canonical?.label ?? "Ujian"}</Text>
+                <Text type="supporting">Baris ujian, tanpa bobot dan tanpa isian materi.</Text>
+              </VStack>
+            </Panel>
           );
         }
         return (
-          <div key={`week-${i}`} className="grid gap-2 rounded-lg border border-border bg-muted/20 p-3">
-            <div className="flex items-center justify-between gap-2">
-              <Text weight="semibold">Pertemuan {row.week}</Text>
-              <div className="w-[120px]">
-                <NumberField label="Bobot (%)" value={Number(row.weight) || 0} onChange={(n) => set(i, { weight: n })} max={100} />
-              </div>
-            </div>
-            <TextInput label={`Materi pertemuan ${row.week}`} value={row.materi ?? ""} onChange={(v) => set(i, { materi: v, material: v })} placeholder="Topik yang dibahas" />
-            <TextInput label={`Sub-CPMK pertemuan ${row.week}`} value={row.sub_cpmk ?? ""} onChange={(v) => set(i, { sub_cpmk: v })} placeholder="Mahasiswa mampu …" />
-            <div className="grid gap-2 md:grid-cols-2">
-              <TextInput label={`Indikator pertemuan ${row.week}`} value={row.indikator ?? ""} onChange={(v) => set(i, { indikator: v })} placeholder="Ketepatan dalam …" />
-              <TextInput label={`Kriteria pertemuan ${row.week}`} value={row.kriteria ?? ""} onChange={(v) => set(i, { kriteria: v, assessment_criteria: v })} placeholder="Rubrik …" />
-              <TextInput label={`Metode luring pertemuan ${row.week}`} value={row.luring ?? ""} onChange={(v) => set(i, { luring: v, method: v })} placeholder='TM 1×(2×50")' />
-              <TextInput label={`Metode daring pertemuan ${row.week}`} value={row.daring ?? ""} onChange={(v) => set(i, { daring: v })} placeholder="Opsional" />
-            </div>
-          </div>
+          <Panel key={`week-${i}`} padding={3}>
+            <VStack gap={2}>
+              <HStack justify="between" align="center">
+                <Text weight="semibold">Pertemuan {row.week}</Text>
+                <div style={{ width: 120 }}>
+                  <NumberField label="Bobot (%)" value={Number(row.weight) || 0} onChange={(n) => set(i, { weight: n })} max={100} />
+                </div>
+              </HStack>
+              <TextInput label={`Materi pertemuan ${row.week}`} value={row.materi ?? ""} onChange={(v) => set(i, { materi: v, material: v })} placeholder="Topik yang dibahas" />
+              <TextInput label={`Sub-CPMK pertemuan ${row.week}`} value={row.sub_cpmk ?? ""} onChange={(v) => set(i, { sub_cpmk: v })} placeholder="Mahasiswa mampu …" />
+              <Grid columns={2} gap={2}>
+                <TextInput label={`Indikator pertemuan ${row.week}`} value={row.indikator ?? ""} onChange={(v) => set(i, { indikator: v })} placeholder="Ketepatan dalam …" />
+                <TextInput label={`Kriteria pertemuan ${row.week}`} value={row.kriteria ?? ""} onChange={(v) => set(i, { kriteria: v, assessment_criteria: v })} placeholder="Rubrik …" />
+                <TextInput label={`Metode luring pertemuan ${row.week}`} value={row.luring ?? ""} onChange={(v) => set(i, { luring: v, method: v })} placeholder='TM 1×(2×50")' />
+                <TextInput label={`Metode daring pertemuan ${row.week}`} value={row.daring ?? ""} onChange={(v) => set(i, { daring: v })} placeholder="Opsional" />
+              </Grid>
+            </VStack>
+          </Panel>
         );
       })}
-    </div>
+    </VStack>
   );
 }
 
@@ -760,16 +775,16 @@ function ReviewStep({
   const sksTotal = form.sks_theory + form.sks_practice;
 
   return (
-    <div className="grid gap-4">
+    <VStack gap={4}>
       {!catalogReady && catalogIssues.length > 0 && (
         <Banner status="error" title={`Katalog prodi belum lengkap (${catalogIssues.length})`}>
           <Text type="supporting">
             RPS tidak bisa diterbitkan sampai Kaprodi melengkapi katalog {catalogLabel ?? "prodi"} di
             Admin → Fakultas &amp; Prodi. Dosen tidak perlu menunggu — bagian lain wizard tetap bisa disunting.
           </Text>
-          <ul className="mt-2 grid gap-0.5 pl-4 text-xs">
-            {catalogIssues.map((it) => <li key={it.code}>{it.message}</li>)}
-          </ul>
+          <List density="compact">
+            {catalogIssues.map((it) => <ListItem key={it.code} label={it.message} />)}
+          </List>
         </Banner>
       )}
 
@@ -779,36 +794,46 @@ function ReviewStep({
         </Banner>
       ) : pending.length === 0 ? null : (
         <Banner status="warning" title={`${pending.length} langkah belum lengkap`}>
-          <ul className="grid gap-2">
+          <VStack gap={2}>
             {pending.map((p) => (
-              <li key={p.id} className="text-xs">
-                <button type="button" className="text-accent underline" onClick={() => onGoTo(p.id)}>
+              <div key={p.id}>
+                <AstryxLink onClick={(e) => { e.preventDefault(); onGoTo(p.id); }}>
                   {STEP_LABELS[p.id]}
-                </button>
-                <ul className="mt-1 grid gap-0.5 pl-4">
-                  {p.issues.map((issue) => <li key={issue}>{issue}</li>)}
-                </ul>
-              </li>
+                </AstryxLink>
+                <List density="compact">
+                  {p.issues.map((issue) => <ListItem key={issue} label={issue} />)}
+                </List>
+              </div>
             ))}
-          </ul>
+          </VStack>
         </Banner>
       )}
 
-      <div className="grid gap-2 rounded-lg border border-border bg-muted/20 p-3">
-        <Text weight="semibold">{form.course_name || "(nama MK belum diisi)"} {form.course_code ? `(${form.course_code})` : ""}</Text>
-        <Text type="supporting">
-          {form.faculty || "—"} · {form.study_program || "—"} · Semester {form.semester || "—"} ·
-          {" "}T{form.sks_theory}/P{form.sks_practice} ({sksTotal} SKS)
-        </Text>
-        <div className="mt-1 grid gap-1 text-xs text-secondary">
-          <span>Dosen: {form.lecturers.filter((l) => l.name.trim()).map((l) => l.name).join(", ") || "—"}</span>
-          <span>Bahan kajian {form.bahan_kajian.length} · Pustaka utama {form.pustaka_utama.length} · Pendukung {form.pustaka_pendukung.length}</span>
-          <span>CPL {form.cpl.length} · CPMK {form.cpmk.length} · Sub-CPMK {form.sub_cpmk.length}</span>
-        </div>
-      </div>
+      <Panel padding={3}>
+        <VStack gap={1}>
+          <Heading level={4}>
+            {form.course_name || "(nama MK belum diisi)"}{" "}
+            {form.course_code ? `(${form.course_code})` : ""}
+          </Heading>
+          <Text type="supporting">
+            {form.faculty || "—"} · {form.study_program || "—"} · Semester {form.semester || "—"} ·{" "}
+            T{form.sks_theory}/P{form.sks_practice} ({sksTotal} SKS)
+          </Text>
+          <Text type="supporting">
+            Dosen: {form.lecturers.filter((l) => l.name.trim()).map((l) => l.name).join(", ") || "—"}
+          </Text>
+          <Text type="supporting">
+            Bahan kajian {form.bahan_kajian.length} · Pustaka utama {form.pustaka_utama.length} ·
+            Pendukung {form.pustaka_pendukung.length}
+          </Text>
+          <Text type="supporting">
+            CPL {form.cpl.length} · CPMK {form.cpmk.length} · Sub-CPMK {form.sub_cpmk.length}
+          </Text>
+        </VStack>
+      </Panel>
 
-      <div className="grid gap-2">
-        <div className="flex flex-wrap items-center gap-2">
+      <VStack gap={2}>
+        <HStack gap={2} align="center">
           <Button
             label={preview.isPending ? "Menyusun pratinjau…" : "Lihat pratinjau DOCX"}
             variant="secondary"
@@ -817,16 +842,14 @@ function ReviewStep({
             onClick={() => preview.mutate()}
           />
           {previewUrl && (
-            <a className="text-sm text-accent underline" href={previewUrl} download="pratinjau-rps.docx">
-              Unduh pratinjau
-            </a>
+            <AstryxLink href={previewUrl} download="pratinjau-rps.docx">Unduh pratinjau</AstryxLink>
           )}
-        </div>
+        </HStack>
         <Text type="supporting">
           Pratinjau dibuat tanpa menyimpan apa pun, jadi Anda bisa memeriksa hasilnya lebih dulu.
         </Text>
         {previewError !== null && <Banner status="error">{errorMessage(previewError)}</Banner>}
-      </div>
-    </div>
+      </VStack>
+    </VStack>
   );
 }

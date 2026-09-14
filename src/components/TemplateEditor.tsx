@@ -1,8 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import { Card } from "./ui/Card";
 import { Button } from "@astryxdesign/core/Button";
 import { Text } from "@astryxdesign/core/Text";
 import { TextInput } from "@astryxdesign/core/TextInput";
+import { HStack } from "@astryxdesign/core/HStack";
+import { VStack } from "@astryxdesign/core/VStack";
+import { Grid } from "@astryxdesign/core/Grid";
+import { Panel } from "./ui/Panel";
+import { Textarea } from "./ui/Textarea";
 import type { Cp } from "@/lib/contoh";
 
 type Props = {
@@ -34,22 +38,27 @@ type Props = {
   collapsedDefault?: boolean;
 };
 
+/**
+ * Editor multi-baris untuk daftar teks yang dikirim verbatim ke DOCX.
+ *
+ * Diketik ke state lokal, disinkronkan ke atas hanya saat blur — supaya baris
+ * yang sedang diketik tidak dipotong oleh render latar belakang.
+ */
 function LinesEditor({ label, value, onChange, placeholder }: { label: string; value: string[]; onChange: (v: string[]) => void; placeholder?: string }) {
   const [text, setText] = useState(value.join("\n"));
   useEffect(() => setText(value.join("\n")), [value.join("\n")]);
   return (
-    <div className="grid gap-1.5">
-      <Text weight="semibold" type="supporting">{label}</Text>
-      <textarea
-        className="min-h-[96px] w-full rounded-lg border border-border bg-surface px-3 py-2 text-xs leading-relaxed text-primary placeholder:text-secondary focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
-        rows={Math.min(14, Math.max(4, value.length + 1))}
+    <VStack gap={1}>
+      <Textarea
+        label={label}
         value={text}
-        placeholder={placeholder}
-        onChange={(e) => setText(e.target.value)}
+        onChange={(v) => setText(v)}
         onBlur={() => onChange(text.split("\n").map((s) => s.trim()).filter(Boolean))}
+        placeholder={placeholder}
+        minRows={4}
+        hint="Satu baris = satu entri (akan dijaga verbatim — termasuk typo)."
       />
-      <Text type="supporting">Satu baris = satu entri (akan dijaga verbatim — termasuk typo).</Text>
-    </div>
+    </VStack>
   );
 }
 
@@ -62,17 +71,22 @@ function CpEditor({ title, rows, onChange, codeLabel }: { title: string; rows: C
   const add = () => onChange([...rows, { code: "", description: "" }]);
   const del = (i: number) => onChange(rows.filter((_, j) => j !== i));
   return (
-    <div className="grid gap-2 rounded-lg border border-border bg-muted/20 p-3">
-      <Text weight="semibold">{title}</Text>
-      {rows.map((r, i) => (
-        <div key={i} className="grid gap-2 rounded border border-border bg-surface p-2 md:grid-cols-[160px_1fr_auto]">
-          <TextInput label={codeLabel} value={r.code} onChange={(v) => set(i, "code", v)} />
-          <TextInput label="Deskripsi" value={r.description} onChange={(v) => set(i, "description", v)} />
-          <div className="flex items-end"><Button label="Hapus" variant="secondary" size="sm" onClick={() => del(i)} /></div>
-        </div>
-      ))}
-      <Button label="Tambah baris" variant="secondary" size="sm" onClick={add} />
-    </div>
+    <Panel title={title} headingLevel={4} padding={3}>
+      <VStack gap={2}>
+        {rows.map((r, i) => (
+          <Grid key={`${title}-${i}-${r.code || "baru"}`} columns={{ minWidth: 180 }} gap={2} align="end">
+            <TextInput label={codeLabel} value={r.code} onChange={(v) => set(i, "code", v)} />
+            <TextInput label="Deskripsi" value={r.description} onChange={(v) => set(i, "description", v)} />
+            <HStack justify="end">
+              <Button label="Hapus" variant="secondary" size="sm" onClick={() => del(i)} />
+            </HStack>
+          </Grid>
+        ))}
+        <HStack>
+          <Button label="Tambah baris" variant="secondary" size="sm" onClick={add} />
+        </HStack>
+      </VStack>
+    </Panel>
   );
 }
 
@@ -120,7 +134,6 @@ export function TemplateEditor({ description, bahanKajian, pustakaUtama, pustaka
       sub_cpmk: subRef.current,
     });
   };
-  // Skip first render; thereafter any user edit triggers live preview. Prop sync updates reset skip flag.
   useEffect(() => { skipEmitRef.current = true; }, [description, JSON.stringify(bahanKajian), JSON.stringify(pustakaUtama), JSON.stringify(pustakaPendukung), JSON.stringify(cpl), JSON.stringify(cpmk), JSON.stringify(subCpmk)]);
   useEffect(() => {
     if (skipEmitRef.current) { skipEmitRef.current = false; return; }
@@ -128,26 +141,20 @@ export function TemplateEditor({ description, bahanKajian, pustakaUtama, pustaka
   }, [d, JSON.stringify(bahan), JSON.stringify(pu), JSON.stringify(pp), JSON.stringify(cplS), JSON.stringify(cpmkS), JSON.stringify(subS)]);
 
   return (
-    <Card>
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <Text weight="semibold">Isi template (R23, R24, R26, R28, CPL/CPMK/Sub-CPMK)</Text>
-          <Text type="supporting">Editor verbatim — termasuk typo CONTOH (mis. Sbu-CPMK-5) — tampil di pratinjau & download.</Text>
-        </div>
-        <Button label={collapsed ? "Buka" : "Tutup"} variant="secondary" size="sm" onClick={() => setCollapsed((v) => !v)} />
-      </div>
+    <Panel
+      title="Isi template (R23, R24, R26, R28, CPL/CPMK/Sub-CPMK)"
+      description="Editor verbatim — termasuk typo CONTOH (mis. Sbu-CPMK-5) — tampil di pratinjau & download."
+      actions={<Button label={collapsed ? "Buka" : "Tutup"} variant="secondary" size="sm" onClick={() => setCollapsed((v) => !v)} />}
+    >
       {!collapsed && (
-        <div className="mt-4 grid gap-4">
-          <div className="grid gap-1.5">
-            <Text weight="semibold" type="supporting">Deskripsi singkat (R23) — 3–5 baris</Text>
-            <textarea
-              className="min-h-[96px] w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm leading-relaxed text-primary placeholder:text-secondary focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
-              rows={3}
-              value={d}
-              placeholder="Ringkasan singkat mata kuliah…"
-              onChange={(e) => setD(e.target.value)}
-            />
-          </div>
+        <VStack gap={4}>
+          <Textarea
+            label="Deskripsi singkat (R23) — 3–5 baris"
+            value={d}
+            onChange={setD}
+            placeholder="Ringkasan singkat mata kuliah…"
+            minRows={3}
+          />
           <LinesEditor label="Bahan kajian (R24) — tiap baris satu bullet" value={bahan} onChange={(v) => setBahan(v)} placeholder="Biologi Sel…&#10;Biolistrik…" />
           <LinesEditor label="Pustaka utama (R26)" value={pu} onChange={(v) => setPu(v)} />
           <LinesEditor label="Pustaka pendukung (R28)" value={pp} onChange={(v) => setPp(v)} />
@@ -155,17 +162,21 @@ export function TemplateEditor({ description, bahanKajian, pustakaUtama, pustaka
           <CpEditor title="CPMK (R10-13)" rows={cpmkS} onChange={(v) => setCpmkS(v)} codeLabel="Kode CPMK" />
           <CpEditor title="Sub-CPMK (R15-21)" rows={subS} onChange={(v) => setSubS(v)} codeLabel="Kode Sub-CPMK" />
           {onSave && (
-            <div className="flex gap-2">
+            <HStack>
               <Button
-                label="Simpan"
+                label="Simpan template"
                 variant="primary"
                 size="sm"
                 onClick={() => onSave({ description: d, bahan_kajian: bahan, pustaka_utama: pu, pustaka_pendukung: pp, cpl: cplS, cpmk: cpmkS, sub_cpmk: subS })}
               />
-            </div>
+            </HStack>
           )}
-        </div>
+        </VStack>
       )}
-    </Card>
+    </Panel>
   );
 }
+
+// Text tidak dipakai langsung setelah refactor, dibiarkan sebagai jalan pintas
+// bila ada teks bantuan baru yang perlu ditambah.
+void Text;

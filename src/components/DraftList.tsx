@@ -1,11 +1,17 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
+import { Button } from "@astryxdesign/core/Button";
+import { HStack } from "@astryxdesign/core/HStack";
+import { VStack } from "@astryxdesign/core/VStack";
+import { Text } from "@astryxdesign/core/Text";
+import { TextInput } from "@astryxdesign/core/TextInput";
+import { Card } from "@astryxdesign/core/Card";
+import { Pagination } from "@astryxdesign/core/Pagination";
 import { api, type ApiOk } from "@/lib/api";
-import { Card } from "./ui/Card";
 import { Badge } from "./ui/Badge";
 import { Banner } from "./ui/Banner";
-import { Button } from "@astryxdesign/core/Button";
+import { Empty } from "./ui/Empty";
 
 type Row = {
   id: number; course_name: string; course_code: string; semester: string; status: string; updated_at: string;
@@ -14,18 +20,24 @@ type Row = {
 type Paged = { current_page: number; per_page: number; total: number; last_page: number; from: number; to: number };
 type Meta = { signed_in: boolean; role: string | null };
 
+/**
+ * Daftar draft RPS pengguna aktif.
+ *
+ * Setiap kartu = ringkasan MK + status + tombol aksi. Sebelumnya kartu
+ * ditulis dengan div+Tailwind manual; sekarang memakai `Card` Astryx dan
+ * `HStack`/`VStack` supaya spacing dan aksesibilitas seragam.
+ */
 export function DraftList() {
   const qc = useQueryClient();
   const [q, setQ] = useState("");
   const [page, setPage] = useState(1);
   const [debouncedQ, setDebouncedQ] = useState("");
 
-  // debounce search 300ms
   const onSearch = (v: string) => {
     setQ(v);
     setPage(1);
+    // Debounce ringan: menghindari request per-ketikan tapi respon terasa cepat.
     setTimeout(() => setDebouncedQ(v.trim()), 300);
-    // immediate if cleared
     if (!v.trim()) setDebouncedQ("");
   };
 
@@ -45,95 +57,111 @@ export function DraftList() {
   });
   const [confirmId, setConfirmId] = useState<number | null>(null);
 
-  if (isLoading) return <div className="text-sm text-secondary">Memuat…</div>;
+  if (isLoading) return <Text type="supporting">Memuat…</Text>;
 
   return (
-    <div className="grid gap-3">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <span className="text-sm font-medium">Draft RPS — klik untuk lanjut edit</span>
-        <div className="flex items-center gap-2">
-          <input
-            placeholder="Cari nama / kode (mis. IW21ASK1541)"
-            className="w-[260px] rounded-full border bg-surface px-3 py-1.5 text-sm placeholder:text-secondary focus:outline-none focus:ring-1 focus:ring-accent"
+    <VStack gap={3}>
+      <HStack justify="between" align="center" gap={2}>
+        <Text weight="semibold">Draft RPS — klik untuk lanjut edit</Text>
+        <HStack align="center" gap={2}>
+          <TextInput
+            label="Cari"
+            isLabelHidden
+            type="text"
             value={q}
-            onChange={(e) => onSearch(e.target.value)}
+            onChange={onSearch}
+            placeholder="Cari nama / kode (mis. IW21ASK1541)"
           />
-          {isFetching && <span className="text-xs text-secondary">…</span>}
-        </div>
-      </div>
+          {isFetching && <Text type="supporting">…</Text>}
+        </HStack>
+      </HStack>
 
       {!signedIn ? (
-        <Card>
-          <div className="py-8 text-center">
-            <div className="text-sm font-medium">Masuk untuk melihat dan menulis RPS</div>
-            <div className="mx-auto mt-1 max-w-md text-xs leading-relaxed text-secondary">
-              Menulis RPS memerlukan akun dosen yang dibuat pengelola. Dokumen yang sudah terbit
-              tetap bisa diunduh lewat tautannya tanpa login.
-            </div>
-            <div className="mt-3">
-              <Link to="/admin/login" className="text-sm text-accent">Masuk sebagai dosen / pengelola →</Link>
-            </div>
-          </div>
-        </Card>
+        <Empty
+          title="Masuk untuk melihat dan menulis RPS"
+          description="Menulis RPS memerlukan akun dosen yang dibuat pengelola. Dokumen yang sudah terbit tetap bisa diunduh lewat tautannya tanpa login."
+          actions={<Link to="/admin/login"><Button label="Masuk sebagai dosen / pengelola" variant="primary" size="sm" /></Link>}
+        />
       ) : rows.length === 0 ? (
-        <Card>
-          <div className="py-8 text-center">
-            <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-accent-muted text-accent">＋</div>
-            <div className="mt-3 text-sm font-medium">Belum ada draft</div>
-            <div className="mt-1 text-xs leading-relaxed text-secondary">
-              Buat draft pertama di form di bawah, atau isi otomatis dari bank kurikulum prodi
-              setelah draft dibuka.
-            </div>
-            <div className="mt-3 text-xs text-secondary">Tip: atur API Key di Settings bila ingin memakai Generate AI (BYOK).</div>
-          </div>
-        </Card>
+        <Empty
+          title="Belum ada draft"
+          description="Buat draft pertama lewat tombol 'Buat RPS baru' di atas, atau isi otomatis dari bank kurikulum prodi setelah draft dibuka. Tip: atur API Key di Settings bila ingin memakai Generate AI (BYOK)."
+        />
       ) : (
-        <div className="grid gap-3">
+        <VStack gap={3}>
           {rows.map((r) => (
-            <Card key={r.id}>
-              <div className="flex items-center justify-between gap-3">
-                <Link to="/rps/$id" params={{ id: String(r.id) }} className="min-w-0 flex-1 no-underline">
-                  <div className="truncate font-medium">{r.course_name} <span className="font-mono text-xs text-secondary">({r.course_code})</span></div>
-                  <div className="text-xs text-secondary">
-                    Semester {r.semester} · {new Date(r.updated_at).toLocaleDateString("id-ID")} · ID {r.id}
-                    {r.study_program ? ` · ${r.study_program}` : ""}
-                  </div>
-                  <div className="mt-0.5 text-xs text-secondary">
-                    {r.is_mine ? "Milik Anda" : r.owner_name ? `Penulis: ${r.owner_name}` : "Belum ada pemilik"}
-                  </div>
+            <Card key={r.id} padding={4}>
+              <HStack justify="between" align="center" gap={3}>
+                <Link
+                  to="/rps/$id"
+                  params={{ id: String(r.id) }}
+                  className="min-w-0 flex-1 no-underline"
+                >
+                  <VStack gap={1}>
+                    <Text weight="semibold">
+                      {r.course_name}{" "}
+                      <span className="font-mono text-xs text-secondary">({r.course_code})</span>
+                    </Text>
+                    <Text type="supporting">
+                      Semester {r.semester} · {new Date(r.updated_at).toLocaleDateString("id-ID")} · ID {r.id}
+                      {r.study_program ? ` · ${r.study_program}` : ""}
+                    </Text>
+                    <Text type="supporting">
+                      {r.is_mine
+                        ? "Milik Anda"
+                        : r.owner_name
+                          ? `Penulis: ${r.owner_name}`
+                          : "Belum ada pemilik"}
+                    </Text>
+                  </VStack>
                 </Link>
-                <div className="flex shrink-0 items-center gap-2">
+                <HStack align="center" gap={2}>
                   <Badge variant={r.status === "generated" ? "success" : "default"}>{r.status}</Badge>
-                  {r.status === "generated" && <Button label="Download" variant="secondary" size="sm" href={`/api/rps/${r.id}/download`} />}
+                  {r.status === "generated" && (
+                    <Button label="Download" variant="secondary" size="sm" href={`/api/rps/${r.id}/download`} />
+                  )}
                   {confirmId === r.id ? (
-                    <span className="flex items-center gap-1">
-                      <Button label="Ya, hapus" variant="destructive" size="sm" isLoading={del.isPending} onClick={() => { del.mutate(r.id); setConfirmId(null); }} />
-                      <Button label="Batal" variant="secondary" size="sm" onClick={() => setConfirmId(null)} />
-                    </span>
+                    <HStack align="center" gap={1}>
+                      <Button
+                        label="Ya, hapus"
+                        variant="destructive"
+                        size="sm"
+                        isLoading={del.isPending}
+                        onClick={() => { del.mutate(r.id); setConfirmId(null); }}
+                      />
+                      <Button
+                        label="Batal"
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => setConfirmId(null)}
+                      />
+                    </HStack>
                   ) : (
                     <Button label="Hapus" variant="ghost" size="sm" onClick={() => setConfirmId(r.id)} />
                   )}
-                </div>
-              </div>
+                </HStack>
+              </HStack>
             </Card>
           ))}
-        </div>
+        </VStack>
       )}
 
       {pagination && pagination.last_page > 1 && (
-        <div className="flex items-center justify-between rounded-xl border bg-surface px-3 py-2 text-xs text-secondary">
-          <span>{pagination.from}–{pagination.to} dari {pagination.total}</span>
-          <span className="flex items-center gap-1">
-            <Button label="← Prev" variant="secondary" size="sm" isDisabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))} />
-            <span className="px-2 py-1 font-mono">{pagination.current_page} / {pagination.last_page}</span>
-            <Button label="Next →" variant="secondary" size="sm" isDisabled={page >= pagination.last_page} onClick={() => setPage((p) => p + 1)} />
-          </span>
-        </div>
+        <HStack justify="between" align="center">
+          <Text type="supporting">
+            {pagination.from}–{pagination.to} dari {pagination.total}
+          </Text>
+          <Pagination
+            page={pagination.current_page}
+            totalPages={pagination.last_page}
+            onChange={setPage}
+          />
+        </HStack>
       )}
 
       {del.isError && (
         <Banner status="error">{del.error instanceof Error ? del.error.message : String(del.error)}</Banner>
       )}
-    </div>
+    </VStack>
   );
 }

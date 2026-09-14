@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api, type ApiOk } from "@/lib/api";
-import { Card } from "./ui/Card";
-import { Banner } from "./ui/Banner";
 import { Button } from "@astryxdesign/core/Button";
 import { Selector } from "@astryxdesign/core/Selector";
-import { Text } from "@astryxdesign/core/Text";
+import { Grid } from "@astryxdesign/core/Grid";
+import { HStack } from "@astryxdesign/core/HStack";
+import { VStack } from "@astryxdesign/core/VStack";
+import { api, type ApiOk } from "@/lib/api";
+import { Panel } from "./ui/Panel";
+import { Banner } from "./ui/Banner";
 
 const PROVIDER_OPTIONS = [
   { value: "openai", label: "OpenAI" },
@@ -41,7 +43,7 @@ export function AiGeneratePanel({ id }: { id: number }) {
       const r = await api<{ success: boolean; data: { valid: boolean; models: string[] } }>("/api/settings/api-keys/test", { method: "POST", body: JSON.stringify({ provider }) });
       if (!r.data?.valid) throw new Error("Kunci tidak valid");
       const models = (r.data.models ?? []).slice(0, 50);
-      try { window.localStorage.setItem(`models:${provider}`, JSON.stringify(models)); } catch {}
+      try { window.localStorage.setItem(`models:${provider}`, JSON.stringify(models)); } catch { /* storage tak tersedia */ }
       return models;
     },
   });
@@ -51,7 +53,7 @@ export function AiGeneratePanel({ id }: { id: number }) {
     try {
       const c = window.localStorage.getItem(`models:${provider}`);
       if (c) { const arr = JSON.parse(c) as string[]; if (arr.length) return arr; }
-    } catch {}
+    } catch { /* storage tak tersedia */ }
     return null;
   })();
 
@@ -68,20 +70,34 @@ export function AiGeneratePanel({ id }: { id: number }) {
   });
 
   return (
-    <Card>
-      <Text weight="semibold">Isi otomatis dengan AI</Text>
-      <Text type="supporting">Buat capaian dan rencana mingguan otomatis sesuai data mata kuliah.</Text>
-      {!hasAny && <div className="mt-3"><Banner status="warning">Belum ada API key. Atur di Pengaturan.</Banner></div>}
-      <div className="mt-3 grid gap-3 md:grid-cols-2">
-        <Selector label="Penyedia" value={provider} onChange={(v) => setProvider(v as "openai" | "gemini")} options={PROVIDER_OPTIONS.map((o) => ({ ...o, disabled: !has(o.value) }))} />
-        <Selector label="Model" value={model} onChange={setModel} options={modelOptions} />
-      </div>
-      <div className="mt-3 flex gap-2">
-        <Button label={m.isPending ? "Membuat…" : "Buat dengan AI"} variant="primary" isLoading={m.isPending} isDisabled={!has(provider)} onClick={() => m.mutate()} />
-        <Button label="Pengaturan" variant="secondary" href="/settings" />
-      </div>
-      {msg && <div className="mt-3"><Banner status="success">{msg}</Banner></div>}
-      {err && <div className="mt-3"><Banner status="error">{err}</Banner></div>}
-    </Card>
+    <Panel
+      title="Isi otomatis dengan AI"
+      description="Buat capaian dan rencana mingguan otomatis sesuai data mata kuliah."
+    >
+      <VStack gap={3}>
+        {!hasAny && <Banner status="warning">Belum ada API key. Atur di Settings.</Banner>}
+        <Grid columns={2} gap={3}>
+          <Selector
+            label="Penyedia"
+            value={provider}
+            onChange={(v) => setProvider(v as "openai" | "gemini")}
+            options={PROVIDER_OPTIONS.map((o) => ({ ...o, disabled: !has(o.value) }))}
+          />
+          <Selector label="Model" value={model} onChange={setModel} options={modelOptions} />
+        </Grid>
+        <HStack gap={2}>
+          <Button
+            label={m.isPending ? "Membuat…" : "Buat dengan AI"}
+            variant="primary"
+            isLoading={m.isPending}
+            isDisabled={!has(provider)}
+            onClick={() => m.mutate()}
+          />
+          <Button label="Buka Settings" variant="secondary" href="/settings" />
+        </HStack>
+        {msg && <Banner status="success">{msg}</Banner>}
+        {err && <Banner status="error">{err}</Banner>}
+      </VStack>
+    </Panel>
   );
 }

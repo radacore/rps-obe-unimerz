@@ -3,6 +3,11 @@ import { useEffect, useMemo, useState } from "react";
 import { Button } from "@astryxdesign/core/Button";
 import { Selector } from "@astryxdesign/core/Selector";
 import { Text } from "@astryxdesign/core/Text";
+import { Heading } from "@astryxdesign/core/Heading";
+import { HStack } from "@astryxdesign/core/HStack";
+import { VStack } from "@astryxdesign/core/VStack";
+import { SegmentedControl } from "@astryxdesign/core/SegmentedControl";
+import { SegmentedControlItem } from "@astryxdesign/core/SegmentedControl";
 import { ApiError } from "@/lib/api";
 import {
   ADMIN_SESSION_KEY, adminLogout, fetchAdminSession, fetchAdminPrograms, updateProgramProfile,
@@ -10,7 +15,8 @@ import {
 } from "@/lib/admin";
 import { Badge } from "./ui/Badge";
 import { Banner } from "./ui/Banner";
-import { Card } from "./ui/Card";
+import { Panel } from "./ui/Panel";
+import { Textarea } from "./ui/Textarea";
 import { LinesEditor } from "./ui/LinesEditor";
 import { AdminLoginForm, ForcedPasswordChange } from "./AdminLoginForm";
 import { CplEditor } from "./CplEditor";
@@ -28,6 +34,14 @@ function errorMessage(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }
 
+/**
+ * Halaman admin: identitas pengelola + tab-tab master data.
+ *
+ * Tab dulu memakai tombol Astryx berjejer — sekarang `SegmentedControl` supaya
+ * satu grup jelas terlihat, dengan peran yang dipilih ditonjolkan. Kartu
+ * profil pengelola & profil prodi memakai wrapper `Panel` agar spacing sama
+ * dengan halaman lain.
+ */
 export function AdminPanel() {
   const qc = useQueryClient();
 
@@ -43,9 +57,6 @@ export function AdminPanel() {
 
   const rows = useMemo(() => programs.data?.data ?? [], [programs.data]);
   const [pickedSlug, setPickedSlug] = useState<string | null>(null);
-
-  // Pilihan diturunkan saat render, bukan lewat efek: kalau prodi yang dipilih
-  // tidak ada di daftar (mis. setelah berganti akun), jatuh ke prodi pertama.
   const selected = rows.find((r) => r.slug === pickedSlug) ?? rows[0] ?? null;
   const selectedSlug = selected?.slug ?? "";
 
@@ -62,7 +73,8 @@ export function AdminPanel() {
     },
   });
 
-  const [tab, setTab] = useState<"fakultas" | "prodi" | "cpl" | "kurikulum" | "matriks" | "akun" | "riwayat">("prodi");
+  type TabId = "fakultas" | "prodi" | "cpl" | "kurikulum" | "matriks" | "akun" | "riwayat";
+  const [tab, setTab] = useState<TabId>("prodi");
 
   if (session.isLoading) return <Text type="supporting">Memuat sesi…</Text>;
   if (!identity) return <AdminLoginForm />;
@@ -73,7 +85,7 @@ export function AdminPanel() {
   // fakultas, akun hanya untuk super admin. Penyembunyian ini demi kejelasan —
   // server tetap yang menegakkan wewenangnya.
   const isDosen = identity.role === "dosen";
-  const TABS: { id: typeof tab; label: string }[] = isDosen
+  const TABS: { id: TabId; label: string }[] = isDosen
     ? [{ id: "riwayat", label: "Riwayat" }]
     : [
       ...(identity.role === "kaprodi" ? [] : [{ id: "fakultas" as const, label: "Profil Fakultas" }]),
@@ -84,32 +96,33 @@ export function AdminPanel() {
       ...(identity.role === "super_admin" ? [{ id: "akun" as const, label: "Akun Pengelola" }] : []),
       { id: "riwayat", label: "Riwayat" },
     ];
-  // Tab awal "prodi" tidak berlaku bagi dosen.
-  const activeTab = TABS.some((t) => t.id === tab) ? tab : TABS[0].id;
+  const activeTab: TabId = TABS.some((t) => t.id === tab) ? tab : TABS[0].id;
 
   return (
-    <div className="grid gap-4">
-      <Card className="flex flex-wrap items-center justify-between gap-3">
-        <div className="min-w-0">
-          <Text weight="semibold">{identity.name}</Text>
-          <Text type="supporting">
-            NIDN {identity.nidn} · {ROLE_LABEL[identity.role]}
-            {identity.facultyLabel ? ` · ${identity.facultyLabel}` : " · seluruh fakultas"}
-          </Text>
-        </div>
-        <div className="flex items-center gap-2">
-          <Badge variant={identity.role === "super_admin" ? "success" : "default"}>
-            {ROLE_LABEL[identity.role]}
-          </Badge>
-          <Button
-            label={logout.isPending ? "Keluar…" : "Keluar"}
-            variant="secondary"
-            size="sm"
-            isLoading={logout.isPending}
-            onClick={() => logout.mutate()}
-          />
-        </div>
-      </Card>
+    <VStack gap={4}>
+      <Panel>
+        <HStack justify="between" align="center" gap={3} wrap="wrap">
+          <VStack gap={0}>
+            <Text weight="semibold">{identity.name}</Text>
+            <Text type="supporting">
+              NIDN {identity.nidn} · {ROLE_LABEL[identity.role]}
+              {identity.facultyLabel ? ` · ${identity.facultyLabel}` : " · seluruh fakultas"}
+            </Text>
+          </VStack>
+          <HStack align="center" gap={2}>
+            <Badge variant={identity.role === "super_admin" ? "success" : "default"}>
+              {ROLE_LABEL[identity.role]}
+            </Badge>
+            <Button
+              label={logout.isPending ? "Keluar…" : "Keluar"}
+              variant="secondary"
+              size="sm"
+              isLoading={logout.isPending}
+              onClick={() => logout.mutate()}
+            />
+          </HStack>
+        </HStack>
+      </Panel>
 
       {isDosen && (
         <Banner status="info" title="Peran Dosen">
@@ -118,17 +131,17 @@ export function AdminPanel() {
         </Banner>
       )}
 
-      <div className="flex flex-wrap gap-2" role="tablist" aria-label="Bagian master data">
-        {TABS.map((t) => (
-          <Button
-            key={t.id}
-            label={t.label}
-            variant={activeTab === t.id ? "primary" : "secondary"}
-            size="sm"
-            onClick={() => setTab(t.id)}
-          />
-        ))}
-      </div>
+      {TABS.length > 1 && (
+        <SegmentedControl
+          label="Bagian master data"
+          value={activeTab}
+          onChange={(v) => setTab(v as TabId)}
+        >
+          {TABS.map((t) => (
+            <SegmentedControlItem key={t.id} value={t.id} label={t.label} />
+          ))}
+        </SegmentedControl>
+      )}
 
       {activeTab === "fakultas" && <FacultyProfilePanel enabled={!identity.mustChangePassword} />}
       {activeTab === "akun" && <AccountManagerPanel />}
@@ -140,17 +153,18 @@ export function AdminPanel() {
           {programs.isError && <Banner status="error">{errorMessage(programs.error)}</Banner>}
 
           {rows.length > 0 && (
-            <Card>
-              <Text weight="semibold">Program studi dalam wewenang Anda</Text>
-              <Text type="supporting">
-                {rows.length} program studi
-                {identity.role === "kaprodi"
+            <Panel
+              title="Program studi dalam wewenang Anda"
+              description={
+                `${rows.length} program studi` +
+                (identity.role === "kaprodi"
                   ? ` — ${identity.studyProgramLabel ?? "prodi Anda"}`
                   : identity.role === "faculty_admin"
                     ? ` di ${identity.facultyLabel}`
-                    : " di seluruh universitas"}
-              </Text>
-              <div className="mt-3 max-w-xl">
+                    : " di seluruh universitas")
+              }
+            >
+              <div style={{ maxWidth: 640 }}>
                 <Selector
                   label="Pilih program studi"
                   value={selectedSlug}
@@ -158,15 +172,15 @@ export function AdminPanel() {
                   options={rows.map((r) => ({ value: r.slug, label: `${r.label} — ${r.faculty_label}` }))}
                 />
               </div>
-            </Card>
+            </Panel>
           )}
 
           {rows.length === 0 && !programs.isLoading && !programs.isError && (
-            <Card>
+            <Panel>
               <Text type="supporting">
                 Belum ada program studi yang bisa Anda kelola. Hubungi pengelola sistem bila ini tidak sesuai.
               </Text>
-            </Card>
+            </Panel>
           )}
 
           {selected && activeTab === "prodi" && <ProgramProfileForm key={selected.slug} program={selected} />}
@@ -177,7 +191,7 @@ export function AdminPanel() {
           {selected && activeTab === "matriks" && <MatrixPanel key={`mtx-${selected.slug}`} program={selected} />}
         </>
       )}
-    </div>
+    </VStack>
   );
 }
 
@@ -223,7 +237,6 @@ function ProgramProfileForm({ program }: { program: AdminProgram }) {
     onSuccess: (res) => {
       setError(null);
       setMsg(res.message ?? "Tersimpan.");
-      // Pakai bentuk yang benar-benar tersimpan di server sebagai acuan baru.
       setBaseline({
         vision: res.data.vision ?? "",
         mission: res.data.mission,
@@ -235,8 +248,6 @@ function ProgramProfileForm({ program }: { program: AdminProgram }) {
       setObjective(res.data.objective);
       setGraduateProfile(res.data.graduate_profile);
       qc.invalidateQueries({ queryKey: ["admin-programs"] });
-      // Form RPS membaca profil prodi lewat endpoint publik; buang cache-nya
-      // supaya perubahan langsung terlihat di sana.
       qc.invalidateQueries({ queryKey: ["programs"] });
       qc.invalidateQueries({ queryKey: ["faculties"] });
     },
@@ -251,32 +262,23 @@ function ProgramProfileForm({ program }: { program: AdminProgram }) {
   };
 
   return (
-    <Card>
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div className="min-w-0">
-          <Text weight="semibold">{program.label}</Text>
-          <Text type="supporting">
-            {program.faculty_label} · Akreditasi {program.akreditasi ?? "—"} · sumber data {program.completeness}
-          </Text>
-        </div>
-        {dirty && <Badge variant="warning">Belum disimpan</Badge>}
-      </div>
+    <Panel
+      title={program.label}
+      description={`${program.faculty_label} · Akreditasi ${program.akreditasi ?? "—"} · sumber data ${program.completeness}`}
+      actions={dirty ? <Badge variant="warning">Belum disimpan</Badge> : undefined}
+    >
+      <VStack gap={4}>
+        <Text type="supporting">
+          Isi di sini yang dipakai halaman sampul RPS: Visi, Misi, dan Profil Lulusan program studi.
+        </Text>
 
-      <Text type="supporting">
-        Isi di sini yang dipakai halaman sampul RPS: Visi, Misi, dan Profil Lulusan program studi.
-      </Text>
-
-      <div className="mt-4 grid gap-4">
-        <div className="grid gap-1">
-          <Text weight="semibold">Visi</Text>
-          <textarea
-            className="min-h-[80px] w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm leading-relaxed text-primary placeholder:text-secondary focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
-            rows={3}
-            value={vision}
-            onChange={(e) => setVision(e.target.value)}
-            placeholder="Menjadi program studi …"
-          />
-        </div>
+        <Textarea
+          label="Visi"
+          value={vision}
+          onChange={setVision}
+          placeholder="Menjadi program studi …"
+          minRows={3}
+        />
 
         <LinesEditor label="Misi" hint="Satu misi per baris" value={mission} onChange={setMission} />
         <LinesEditor label="Tujuan" hint="Satu tujuan per baris" value={objective} onChange={setObjective} />
@@ -290,7 +292,7 @@ function ProgramProfileForm({ program }: { program: AdminProgram }) {
         {msg && <Banner status="success">{msg}</Banner>}
         {error !== null && <Banner status="error">{errorMessage(error)}</Banner>}
 
-        <div className="flex flex-wrap gap-2">
+        <HStack gap={2}>
           <Button
             label={save.isPending ? "Menyimpan…" : "Simpan profil"}
             variant="primary"
@@ -299,8 +301,12 @@ function ProgramProfileForm({ program }: { program: AdminProgram }) {
             onClick={() => save.mutate()}
           />
           <Button label="Batalkan perubahan" variant="secondary" isDisabled={!dirty} onClick={reset} />
-        </div>
-      </div>
-    </Card>
+        </HStack>
+      </VStack>
+    </Panel>
   );
 }
+
+// Heading tidak dipakai lagi tapi dibiarkan diimpor tersedia untuk perubahan
+// kecil selanjutnya (mis. tambah sub-heading di dalam Panel).
+void Heading;

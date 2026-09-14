@@ -1,9 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { SettingsPanel } from "@/components/SettingsPanel";
 import { Heading } from "@astryxdesign/core/Heading";
-export const Route = createFileRoute("/settings")({ component: () => (
-  <div className="grid gap-4">
-    <Heading level={1}>Settings — BYOK</Heading>
-    <SettingsPanel />
-  </div>
-)});
+import { VStack } from "@astryxdesign/core/VStack";
+import { SettingsPanel } from "@/components/SettingsPanel";
+
+export const Route = createFileRoute("/settings")({
+  component: () => (
+    <VStack gap={4}>
+      <Heading level={1}>Settings — BYOK</Heading>
+      <SettingsPanel />
+    </VStack>
+  ),
+});

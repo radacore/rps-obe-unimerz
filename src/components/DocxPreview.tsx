@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { renderAsync } from "docx-preview";
-import { Card } from "./ui/Card";
-import { Banner } from "./ui/Banner";
 import { Button } from "@astryxdesign/core/Button";
 import { Text } from "@astryxdesign/core/Text";
+import { HStack } from "@astryxdesign/core/HStack";
+import { VStack } from "@astryxdesign/core/VStack";
+import { Panel } from "./ui/Panel";
+import { Banner } from "./ui/Banner";
 import type { WeeklyRow } from "./WeeklyTable";
 
 type CpLite = { code: string; description: string };
@@ -146,19 +148,21 @@ export function DocxPreview({
   };
 
   return (
-    <div className="grid gap-3">
-      <Card className="flex flex-wrap items-center justify-between gap-2 py-3">
-        <Text weight="semibold">Pratinjau</Text>
-        <div className="flex flex-wrap items-center gap-1.5">
-          <div className="flex items-center gap-1 rounded-lg border border-border bg-muted px-1 py-1">
-            <Button label="−" variant="secondary" size="sm" onClick={() => setZoom((z) => Math.max(0.6, Number((z - 0.1).toFixed(2))))} />
-            <span className="min-w-[3rem] text-center font-mono text-xs">{Math.round(zoom * 100)}%</span>
-            <Button label="+" variant="secondary" size="sm" onClick={() => setZoom((z) => Math.min(1.6, Number((z + 0.1).toFixed(2))))} />
-          </div>
-          <Button label="Cetak" variant="secondary" size="sm" isDisabled={status !== "ready"} onClick={handlePrint} />
-          <Button label="Unduh" variant="primary" size="sm" isDisabled={status !== "ready" || !blob} onClick={handleDownload} />
-        </div>
-      </Card>
+    <VStack gap={3}>
+      <Panel padding={3}>
+        <HStack justify="between" align="center" gap={2} wrap="wrap">
+          <Text weight="semibold">Pratinjau</Text>
+          <HStack align="center" gap={1} wrap="wrap">
+            <div className="flex items-center gap-1 rounded-lg border border-border bg-muted px-1 py-1">
+              <Button label="−" variant="secondary" size="sm" onClick={() => setZoom((z) => Math.max(0.6, Number((z - 0.1).toFixed(2))))} />
+              <span className="min-w-[3rem] text-center font-mono text-xs">{Math.round(zoom * 100)}%</span>
+              <Button label="+" variant="secondary" size="sm" onClick={() => setZoom((z) => Math.min(1.6, Number((z + 0.1).toFixed(2))))} />
+            </div>
+            <Button label="Cetak" variant="secondary" size="sm" isDisabled={status !== "ready"} onClick={handlePrint} />
+            <Button label="Unduh" variant="primary" size="sm" isDisabled={status !== "ready" || !blob} onClick={handleDownload} />
+          </HStack>
+        </HStack>
+      </Panel>
 
       {status === "error" && error && <Banner status="error">{error}</Banner>}
       {status === "ready" && <Text type="supporting">Yang tampil di sini sama persis dengan file yang diunduh.</Text>}
@@ -169,6 +173,6 @@ export function DocxPreview({
         </div>
         {status === "loading" && <div className="pointer-events-none fixed inset-0 grid place-items-center bg-black/10 text-sm font-medium text-white">Memuat pratinjau…</div>}
       </div>
-    </div>
+    </VStack>
   );
 }
