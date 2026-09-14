@@ -165,12 +165,16 @@ export function RpsWizard() {
   // sekali di sini; setelah kunci ada, tidak diungkit lagi di langkah mana pun.
   if (identity.has_api_key === false) {
     return (
-      <Panel
-        title="Simpan API key Anda dulu"
-        description="Setiap penulis RPS memakai kunci AI miliknya sendiri, sehingga biaya dan kuota melekat pada pemakainya."
-      >
-        <Link to="/settings"><Button label="Buka Settings untuk menyimpan API key" variant="primary" size="sm" /></Link>
-      </Panel>
+      <VStack gap={3}>
+        <Banner status="warning" title="Simpan API key Anda dulu">
+          Setiap penulis RPS memakai kunci AI miliknya sendiri, sehingga biaya dan kuota melekat pada pemakainya.
+        </Banner>
+        <HStack>
+          <Link to="/settings">
+            <Button label="Buka Settings untuk menyimpan API key" variant="primary" size="sm" />
+          </Link>
+        </HStack>
+      </VStack>
     );
   }
 
