@@ -34,7 +34,10 @@ function RouterLink({ href, children, ...rest }: LinkLikeProps) {
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const isRpsDetail = pathname.startsWith("/rps/");
+  // Detail RPS berisi WeeklyTable 16 baris — butuh sedikit lebih lega
+  // supaya kolom nyaman dibaca. Halaman lain (Drafts, Settings, Admin, dan
+  // wizard `/rps/baru`) dibatasi lebih sempit supaya fokus terasa di tengah.
+  const isRpsDetail = /^\/rps\/[^/]+$/.test(pathname) && pathname !== "/rps/baru";
 
   // Sesi dipakai hanya untuk memilih tujuan tautan Admin. 401 adalah jawaban
   // yang sah ("belum login"), jadi jangan diperlakukan sebagai kegagalan.
@@ -89,7 +92,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <AstryxAppShell variant="elevated" topNav={topNav}>
-      <div className={isRpsDetail ? "box-border w-full min-w-0 px-3 py-4 xl:px-4" : "mx-auto box-border w-full min-w-0 max-w-5xl px-4 py-6"}>
+      <div className={isRpsDetail ? "mx-auto box-border w-full min-w-0 max-w-6xl px-4 py-6 xl:px-6" : "mx-auto box-border w-full min-w-0 max-w-4xl px-4 py-8 sm:px-6"}>
         <div className="min-w-0 w-full max-w-full">{children}</div>
         <div className="py-8 text-center">
           <Text type="supporting" color="secondary">

@@ -181,7 +181,7 @@ export function RpsWizard() {
   }
 
   return (
-    <VStack gap={4}>
+    <VStack gap={6}>
       <StepNav
         stepIndex={stepIndex}
         onStep={setStepIndex}
@@ -189,6 +189,7 @@ export function RpsWizard() {
       />
 
       <Panel
+        padding={5}
         title={`Langkah ${stepIndex + 1} dari ${STEP_IDS.length} — ${STEP_LABELS[stepId]}`}
         actions={
           issuesByStep[stepId].length === 0
@@ -196,7 +197,7 @@ export function RpsWizard() {
             : <Badge variant="warning">{`${issuesByStep[stepId].length} perlu diisi`}</Badge>
         }
       >
-        <VStack gap={4}>
+        <VStack gap={5}>
           {stepId === "identitas" && (
             <IdentityStep
               form={effectiveForm} patch={patch}
@@ -283,17 +284,15 @@ export function RpsWizard() {
 /**
  * Navigasi enam langkah wizard.
  *
- * Dulu kartu-kartu terpisah pakai `SelectableCard` — visualnya tak
- * menyampaikan urutan progres. Sekarang memakai `Stepper` Astryx: satu rel
- * dengan indikator bernomor / centang, klik pindah langkah, status per langkah
- * mencerminkan apakah bagian itu masih punya isian yang belum lengkap.
+ * Memakai `Stepper` + `Step` Astryx: satu rel dengan indikator bernomor /
+ * centang, klik pindah langkah. Status per langkah:
+ * - `success` bila lengkap (indikator hijau + centang)
+ * - `warning` bila belum lengkap dan bukan langkah aktif (kuning)
+ * - undefined pada langkah aktif → indikator "current" bawaan Astryx
  *
- * Status dipetakan sebagai berikut:
- * - `success` bila langkah lengkap.
- * - `warning` bila belum lengkap tapi *bukan* langkah aktif — supaya user
- *   melihat langkah mana yang masih menuntut perhatian tanpa membuat langkah
- *   yang sedang dikerjakan tampak salah.
- * - undefined pada langkah aktif → memakai indikator "current" bawaan Astryx.
+ * Density `compact` dan tanpa `description` per-step supaya baris ini tetap
+ * ramping — jumlah isian yang perlu diisi sudah muncul di badge kanan atas
+ * kartu langkah aktif, jadi tak perlu diulang di bawah setiap label.
  */
 function StepNav({
   stepIndex, onStep, issuesByStep,
@@ -303,23 +302,19 @@ function StepNav({
       activeStep={stepIndex}
       onStepClick={onStep}
       label="Enam langkah pembuatan RPS"
+      density="compact"
     >
       {STEP_IDS.map((id, i) => {
-        const issues = issuesByStep[id];
-        const done = issues.length === 0;
+        const done = issuesByStep[id].length === 0;
         const isActive = i === stepIndex;
         const status = done
           ? ("success" as const)
           : (!isActive ? ("warning" as const) : undefined);
-        const description = done
-          ? undefined
-          : `${issues.length} isian perlu dilengkapi`;
         return (
           <Step
             key={id}
             step={i}
             label={STEP_LABELS[id]}
-            description={description}
             status={status}
           />
         );
@@ -343,7 +338,7 @@ function IdentityStep({
 
   return (
     <VStack gap={4}>
-      <Grid columns={2} gap={3}>
+      <Grid columns={2} gap={4}>
         <TextInput label="Nama mata kuliah" value={form.course_name} onChange={(v) => patch({ course_name: v })} placeholder="Algoritma dan Struktur Data" />
         <TextInput label="Kode mata kuliah" value={form.course_code} onChange={(v) => patch({ course_code: v })} placeholder="IK24IK1201" />
         <Selector label="Fakultas" value={form.faculty} onChange={onFacultyChange} options={[{ value: "", label: "— pilih fakultas —" }, ...facultyOptions]} />
@@ -354,10 +349,10 @@ function IdentityStep({
           options={[{ value: "", label: "— pilih program studi —" }, ...prodiOptions]}
         />
         <Selector label="Semester" value={form.semester} onChange={(v) => patch({ semester: v })} options={[{ value: "", label: "— pilih semester —" }, ...SEMESTER_OPTIONS]} />
-        <TextInput label="Rumpun mata kuliah" value={form.course_cluster} onChange={(v) => patch({ course_cluster: v })} description="Kosongkan untuk memakai nama program studi" />
+        <TextInput label="Rumpun mata kuliah" value={form.course_cluster} onChange={(v) => patch({ course_cluster: v })} placeholder="Kosongkan bila sama dengan prodi" />
       </Grid>
 
-      <HStack gap={3} align="end">
+      <HStack gap={4} align="end">
         <NumberField label="SKS Teori" value={form.sks_theory} onChange={(n) => patch({ sks_theory: n })} />
         <NumberField label="SKS Praktik" value={form.sks_practice} onChange={(n) => patch({ sks_practice: n })} />
         <Text type="supporting">Total {sksTotal} SKS</Text>
@@ -370,11 +365,8 @@ function IdentityStep({
         format="system_date"
       />
 
-      <VStack gap={2}>
+      <VStack gap={3}>
         <Heading level={4}>Dosen pengampu</Heading>
-        <Text type="supporting">
-          Wajib ada satu Koordinator MK. Nama dan peran tercetak di kolom Otorisasi dokumen.
-        </Text>
         <VStack gap={3}>
           {form.lecturers.map((l, i) => (
             <Panel key={`lecturer-${i}-${l.nidn}`} padding={3}>
