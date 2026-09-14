@@ -7,6 +7,31 @@ import { TopNavHeading } from "@astryxdesign/core/TopNav";
 import { Text } from "@astryxdesign/core/Text";
 import { ADMIN_SESSION_KEY, fetchAdminSession } from "@/lib/admin";
 
+/**
+ * Komponen yang dioper ke prop `as` milik TopNav agar navigasi memakai
+ * TanStack Router (SPA), bukan `<a>` bawaan yang melakukan full reload.
+ *
+ * Dideklarasikan sebagai konstanta modul, bukan arrow function inline di
+ * dalam render — kalau tidak, TopNav akan menganggap komponennya berubah tiap
+ * render dan remount elemen link, kehilangan state fokus.
+ */
+type LinkLikeProps = {
+  href: string;
+  children: React.ReactNode;
+  className?: string;
+  style?: React.CSSProperties;
+  target?: string;
+  rel?: string;
+};
+
+function RouterLink({ href, children, ...rest }: LinkLikeProps) {
+  return (
+    <Link to={href as "/"} {...rest}>
+      {children}
+    </Link>
+  );
+}
+
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const isRpsDetail = pathname.startsWith("/rps/");
@@ -22,22 +47,48 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const isLoggedIn = !!session.data;
   const adminHref = isLoggedIn ? "/admin" : "/admin/login";
 
-  return (
-    <AstryxAppShell
-      variant="elevated"
-      topNav={
-        <TopNav
-          heading={<TopNavHeading> <Link to="/" style={{ color: "inherit", textDecoration: "none", fontWeight: 600 }}>RPS OBE Generator</Link></TopNavHeading>}
-          endContent={
-            <>
-              <TopNavItem label="Drafts" href="/" isSelected={pathname === "/"} as={({ href, children: c, ...p }) => <Link to={href as "/"} {...p}>{c}</Link>} />
-              <TopNavItem label="Settings" href="/settings" isSelected={pathname === "/settings"} as={({ href, children: c, ...p }) => <Link to={href as "/settings"} {...p}>{c}</Link>} />
-              <TopNavItem label="Admin" href={adminHref} isSelected={pathname.startsWith("/admin")} as={({ href, children: c, ...p }) => <Link to={href as "/admin"} {...p}>{c}</Link>} />
-            </>
-          }
+  // TopNavHeading Astryx memakai prop `heading` + `headingHref` + `as` untuk
+  // membangun judul aplikasi. Pola ini dianjurkan dokumentasi karena
+  // menyerahkan penataan (font, tinggi baris) ke sistem tema, sementara `as`
+  // memastikan klik pada judul tetap dirouting oleh SPA.
+  const topNav = (
+    <TopNav
+      label="Navigasi utama"
+      heading={
+        <TopNavHeading
+          heading="RPS OBE Generator"
+          headingHref="/"
+          subheading="Universitas Megarezky"
+          as={RouterLink}
         />
       }
-    >
+      endContent={
+        <>
+          <TopNavItem
+            label="Drafts"
+            href="/"
+            isSelected={pathname === "/"}
+            as={RouterLink}
+          />
+          <TopNavItem
+            label="Settings"
+            href="/settings"
+            isSelected={pathname === "/settings"}
+            as={RouterLink}
+          />
+          <TopNavItem
+            label="Admin"
+            href={adminHref}
+            isSelected={pathname.startsWith("/admin")}
+            as={RouterLink}
+          />
+        </>
+      }
+    />
+  );
+
+  return (
+    <AstryxAppShell variant="elevated" topNav={topNav}>
       <div className={isRpsDetail ? "box-border w-full min-w-0 px-3 py-4 xl:px-4" : "mx-auto box-border w-full min-w-0 max-w-5xl px-4 py-6"}>
         <div className="min-w-0 w-full max-w-full">{children}</div>
         <div className="py-8 text-center">

@@ -14,6 +14,8 @@ import { List } from "@astryxdesign/core/List";
 import { ListItem } from "@astryxdesign/core/List";
 import { Link as AstryxLink } from "@astryxdesign/core/Link";
 import { SelectableCard } from "@astryxdesign/core/SelectableCard";
+import { Stepper } from "@astryxdesign/core/Stepper";
+import { Step } from "@astryxdesign/core/Stepper";
 import type { ISODateString } from "@astryxdesign/core/Calendar";
 import { api, ApiError, type ApiOk } from "@/lib/api";
 import {
@@ -278,34 +280,51 @@ export function RpsWizard() {
  * dinyatakan lewat token warna resmi (aksen, sukses) alih-alih kelas Tailwind
  * yang harus dijaga sinkron dengan tema.
  */
+/**
+ * Navigasi enam langkah wizard.
+ *
+ * Dulu kartu-kartu terpisah pakai `SelectableCard` — visualnya tak
+ * menyampaikan urutan progres. Sekarang memakai `Stepper` Astryx: satu rel
+ * dengan indikator bernomor / centang, klik pindah langkah, status per langkah
+ * mencerminkan apakah bagian itu masih punya isian yang belum lengkap.
+ *
+ * Status dipetakan sebagai berikut:
+ * - `success` bila langkah lengkap.
+ * - `warning` bila belum lengkap tapi *bukan* langkah aktif — supaya user
+ *   melihat langkah mana yang masih menuntut perhatian tanpa membuat langkah
+ *   yang sedang dikerjakan tampak salah.
+ * - undefined pada langkah aktif → memakai indikator "current" bawaan Astryx.
+ */
 function StepNav({
   stepIndex, onStep, issuesByStep,
 }: { stepIndex: number; onStep: (i: number) => void; issuesByStep: Record<StepId, string[]> }) {
   return (
-    <Panel padding={3}>
-      <HStack gap={2} wrap="wrap">
-        {STEP_IDS.map((id, i) => {
-          const done = issuesByStep[id].length === 0;
-          const active = i === stepIndex;
-          return (
-            <SelectableCard
-              key={id}
-              label={`Langkah ${i + 1}: ${STEP_LABELS[id]}${done ? " (lengkap)" : ""}`}
-              isSelected={active}
-              onChange={() => onStep(i)}
-              padding={2}
-            >
-              <HStack gap={2} align="center">
-                <Badge variant={done ? "success" : "default"}>
-                  {done ? "✓" : String(i + 1)}
-                </Badge>
-                <Text weight={active ? "semibold" : undefined}>{STEP_LABELS[id]}</Text>
-              </HStack>
-            </SelectableCard>
-          );
-        })}
-      </HStack>
-    </Panel>
+    <Stepper
+      activeStep={stepIndex}
+      onStepClick={onStep}
+      label="Enam langkah pembuatan RPS"
+    >
+      {STEP_IDS.map((id, i) => {
+        const issues = issuesByStep[id];
+        const done = issues.length === 0;
+        const isActive = i === stepIndex;
+        const status = done
+          ? ("success" as const)
+          : (!isActive ? ("warning" as const) : undefined);
+        const description = done
+          ? undefined
+          : `${issues.length} isian perlu dilengkapi`;
+        return (
+          <Step
+            key={id}
+            step={i}
+            label={STEP_LABELS[id]}
+            description={description}
+            status={status}
+          />
+        );
+      })}
+    </Stepper>
   );
 }
 
